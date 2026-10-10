@@ -1,30 +1,59 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
+import 'package:no5ocial/data/repositories/account_repository.dart';
+import 'package:no5ocial/data/repositories/audit_repository.dart';
+import 'package:no5ocial/data/repositories/brand_repository.dart';
+import 'package:no5ocial/data/repositories/job_repository.dart';
+import 'package:no5ocial/data/repositories/post_repository.dart';
+import 'package:no5ocial/domain/adapters/fake_publishing_adapter.dart';
 import 'package:no5ocial/main.dart';
+import 'package:no5ocial/presentation/state/app_state.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  testWidgets('No5ocial App Smoke Test — Renders Home and Navigation', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1080, 1920);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    final appState = AppState(
+      brandRepository: InMemoryBrandRepository(),
+      accountRepository: InMemoryAccountRepository(),
+      postRepository: InMemoryPostRepository(),
+      jobRepository: InMemoryJobRepository(),
+      auditRepository: InMemoryAuditRepository(),
+      publishingAdapter: const FakePublishingAdapter(),
+    );
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    await tester.pumpWidget(No5ocialApp(appState: appState));
+    await tester.pumpAndSettle();
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    // Verify main app title
+    expect(find.text('No5ocial Operations Console'), findsOneWidget);
+
+    // Verify operational metrics cards
+    expect(find.text('Drafts'), findsOneWidget);
+    expect(find.text('Scheduled'), findsOneWidget);
+    expect(find.text('Published'), findsOneWidget);
+
+    // Navigate to Content Library
+    await tester.tap(find.byIcon(Icons.folder_outlined));
+    await tester.pumpAndSettle();
+    expect(find.text('Content Library'), findsOneWidget);
+
+    // Navigate to Calendar
+    await tester.tap(find.byIcon(Icons.calendar_month_outlined));
+    await tester.pumpAndSettle();
+    expect(find.text('Publishing Calendar'), findsOneWidget);
+
+    // Navigate to Accounts
+    await tester.tap(find.byIcon(Icons.group_outlined));
+    await tester.pumpAndSettle();
+    expect(find.text('Brands & Connected Accounts'), findsOneWidget);
+    expect(find.text('Shaadow'), findsWidgets);
+
+    // Navigate to Settings
+    await tester.tap(find.byIcon(Icons.settings_outlined));
+    await tester.pumpAndSettle();
+    expect(find.text('System Settings & Diagnostics'), findsOneWidget);
   });
 }
