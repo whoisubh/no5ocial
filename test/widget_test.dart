@@ -27,33 +27,33 @@ void main() {
     await tester.pumpWidget(No5ocialApp(appState: appState));
     await tester.pumpAndSettle();
 
-    // Verify main app title
-    expect(find.text('No5ocial Operations Console'), findsOneWidget);
+    // Verify main console title in desktop top bar
+    expect(find.text('Publishing Operations Console'), findsOneWidget);
 
     // Verify operational metrics cards
     expect(find.text('Drafts'), findsOneWidget);
     expect(find.text('Scheduled'), findsOneWidget);
     expect(find.text('Published'), findsOneWidget);
 
-    // Navigate to Content Library
+    // Navigate to Content Library via desktop sidebar
     await tester.tap(find.byIcon(Icons.folder_outlined));
     await tester.pumpAndSettle();
-    expect(find.text('Content Library'), findsOneWidget);
+    expect(find.text('Multi-Platform Content Library'), findsOneWidget);
 
     // Navigate to Calendar
     await tester.tap(find.byIcon(Icons.calendar_month_outlined));
     await tester.pumpAndSettle();
-    expect(find.text('Publishing Calendar'), findsOneWidget);
+    expect(find.text('Scheduled Editorial Calendar'), findsOneWidget);
 
     // Navigate to Accounts
-    await tester.tap(find.byIcon(Icons.group_outlined));
+    await tester.tap(find.byIcon(Icons.supervised_user_circle_outlined));
     await tester.pumpAndSettle();
-    expect(find.text('Brands & Connected Accounts'), findsOneWidget);
+    expect(find.text('Brand & Channel Registry'), findsOneWidget);
     expect(find.text('Shaadow'), findsWidgets);
 
     // Navigate to Settings
-    await tester.tap(find.byIcon(Icons.settings_outlined));
+    await tester.tap(find.byIcon(Icons.tune_outlined));
     await tester.pumpAndSettle();
-    expect(find.text('System Settings & Diagnostics'), findsOneWidget);
+    expect(find.text('System Configuration & Security Audit'), findsOneWidget);
   });
 }

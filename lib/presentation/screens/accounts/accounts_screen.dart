@@ -131,66 +131,164 @@ class AccountsScreen extends StatelessWidget {
       listenable: appState,
       builder: (context, _) {
         final brands = appState.brands;
+        final screenWidth = MediaQuery.of(context).size.width;
+        final isDesktop = screenWidth >= 860;
 
         return Scaffold(
-          appBar: AppBar(
-            title: const Text('Brands & Connected Accounts'),
-          ),
-          body: ListView.separated(
-            padding: const EdgeInsets.all(16),
-            itemCount: brands.length,
-            separatorBuilder: (_, _) => const SizedBox(height: 16),
-            itemBuilder: (ctx, index) {
-              final brand = brands[index];
-              final brandAccounts = appState.accounts.where((a) => a.brandId == brand.id).toList();
-
-              return Material(
-                color: AppColors.surface,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  side: const BorderSide(color: AppColors.border),
+          appBar: isDesktop
+              ? null
+              : AppBar(
+                  leading: Padding(
+                    padding: const EdgeInsets.only(left: 14),
+                    child: Image.asset(
+                      'assets/logo/no5ocial_N.png',
+                      height: 26,
+                      errorBuilder: (_, _, _) => const Icon(Icons.hub),
+                    ),
+                  ),
+                  title: const Text('Brand & Channel Registry'),
                 ),
-                clipBehavior: Clip.antiAlias,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          body: ListView(
+            padding: EdgeInsets.symmetric(
+              horizontal: isDesktop ? 32 : 16,
+              vertical: 20,
+            ),
+            children: [
+              // Hero channel status card
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  gradient: AppColors.heroGradient,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.darkCardBorder),
+                  boxShadow: AppColors.cardShadow,
+                ),
+                child: Row(
                   children: [
-                    // Brand header
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: const BoxDecoration(
-                        color: AppColors.surfaceSecondary,
-                        borderRadius: BorderRadius.vertical(top: Radius.circular(11)),
-                        border: Border(bottom: BorderSide(color: AppColors.borderLight)),
-                      ),
-                      child: Row(
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Container(
-                            width: 8,
-                            height: 8,
-                            decoration: const BoxDecoration(
-                              color: AppColors.accent,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(brand.name, style: AppTypography.titleMedium),
-                          const SizedBox(width: 8),
-                          if (brand.description != null)
-                            Expanded(
-                              child: Text(
-                                brand.description!,
-                                style: AppTypography.bodySecondary.copyWith(fontSize: 11),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
+                          Row(
+                            children: [
+                              Image.asset(
+                                'assets/logo/no5ocial_white.png',
+                                height: 26,
+                                fit: BoxFit.contain,
+                                errorBuilder: (_, _, _) => const Text(
+                                  'No5ocial Channels',
+                                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                ),
                               ),
-                            ),
-                          Text(
-                            '${brandAccounts.length} accounts',
-                            style: AppTypography.labelSmall.copyWith(color: AppColors.textMuted),
+                              const SizedBox(width: 10),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: AppColors.success.withValues(alpha: 0.2),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: AppColors.success.withValues(alpha: 0.4)),
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.check_circle, size: 11, color: AppColors.success),
+                                    SizedBox(width: 4),
+                                    Text(
+                                      'Active Registry',
+                                      style: TextStyle(
+                                        color: AppColors.success,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Configurable brand identity matrix. Each destination enforces individual preflight checks, platform quotas, and manual handoffs.',
+                            style: TextStyle(color: Color(0xFFD1D5DB), fontSize: 13),
                           ),
                         ],
                       ),
                     ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Brand Cards List
+              ...brands.map((brand) {
+                final brandAccounts = appState.accounts.where((a) => a.brandId == brand.id).toList();
+
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: AppColors.border),
+                    boxShadow: AppColors.cardShadow,
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Brand header
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        decoration: const BoxDecoration(
+                          color: AppColors.surfaceSecondary,
+                          border: Border(bottom: BorderSide(color: AppColors.borderLight)),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 10,
+                              height: 10,
+                              decoration: const BoxDecoration(
+                                color: AppColors.accent,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Text(
+                              brand.name,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            if (brand.description != null)
+                              Expanded(
+                                child: Text(
+                                  brand.description!,
+                                  style: AppTypography.bodySecondary.copyWith(fontSize: 11),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: AppColors.surfaceMuted,
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                '${brandAccounts.length} profiles',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
 
                     // Accounts list
                     if (brandAccounts.isEmpty)
@@ -241,12 +339,13 @@ class AccountsScreen extends StatelessWidget {
                   ],
                 ),
               );
-            },
-          ),
-        );
-      },
-    );
-  }
+            }),
+          ],
+        ),
+      );
+    },
+  );
+}
 
   Widget _buildConnectionChip(ConnectionStatus status, bool isManual) {
     if (isManual) {

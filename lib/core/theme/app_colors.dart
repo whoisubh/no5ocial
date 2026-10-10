@@ -50,4 +50,51 @@ abstract final class AppColors {
   static const Color linkedinBg = Color(0xFFEFF6FC);
   static const Color x = Color(0xFF0F1419);
   static const Color xBg = Color(0xFFF2F4F6);
+
+  // Executive Dark Cards & Highlights
+  static const Color darkCard = Color(0xFF0C1017);
+  static const Color darkCardSurface = Color(0xFF161E2E);
+  static const Color darkCardBorder = Color(0xFF27354A);
+
+  // Ambient Shadows
+  static const List<BoxShadow> cardShadow = [
+    BoxShadow(
+      color: Color(0x08000000),
+      blurRadius: 12,
+      offset: Offset(0, 4),
+    ),
+    BoxShadow(
+      color: Color(0x04000000),
+      blurRadius: 2,
+      offset: Offset(0, 1),
+    ),
+  ];
+
+  static const List<BoxShadow> glowShadow = [
+    BoxShadow(
+      color: Color(0x1F3659D9),
+      blurRadius: 16,
+      offset: Offset(0, 4),
+    ),
+  ];
+
+  // Gradients
+  static const LinearGradient heroGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [
+      Color(0xFF0D1117),
+      Color(0xFF161E2E),
+      Color(0xFF1F293D),
+    ],
+  );
+
+  static const LinearGradient accentGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [
+      Color(0xFF3659D9),
+      Color(0xFF4F70ED),
+    ],
+  );
 }

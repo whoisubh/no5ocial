@@ -119,33 +119,62 @@ class SettingsScreen extends StatelessWidget {
             children: [
               // Operational Console Profile
               Container(
-                padding: const EdgeInsets.all(14),
+                padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.border),
+                  gradient: AppColors.heroGradient,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppColors.darkCardBorder),
+                  boxShadow: AppColors.cardShadow,
                 ),
                 child: Row(
                   children: [
-                    CircleAvatar(
-                      radius: 20,
-                      backgroundColor: AppColors.ink,
-                      child: const Text('S', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.asset(
+                        'assets/logo/no5ocial_N.png',
+                        width: 44,
+                        height: 44,
+                        errorBuilder: (_, _, _) => Container(
+                          width: 44,
+                          height: 44,
+                          color: AppColors.ink,
+                          child: const Center(
+                            child: Text(
+                              'N',
+                              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 14),
                     const Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Shaadow Internal Operator', style: AppTypography.titleMedium),
-                          Text('No5ocial v1.0.0-beta • Zero-Seat-Cost Engine', style: AppTypography.bodySecondary),
+                          Text(
+                            'Shaadow Publishing Lead',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            'No5ocial Studio • Secure Token Vault Architecture',
+                            style: TextStyle(
+                              color: Color(0xFF9CA3AF),
+                              fontSize: 12,
+                            ),
+                          ),
                         ],
                       ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 20),
 
               _buildSectionTitle('Preferences & Timezone'),
               InkWell(
