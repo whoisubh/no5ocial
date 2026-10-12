@@ -17,3 +17,6 @@ flutter config --no-analytics
 flutter config --enable-web
 flutter pub get
 flutter build web --release
+
+# Ensure static assets, sitemap, robots, and verification files are copied to build/web
+cp -rf web/* build/web/ 2>/dev/null || true
