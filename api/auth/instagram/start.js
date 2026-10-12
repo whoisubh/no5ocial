@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 
 module.exports = async function handler(req, res) {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
   try {
     const brandId = req.query.brandId || '';
     const returnUrl = req.query.returnUrl || '/accounts';
