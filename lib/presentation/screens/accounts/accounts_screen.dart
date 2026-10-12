@@ -980,7 +980,12 @@ class _AccountsScreenState extends State<AccountsScreen> {
         children: [
           PlatformLogo(platform: platform, size: 22),
           const SizedBox(width: 10),
-          Text('Integrate ${platform.displayName} ${subtype.name}'),
+          Expanded(
+            child: Text(
+              'Integrate ${platform.displayName} ${subtype.name}',
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
         ],
       ),
       builder: (authCtx, setAuthState) {
@@ -1148,15 +1153,34 @@ class _AccountsScreenState extends State<AccountsScreen> {
               ),
               const SizedBox(height: 8),
               OutlinedButton.icon(
-                onPressed: () async {
-                  final brandId = widget.appState.brands.isNotEmpty
-                      ? widget.appState.brands.first.id
-                      : 'default';
-                  await YouTubeService.instance.launchOAuthConnection(
-                    brandId: brandId,
-                    returnUrl: '/accounts',
-                  );
-                },
+                onPressed: isSubmitting
+                    ? null
+                    : () async {
+                        setAuthState(() => isSubmitting = true);
+                        try {
+                          final brandId = widget.appState.brands.isNotEmpty
+                              ? widget.appState.brands.first.id
+                              : 'default';
+                          final launched = await YouTubeService.instance.launchOAuthConnection(
+                            brandId: brandId,
+                            returnUrl: '/accounts',
+                          );
+                          if (!launched && authCtx.mounted) {
+                            ScaffoldMessenger.of(authCtx).showSnackBar(
+                              const SnackBar(
+                                content: Text('Could not open web browser for YouTube OAuth.'),
+                                backgroundColor: AppColors.error,
+                              ),
+                            );
+                          }
+                        } catch (e, st) {
+                          if (authCtx.mounted) {
+                            AppErrorHandler.showError(authCtx, e, stackTrace: st);
+                          }
+                        } finally {
+                          if (authCtx.mounted) setAuthState(() => isSubmitting = false);
+                        }
+                      },
                 icon: const Icon(Icons.open_in_browser, size: 18),
                 label: const Text('Sign in via Browser (Web OAuth)'),
                 style: OutlinedButton.styleFrom(
@@ -1239,7 +1263,12 @@ class _AccountsScreenState extends State<AccountsScreen> {
         children: [
           const Icon(Icons.folder_rounded, color: AppColors.accent),
           const SizedBox(width: 8),
-          Text(existingGroup == null ? 'Create Channel Group' : 'Edit Channel Group'),
+          Expanded(
+            child: Text(
+              existingGroup == null ? 'Create Channel Group' : 'Edit Channel Group',
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
         ],
       ),
       builder: (ctx, setDialogState) {

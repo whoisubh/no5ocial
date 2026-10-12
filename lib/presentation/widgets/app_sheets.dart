@@ -440,7 +440,9 @@ class AppSheets {
       return showModalBottomSheet<T>(
         context: context,
         isScrollControlled: true,
+        useSafeArea: true,
         backgroundColor: Colors.transparent,
+        elevation: 0,
         builder: (bottomSheetCtx) => StatefulBuilder(
           builder: (ctx, setSheetState) {
             final bottomInset = MediaQuery.of(ctx).viewInsets.bottom;
@@ -453,54 +455,61 @@ class AppSheets {
                 borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
               ),
               padding: EdgeInsets.only(bottom: bottomInset),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Native Drag Handle
-                  Center(
-                    child: Container(
-                      width: 38,
-                      height: 4,
-                      margin: const EdgeInsets.only(top: 10, bottom: 8),
-                      decoration: BoxDecoration(
-                        color: AppColors.border,
-                        borderRadius: BorderRadius.circular(2),
+              child: Material(
+                color: Colors.transparent,
+                child: SafeArea(
+                  top: false,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Native Drag Handle
+                      Center(
+                        child: Container(
+                          width: 38,
+                          height: 4,
+                          margin: const EdgeInsets.only(top: 10, bottom: 8),
+                          decoration: BoxDecoration(
+                            color: AppColors.border,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                  // Header
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                    child: Row(
-                      children: [
-                        Expanded(child: title),
-                        IconButton(
-                          icon: const Icon(Icons.close, size: 20),
-                          onPressed: () => Navigator.of(ctx).pop(),
+                      // Header
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                        child: Row(
+                          children: [
+                            Expanded(child: title),
+                            IconButton(
+                              icon: const Icon(Icons.close, size: 20),
+                              onPressed: () => Navigator.of(ctx).pop(),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Divider(height: 1),
+                      // Scrollable Content
+                      Flexible(
+                        fit: FlexFit.loose,
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                          child: builder(ctx, setSheetState),
+                        ),
+                      ),
+                      if (actionsBuilder != null) ...[
+                        const Divider(height: 1),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: actionsBuilder(ctx),
+                          ),
                         ),
                       ],
-                    ),
+                    ],
                   ),
-                  const Divider(height: 1),
-                  // Scrollable Content
-                  Flexible(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                      child: builder(ctx, setSheetState),
-                    ),
-                  ),
-                  if (actionsBuilder != null) ...[
-                    const Divider(height: 1),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: actionsBuilder(ctx),
-                      ),
-                    ),
-                  ],
-                ],
+                ),
               ),
             );
           },

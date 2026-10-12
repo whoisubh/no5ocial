@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:no5ocial/core/services/google_auth_service.dart';
@@ -45,14 +46,18 @@ class YouTubeService {
 
   /// Generates the server-side OAuth initialization URL for YouTube linking
   String getOAuthStartUrl({required String brandId, String returnUrl = '/accounts'}) {
-    return '/api/auth/google/start?brandId=${Uri.encodeComponent(brandId)}&returnUrl=${Uri.encodeComponent(returnUrl)}';
+    const baseUrl = kIsWeb ? '' : 'https://no5ocial.vercel.app';
+    return '$baseUrl/api/auth/google/start?brandId=${Uri.encodeComponent(brandId)}&returnUrl=${Uri.encodeComponent(returnUrl)}';
   }
 
   /// Launches the official server-side OAuth flow via Vercel backend
   Future<bool> launchOAuthConnection({required String brandId, String returnUrl = '/accounts'}) async {
     final startPath = getOAuthStartUrl(brandId: brandId, returnUrl: returnUrl);
     final uri = Uri.parse(startPath);
-    return await launchUrl(uri, mode: LaunchMode.platformDefault);
+    return await launchUrl(
+      uri,
+      mode: LaunchMode.externalApplication,
+    );
   }
 
   /// Fetches the authenticated user's YouTube channel via the official YouTube Data API v3.
