@@ -113,12 +113,44 @@ class no5ocialApp extends StatelessWidget {
           locale: appState.currentLocale,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          initialRoute: '/',
           onGenerateRoute: (settings) {
-            final routeName = settings.name ?? '/';
+            String routeName = settings.name ?? '/';
 
-            // 0. Default Root: Public Landing Page on Web, Splash on Native
-            if (routeName == '/' || routeName == '/landing') {
+            // On Web initial cold start, settings.name may be '/' while the browser has a deep link path
+            if (kIsWeb && routeName == '/') {
+              if (Uri.base.path.isNotEmpty && Uri.base.path != '/') {
+                routeName = Uri.base.path;
+              } else if (Uri.base.fragment.isNotEmpty) {
+                final frag = Uri.base.fragment;
+                routeName = frag.startsWith('/') ? frag : '/$frag';
+              }
+            }
+
+            final cleanRoute = routeName.split('?').first.replaceAll(RegExp(r'/+$'), '');
+            final normalized = cleanRoute.isEmpty ? '/' : cleanRoute;
+
+            // 0. Legal Pages (Accessible publicly anytime without authentication)
+            if (normalized == '/terms' || normalized == '/legal/terms' || normalized == '/legal') {
+              return MaterialPageRoute(
+                settings: const RouteSettings(name: '/legal/terms'),
+                builder: (_) => const TermsScreen(),
+              );
+            }
+            if (normalized == '/privacy' || normalized == '/legal/privacy') {
+              return MaterialPageRoute(
+                settings: const RouteSettings(name: '/legal/privacy'),
+                builder: (_) => const PrivacyScreen(),
+              );
+            }
+            if (normalized == '/disclaimer' || normalized == '/legal/disclaimer') {
+              return MaterialPageRoute(
+                settings: const RouteSettings(name: '/legal/disclaimer'),
+                builder: (_) => const DisclaimerScreen(),
+              );
+            }
+
+            // 1. Root & Public Landing Page
+            if (normalized == '/' || normalized == '/landing') {
               if (kIsWeb) {
                 return MaterialPageRoute(
                   settings: const RouteSettings(name: '/'),
@@ -126,103 +158,95 @@ class no5ocialApp extends StatelessWidget {
                 );
               }
               return MaterialPageRoute(
-                settings: settings,
+                settings: const RouteSettings(name: '/splash'),
                 builder: (_) => SplashScreen(appState: appState),
               );
             }
 
-            if (routeName == '/splash') {
+            // 2. Explicit Splash Screen
+            if (normalized == '/splash') {
               return MaterialPageRoute(
-                settings: settings,
+                settings: const RouteSettings(name: '/splash'),
                 builder: (_) => SplashScreen(appState: appState),
               );
             }
 
-            // 1. Authenticated Dashboard
-            if (routeName == '/dashboard') {
-              if (!appState.isLoggedIn) {
-                return MaterialPageRoute(
-                  settings: settings,
-                  builder: (_) => LoginScreen(appState: appState),
-                );
-              }
+            // 3. Explicit Login Screen
+            if (normalized == '/login') {
               return MaterialPageRoute(
-                settings: settings,
-                builder: (_) => MainScaffold(
-                  appState: appState,
-                  initialIndex: 0,
-                ),
+                settings: const RouteSettings(name: '/login'),
+                builder: (_) => LoginScreen(appState: appState),
               );
             }
 
-            // 2. Organization Onboarding
-            if (routeName == '/onboarding') {
+            // 4. Mobile Welcome Screen
+            if (normalized == '/welcome') {
               return MaterialPageRoute(
-                settings: settings,
-                builder: (ctx) => OnboardingScreen(
-                  appState: appState,
-                  onComplete: () {
-                    Navigator.of(ctx).pushReplacementNamed('/dashboard');
-                  },
-                ),
-              );
-            }
-
-            // 3. Mobile Welcome / Public Landing
-            if (routeName == '/welcome') {
-              return MaterialPageRoute(
-                settings: settings,
+                settings: const RouteSettings(name: '/welcome'),
                 builder: (_) => MobileWelcomeScreen(appState: appState),
               );
             }
 
-            if (routeName == '/landing') {
+            // 5. Dashboard Endpoints (Protected by Auth Guard)
+            if (normalized == '/dashboard' || normalized.startsWith('/dashboard/')) {
+              if (!appState.isLoggedIn) {
+                return MaterialPageRoute(
+                  settings: const RouteSettings(name: '/login'),
+                  builder: (_) => LoginScreen(appState: appState),
+                );
+              }
+
+              if (appState.brands.isEmpty) {
+                return MaterialPageRoute(
+                  settings: const RouteSettings(name: '/onboarding'),
+                  builder: (ctx) => OnboardingScreen(
+                    appState: appState,
+                    onComplete: () {
+                      Navigator.of(ctx).pushReplacementNamed('/dashboard');
+                    },
+                  ),
+                );
+              }
+
+              int tabIndex = 0;
+              switch (normalized) {
+                case '/dashboard':
+                case '/dashboard/queue':
+                  tabIndex = 0;
+                  break;
+                case '/dashboard/library':
+                  tabIndex = 1;
+                  break;
+                case '/dashboard/calendar':
+                  tabIndex = 2;
+                  break;
+                case '/dashboard/channels':
+                  tabIndex = 3;
+                  break;
+                case '/dashboard/settings':
+                  tabIndex = 4;
+                  break;
+                default:
+                  tabIndex = 0;
+              }
+
               return MaterialPageRoute(
-                settings: settings,
-                builder: (_) => LandingScreen(appState: appState),
+                settings: RouteSettings(name: normalized),
+                builder: (_) => MainScaffold(
+                  appState: appState,
+                  initialIndex: tabIndex,
+                ),
               );
             }
 
-            if (routeName == '/login') {
-              return MaterialPageRoute(
-                settings: settings,
-                builder: (_) => LoginScreen(appState: appState),
-              );
-            }
-
-            final cleanRoute = routeName.replaceAll(RegExp(r'/+$'), '');
-
-            // Legal Pages (supports both /legal/terms and /terms)
-            if (cleanRoute == '/terms' || cleanRoute == '/legal/terms' || cleanRoute == '/legal') {
-              return MaterialPageRoute(
-                settings: const RouteSettings(name: '/legal/terms'),
-                builder: (_) => const TermsScreen(),
-              );
-            }
-            if (cleanRoute == '/privacy' || cleanRoute == '/legal/privacy') {
-              return MaterialPageRoute(
-                settings: const RouteSettings(name: '/legal/privacy'),
-                builder: (_) => const PrivacyScreen(),
-              );
-            }
-            if (cleanRoute == '/disclaimer' || cleanRoute == '/legal/disclaimer') {
-              return MaterialPageRoute(
-                settings: const RouteSettings(name: '/legal/disclaimer'),
-                builder: (_) => const DisclaimerScreen(),
-              );
-            }
-
-            // 2. Auth Guard for Dashboard & Onboarding
-            // If user is not logged in, redirect strictly to LoginScreen
-            if (!appState.isLoggedIn) {
-              return MaterialPageRoute(
-                settings: settings,
-                builder: (_) => LoginScreen(appState: appState),
-              );
-            }
-
-            // 3. Mandatory Onboarding: If user has 0 registered companies, prompt onboarding
-            if (appState.brands.isEmpty || routeName == '/onboarding') {
+            // 6. Organization Onboarding
+            if (normalized == '/onboarding') {
+              if (!appState.isLoggedIn) {
+                return MaterialPageRoute(
+                  settings: const RouteSettings(name: '/login'),
+                  builder: (_) => LoginScreen(appState: appState),
+                );
+              }
               return MaterialPageRoute(
                 settings: const RouteSettings(name: '/onboarding'),
                 builder: (ctx) => OnboardingScreen(
@@ -234,35 +258,16 @@ class no5ocialApp extends StatelessWidget {
               );
             }
 
-            // 4. Dashboard Endpoints
-            int tabIndex = 0;
-            switch (routeName) {
-              case '/dashboard':
-              case '/dashboard/queue':
-                tabIndex = 0;
-                break;
-              case '/dashboard/library':
-                tabIndex = 1;
-                break;
-              case '/dashboard/calendar':
-                tabIndex = 2;
-                break;
-              case '/dashboard/channels':
-                tabIndex = 3;
-                break;
-              case '/dashboard/settings':
-                tabIndex = 4;
-                break;
-              default:
-                tabIndex = 0;
+            // 7. Unknown / Fallback Route (Public landing on web, splash on native)
+            if (kIsWeb) {
+              return MaterialPageRoute(
+                settings: const RouteSettings(name: '/'),
+                builder: (_) => LandingScreen(appState: appState),
+              );
             }
-
             return MaterialPageRoute(
-              settings: settings,
-              builder: (_) => MainScaffold(
-                appState: appState,
-                initialIndex: tabIndex,
-              ),
+              settings: const RouteSettings(name: '/splash'),
+              builder: (_) => SplashScreen(appState: appState),
             );
           },
         );
