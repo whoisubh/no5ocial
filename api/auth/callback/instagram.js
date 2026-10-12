@@ -103,6 +103,25 @@ module.exports = async function handler(req, res) {
     });
 
     let tokenData = await tokenRes.json();
+    let fbTokenData = null;
+
+    // If api.instagram.com rejects the code, attempt token exchange via Meta Graph API v21.0
+    if (!tokenRes.ok || tokenData.error_type || tokenData.error) {
+      try {
+        const fbRes = await fetch('https://graph.facebook.com/v21.0/oauth/access_token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: tokenFormData.toString(),
+        });
+        fbTokenData = await fbRes.json();
+        if (fbRes.ok && fbTokenData.access_token) {
+          tokenRes = fbRes;
+          tokenData = fbTokenData;
+        }
+      } catch (fbErr) {
+        console.warn('[Meta Graph Token Exchange Warning]', fbErr.message);
+      }
+    }
 
     if (!tokenRes.ok || tokenData.error_type || tokenData.error) {
       console.error('[Instagram Token Exchange Error]', tokenData);
@@ -115,13 +134,14 @@ module.exports = async function handler(req, res) {
         debugDetails: JSON.stringify({
           redirect_uri_sent: redirectUri,
           client_id: appId,
-          meta_response: tokenData,
+          api_instagram_response: tokenData,
+          graph_facebook_response: fbTokenData,
         }, null, 2),
       }));
     }
 
     const shortLivedToken = tokenData.access_token;
-    const igUserId = tokenData.user_id;
+    let igUserId = tokenData.user_id;
 
     // 2. Exchange short-lived token for long-lived 60-day token
     let longLivedToken = shortLivedToken;
@@ -149,6 +169,7 @@ module.exports = async function handler(req, res) {
       const profileRes = await fetch(profileUrl);
       if (profileRes.ok) {
         const profileData = await profileRes.json();
+        igUserId = profileData.user_id || profileData.id || igUserId;
         username = profileData.username || username;
         name = profileData.name || profileData.username || name;
         avatarUrl = profileData.profile_picture_url || '';
@@ -156,6 +177,27 @@ module.exports = async function handler(req, res) {
       }
     } catch (e) {
       console.warn('[Instagram Profile Fetch Warning]', e.message);
+    }
+
+    // If profile not resolved via graph.instagram.com, query graph.facebook.com accounts
+    if (username === 'instagram_creator') {
+      try {
+        const fbAccountsUrl = `https://graph.facebook.com/v21.0/me/accounts?fields=id,name,instagram_business_account{id,username,name,profile_picture_url}&access_token=${encodeURIComponent(longLivedToken)}`;
+        const fbAccRes = await fetch(fbAccountsUrl);
+        if (fbAccRes.ok) {
+          const fbAccData = await fbAccRes.json();
+          const page = fbAccData.data?.find(p => p.instagram_business_account);
+          if (page && page.instagram_business_account) {
+            const ig = page.instagram_business_account;
+            igUserId = ig.id || igUserId;
+            username = ig.username || username;
+            name = ig.name || username;
+            avatarUrl = ig.profile_picture_url || '';
+          }
+        }
+      } catch (e) {
+        console.warn('[Meta Facebook Accounts Fetch Warning]', e.message);
+      }
     }
 
     const channelPayload = {
