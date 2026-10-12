@@ -10,7 +10,7 @@ module.exports = async function handler(req, res) {
       process.env.INSTAGRAM_APP_ID ||
       process.env.META_APP_ID ||
       process.env.FACEBOOK_APP_ID ||
-      '';
+      '1406614248351632';
 
     let host = req.headers['x-forwarded-host'] || req.headers.host || 'no5ocial.vercel.app';
     const proto = req.headers['x-forwarded-proto'] || (host.includes('localhost') ? 'http' : 'https');

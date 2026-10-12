@@ -56,7 +56,8 @@ module.exports = async function handler(req, res) {
     const appId =
       process.env.INSTAGRAM_APP_ID ||
       process.env.META_APP_ID ||
-      process.env.FACEBOOK_APP_ID;
+      process.env.FACEBOOK_APP_ID ||
+      '1406614248351632';
     const appSecret =
       process.env.INSTAGRAM_APP_SECRET ||
       process.env.META_APP_SECRET;
