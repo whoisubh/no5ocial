@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -223,14 +224,35 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                       const SizedBox(height: 6),
-                      Text(
-                        'Add http://localhost:5003 to Authorized JavaScript Origins in Google Cloud Console.',
+                      SelectableText(
+                        kIsWeb
+                            ? 'Add ${Uri.base.origin} to Authorized JavaScript Origins and Authorized redirect URIs in Google Cloud Console.'
+                            : 'Add your package name and SHA-1 certificate fingerprint in Google Cloud Console.',
                         style: GoogleFonts.firaCode(
                           color: const Color(0xFF94A3B8),
                           fontSize: 11,
                           height: 1.4,
                         ),
                       ),
+                      if (errorDetail.isNotEmpty) ...[
+                        const SizedBox(height: 10),
+                        Text(
+                          'Reported Error:',
+                          style: GoogleFonts.plusJakartaSans(
+                            color: const Color(0xFFF87171),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        SelectableText(
+                          errorDetail,
+                          style: GoogleFonts.firaCode(
+                            color: const Color(0xFFE2E8F0),
+                            fontSize: 10,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
