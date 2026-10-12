@@ -1,5 +1,5 @@
 {
-  "buildCommand": "cp -n .env.example .env 2>/dev/null || true; cp -n .env.example .env.dev 2>/dev/null || true; cp -n .env.example .env.prod 2>/dev/null || true; if [ ! -d \"flutter\" ]; then git clone https://github.com/flutter/flutter.git --depth 1 -b stable flutter; fi && ./flutter/bin/flutter config --enable-web && ./flutter/bin/flutter build web --release",
+  "buildCommand": "bash vercel-build.sh",
   "outputDirectory": "build/web",
   "rewrites": [
     {
