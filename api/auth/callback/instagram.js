@@ -137,13 +137,12 @@ module.exports = async function handler(req, res) {
     }
 
     if (!tokenRes.ok || tokenData.error_type || tokenData.error) {
-      console.error('[Instagram Token Exchange Error]', tokenData);
       return res.status(400).send(renderHtml({
         success: false,
         title: 'Instagram Token Exchange Failed',
-        message: tokenData.error_message || tokenData.error || 'Failed to exchange authorization code with Instagram.',
-        actionText: 'Try Again',
-        actionUrl: '/accounts',
+        message: tokenData.error_message || tokenData.error || 'The authorization code has expired or was already used. Please start a fresh authorization from no5ocial.',
+        actionText: 'Authorize Instagram Again',
+        actionUrl: `/api/auth/instagram/start?brandId=${encodeURIComponent(brandId)}&returnUrl=/accounts`,
       }));
     }
 
@@ -446,6 +445,7 @@ function renderHtml({ success, title, message, actionText, actionUrl }) {
     <h1>${title}</h1>
     <p>${message}</p>
     <a href="${actionUrl}" class="btn">${actionText}</a>
+    <a href="no5ocial://auth/callback?error=cancelled" style="display:block; margin-top:16px; color:#94A3B8; text-decoration:underline; font-size:13px;">Return to no5ocial App</a>
   </div>
 </body>
 </html>`;

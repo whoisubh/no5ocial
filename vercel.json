@@ -32,8 +32,8 @@
       "destination": "/api/:match*"
     },
     {
-      "source": "/:match*",
-      "destination": "/index.html"
+      "source": "/(.*)",
+      "destination": "/index"
     }
   ]
 }
