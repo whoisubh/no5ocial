@@ -103,10 +103,16 @@ class OAuthCallbackService {
         handle: channelHandle,
         externalAccountId: channelId,
         capabilities: platform == PlatformType.instagram
-            ? const ['image', 'carousel', 'video', 'reels', 'caption']
+            ? const ['image', 'carousel', 'video', 'reels', 'caption', 'insights', 'comments']
             : const ['video', 'shorts', 'title', 'description'],
         scopes: platform == PlatformType.instagram
-            ? const ['instagram_business_basic', 'instagram_business_content_publish']
+            ? const [
+                'instagram_business_basic',
+                'instagram_business_content_publish',
+                'instagram_business_manage_insights',
+                'instagram_business_manage_comments',
+                'instagram_business_manage_messages',
+              ]
             : const ['youtube.upload', 'youtube.readonly'],
       );
 

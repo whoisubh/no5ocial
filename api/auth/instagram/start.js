@@ -125,15 +125,16 @@ module.exports = async function handler(req, res) {
     }
 
     // Official Instagram Login for Business / Creator accounts
-    // Scope: instagram_business_basic, instagram_business_content_publish
     const scopes = [
       'instagram_business_basic',
+      'instagram_business_manage_messages',
+      'instagram_business_manage_comments',
       'instagram_business_content_publish',
+      'instagram_business_manage_insights',
     ].join(',');
 
     const authUrlParams = new URLSearchParams({
-      enable_fb_login: '0',
-      force_authentication: '1',
+      force_reauth: 'true',
       client_id: instagramAppId,
       redirect_uri: redirectUri,
       response_type: 'code',
@@ -141,7 +142,7 @@ module.exports = async function handler(req, res) {
       state: state,
     });
 
-    const instagramAuthUrl = `https://api.instagram.com/oauth/authorize?${authUrlParams.toString()}`;
+    const instagramAuthUrl = `https://www.instagram.com/oauth/authorize?${authUrlParams.toString()}`;
 
     // Programmatic response for mobile/client app
     if (req.query.json === 'true') {
