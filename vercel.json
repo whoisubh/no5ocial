@@ -1,7 +1,32 @@
 {
+  "cleanUrls": true,
   "buildCommand": "bash vercel-build.sh",
   "outputDirectory": "build/web",
   "rewrites": [
+    {
+      "source": "/legal/privacy",
+      "destination": "/legal/privacy/index.html"
+    },
+    {
+      "source": "/legal/privacy/",
+      "destination": "/legal/privacy/index.html"
+    },
+    {
+      "source": "/legal/terms",
+      "destination": "/legal/terms/index.html"
+    },
+    {
+      "source": "/legal/terms/",
+      "destination": "/legal/terms/index.html"
+    },
+    {
+      "source": "/legal/disclaimer",
+      "destination": "/legal/disclaimer/index.html"
+    },
+    {
+      "source": "/legal/disclaimer/",
+      "destination": "/legal/disclaimer/index.html"
+    },
     {
       "source": "/((?!.*\\.[a-zA-Z0-9]+$).*)",
       "destination": "/index.html"

@@ -16,7 +16,11 @@ export PATH="$PATH:`pwd`/flutter/bin"
 flutter config --no-analytics
 flutter config --enable-web
 flutter pub get
-flutter build web --release
+flutter build web --release --base-href /
 
-# Ensure static assets, sitemap, robots, and verification files are copied to build/web
-cp -rf web/* build/web/ 2>/dev/null || true
+# Ensure static legal pages, sitemap, robots, and verification files are in build/web
+cp -f web/sitemap.xml build/web/ 2>/dev/null || true
+cp -f web/robots.txt build/web/ 2>/dev/null || true
+cp -f web/google*.html build/web/ 2>/dev/null || true
+mkdir -p build/web/legal
+cp -rf web/legal/* build/web/legal/ 2>/dev/null || true
