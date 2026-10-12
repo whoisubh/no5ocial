@@ -1,9 +1,19 @@
 const crypto = require('crypto');
 
+// In-memory cache to prevent double-execution / prefetch code burning on Vercel
+const successfulExchanges = new Map();
+const inFlightExchanges = new Map();
+
 module.exports = async function handler(req, res) {
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
   res.setHeader('Pragma', 'no-cache');
+
+  // Ignore HEAD and browser prefetch requests to protect one-time codes
+  if (req.method === 'HEAD') return res.status(200).end();
+  if (req.headers['purpose'] === 'prefetch' || req.headers['sec-purpose'] === 'prefetch') {
+    return res.status(204).end();
+  }
 
   try {
     const { code, state, error: oauthError, error_description } = req.query;
@@ -26,6 +36,15 @@ module.exports = async function handler(req, res) {
         actionText: 'Return to Workspace',
         actionUrl: '/accounts',
       }));
+    }
+
+    // Clean authorization code: Instagram appends #_ fragment which breaks validation if included
+    const cleanCode = code ? String(code).replace(/#_$/, '').split('#')[0].trim() : '';
+
+    // If this code was already successfully exchanged, reuse the cached payload immediately
+    if (successfulExchanges.has(cleanCode)) {
+      const cached = successfulExchanges.get(cleanCode);
+      return res.status(200).send(renderSuccessHtml(cached));
     }
 
     // Verify HMAC signed state to prevent CSRF
@@ -71,9 +90,6 @@ module.exports = async function handler(req, res) {
       process.env.META_APP_SECRET ||
       'c63a288357ba3ccd013fb1ae53bf6e40'
     ).trim().replace(/^["']|["']$/g, '');
-
-    // Clean authorization code: Instagram appends #_ fragment which breaks validation if included
-    const cleanCode = code ? String(code).replace(/#_$/, '').split('#')[0].trim() : '';
 
     let host = req.headers['x-forwarded-host'] || req.headers.host || 'no5ocial.vercel.app';
     if (host.includes(',')) {
@@ -213,10 +229,17 @@ module.exports = async function handler(req, res) {
       accessToken: longLivedToken,
     };
 
-    return res.status(200).send(renderSuccessHtml({
+    const successPayload = {
       channel: channelPayload,
       returnUrl: returnUrl,
-    }));
+    };
+
+    if (cleanCode) {
+      successfulExchanges.set(cleanCode, successPayload);
+      setTimeout(() => successfulExchanges.delete(cleanCode), 300000);
+    }
+
+    return res.status(200).send(renderSuccessHtml(successPayload));
   } catch (err) {
     console.error('[Instagram OAuth Callback Exception]', err);
     return res.status(500).send(renderHtml({

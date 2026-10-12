@@ -28,10 +28,6 @@
       "destination": "/legal/disclaimer/index.html"
     },
     {
-      "source": "/api/:match*",
-      "destination": "/api/:match*"
-    },
-    {
       "source": "/(.*)",
       "destination": "/index"
     }
