@@ -18,19 +18,20 @@ module.exports = async function handler(req, res) {
     }
     const proto = req.headers['x-forwarded-proto'] || (host.includes('localhost') ? 'http' : 'https');
 
-    // Canonical production URI guarantees exact match with Meta App settings and callback
-    const redirectUri =
+    // Canonical production URI strictly stripped of any trailing slash
+    const redirectUri = (
       process.env.INSTAGRAM_REDIRECT_URI ||
       (host.includes('localhost')
         ? `${proto}://${host}/api/auth/callback/instagram`
-        : 'https://no5ocial.vercel.app/api/auth/callback/instagram');
+        : 'https://no5ocial.vercel.app/api/auth/callback/instagram')
+    ).trim().replace(/\/+$/, '');
 
     // Secure signed state parameter to protect against CSRF attacks
-    const secret =
+    const secret = (
       process.env.INSTAGRAM_APP_SECRET ||
       process.env.META_APP_SECRET ||
-      process.env.ENCRYPTION_SECRET ||
-      'no5ocial_oauth_hmac_secret';
+      'c63a288357ba3ccd013fb1ae53bf6e40'
+    ).trim().replace(/^["']|["']$/g, '');
 
     const statePayload = JSON.stringify({
       brandId,
@@ -140,7 +141,7 @@ module.exports = async function handler(req, res) {
       state: state,
     });
 
-    const instagramAuthUrl = `https://www.instagram.com/oauth/authorize?${authUrlParams.toString()}`;
+    const instagramAuthUrl = `https://api.instagram.com/oauth/authorize?${authUrlParams.toString()}`;
 
     // Programmatic response for mobile/client app
     if (req.query.json === 'true') {

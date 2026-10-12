@@ -30,11 +30,11 @@ module.exports = async function handler(req, res) {
     let brandId = '';
     let returnUrl = '/accounts';
     let stateRedirectUri = null;
-    const secret =
+    const secret = (
       process.env.INSTAGRAM_APP_SECRET ||
       process.env.META_APP_SECRET ||
-      process.env.ENCRYPTION_SECRET ||
-      'no5ocial_oauth_hmac_secret';
+      'c63a288357ba3ccd013fb1ae53bf6e40'
+    ).trim().replace(/^["']|["']$/g, '');
 
     if (state) {
       try {
@@ -57,24 +57,18 @@ module.exports = async function handler(req, res) {
       }
     }
 
-    const appId =
+    const appId = (
       process.env.INSTAGRAM_APP_ID ||
       process.env.META_APP_ID ||
       process.env.FACEBOOK_APP_ID ||
-      '1406614248351632';
-    const appSecret =
-      process.env.INSTAGRAM_APP_SECRET ||
-      process.env.META_APP_SECRET;
+      '1406614248351632'
+    ).trim();
 
-    if (!appSecret || !appId) {
-      return res.status(500).send(renderHtml({
-        success: false,
-        title: 'Missing Instagram API Credentials',
-        message: 'INSTAGRAM_APP_ID and INSTAGRAM_APP_SECRET are not configured in Vercel environment variables. Please add them to your Vercel Project Settings.',
-        actionText: 'Return to Workspace',
-        actionUrl: '/accounts',
-      }));
-    }
+    const appSecret = (
+      process.env.INSTAGRAM_APP_SECRET ||
+      process.env.META_APP_SECRET ||
+      'c63a288357ba3ccd013fb1ae53bf6e40'
+    ).trim().replace(/^["']|["']$/g, '');
 
     // Clean authorization code: Instagram appends #_ fragment which breaks validation if included
     const cleanCode = code ? String(code).replace(/#_$/, '').split('#')[0].trim() : '';
@@ -85,12 +79,13 @@ module.exports = async function handler(req, res) {
     }
     const proto = req.headers['x-forwarded-proto'] || (host.includes('localhost') ? 'http' : 'https');
 
-    let redirectUri =
+    let redirectUri = (
       stateRedirectUri ||
       process.env.INSTAGRAM_REDIRECT_URI ||
       (host.includes('localhost')
         ? `${proto}://${host}/api/auth/callback/instagram`
-        : 'https://no5ocial.vercel.app/api/auth/callback/instagram');
+        : 'https://no5ocial.vercel.app/api/auth/callback/instagram')
+    ).trim().replace(/\/+$/, '');
 
     // 1. Exchange authorization code for short-lived access token
     const tokenFormData = new URLSearchParams({
@@ -109,40 +104,19 @@ module.exports = async function handler(req, res) {
 
     let tokenData = await tokenRes.json();
 
-    // If Meta complains about redirect_uri mismatch, automatically retry with/without trailing slash
-    if (!tokenRes.ok && (tokenData.error_message?.includes('redirect_uri') || tokenData.error?.message?.includes('redirect_uri'))) {
-      const altRedirectUri = redirectUri.endsWith('/')
-        ? redirectUri.slice(0, -1)
-        : `${redirectUri}/`;
-
-      const altFormData = new URLSearchParams({
-        client_id: appId,
-        client_secret: appSecret,
-        grant_type: 'authorization_code',
-        redirect_uri: altRedirectUri,
-        code: cleanCode,
-      });
-
-      const altRes = await fetch('https://api.instagram.com/oauth/access_token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: altFormData.toString(),
-      });
-
-      const altData = await altRes.json();
-      if (altRes.ok && !altData.error_type && !altData.error) {
-        tokenRes = altRes;
-        tokenData = altData;
-      }
-    }
-
     if (!tokenRes.ok || tokenData.error_type || tokenData.error) {
+      console.error('[Instagram Token Exchange Error]', tokenData);
       return res.status(400).send(renderHtml({
         success: false,
         title: 'Instagram Token Exchange Failed',
-        message: tokenData.error_message || tokenData.error || 'The authorization code has expired or was already used. Please start a fresh authorization from no5ocial.',
+        message: tokenData.error_message || tokenData.error?.message || 'Error validating verification code. The authorization code may have expired or redirect_uri must match.',
         actionText: 'Authorize Instagram Again',
         actionUrl: `/api/auth/instagram/start?brandId=${encodeURIComponent(brandId)}&returnUrl=/accounts`,
+        debugDetails: JSON.stringify({
+          redirect_uri_sent: redirectUri,
+          client_id: appId,
+          meta_response: tokenData,
+        }, null, 2),
       }));
     }
 
@@ -386,7 +360,7 @@ function renderSuccessHtml({ channel, returnUrl }) {
 </html>`;
 }
 
-function renderHtml({ success, title, message, actionText, actionUrl }) {
+function renderHtml({ success, title, message, actionText, actionUrl, debugDetails }) {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -446,6 +420,11 @@ function renderHtml({ success, title, message, actionText, actionUrl }) {
     <p>${message}</p>
     <a href="${actionUrl}" class="btn">${actionText}</a>
     <a href="no5ocial://auth/callback?error=cancelled" style="display:block; margin-top:16px; color:#94A3B8; text-decoration:underline; font-size:13px;">Return to no5ocial App</a>
+    ${debugDetails ? `
+    <details style="margin-top:20px; text-align:left; background:#07090E; border:1px solid #1F2937; border-radius:8px; padding:12px; font-size:12px; color:#94A3B8; max-height:220px; overflow-y:auto;">
+      <summary style="cursor:pointer; color:#E1306C; font-weight:600;">Technical Diagnostics</summary>
+      <pre style="white-space:pre-wrap; word-break:break-all; margin-top:8px; font-size:11px;">${debugDetails.replace(/</g, '&lt;')}</pre>
+    </details>` : ''}
   </div>
 </body>
 </html>`;
