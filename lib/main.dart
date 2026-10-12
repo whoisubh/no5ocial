@@ -26,6 +26,7 @@ import 'package:no5ocial/presentation/screens/splash/splash_screen.dart';
 import 'package:no5ocial/presentation/screens/welcome/mobile_welcome_screen.dart';
 import 'package:no5ocial/core/config/env_config.dart';
 import 'package:no5ocial/core/errors/app_error_handler.dart';
+import 'package:no5ocial/core/services/oauth_callback_service.dart';
 import 'package:no5ocial/core/utils/url_strategy_helper.dart';
 import 'package:no5ocial/presentation/state/app_state.dart';
 
@@ -91,10 +92,17 @@ Future<void> bootstrap({AppFlavor flavor = AppFlavor.dev}) async {
   await appState.loadSavedUserProfile();
   await appState.loadSavedThemeMode();
 
+  // Initialize OAuth deep link listener
+  OAuthCallbackService.instance.init(
+    appState: appState,
+    navigatorKey: no5ocialApp.navigatorKey,
+  );
+
   runApp(no5ocialApp(appState: appState));
 }
 
 class no5ocialApp extends StatelessWidget {
+  static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
   final AppState appState;
 
   const no5ocialApp({super.key, required this.appState});
@@ -105,6 +113,7 @@ class no5ocialApp extends StatelessWidget {
       listenable: appState,
       builder: (context, _) {
         return MaterialApp(
+          navigatorKey: navigatorKey,
           title: 'no5ocial — Social Publishing & Scheduling Workspace',
           debugShowCheckedModeBanner: false,
           theme: AppTheme.lightTheme,

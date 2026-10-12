@@ -364,8 +364,9 @@ function renderSuccessHtml({ channel, returnUrl }) {
       </div>
     </div>
 
-    <a href="${redirectTarget}" id="returnBtn" class="btn-primary">Open Workspace Dashboard</a>
-    <p class="footer-note">Closing and returning to no5ocial workspace...</p>
+    <a href="${appDeepLink}" id="returnAppBtn" class="btn-primary">Return to no5ocial App</a>
+    <a href="${redirectTarget}" id="webBtn" style="display:inline-block; margin-top:14px; color:#94A3B8; text-decoration:underline; font-size:13px; font-weight:500;">Open in Web Browser</a>
+    <p class="footer-note" style="margin-top:16px;">Tapping "Return to no5ocial App" will automatically sync this channel to your workspace.</p>
   </div>
 
   <script>
@@ -377,13 +378,10 @@ function renderSuccessHtml({ channel, returnUrl }) {
       }
     } catch (e) {}
 
-    // Auto-redirect or mobile deep-link fallback
-    setTimeout(() => {
+    // Automatically trigger app deep link on launch
+    try {
       window.location.href = "${appDeepLink}";
-      setTimeout(() => {
-        window.location.href = "${redirectTarget}";
-      }, 500);
-    }, 1500);
+    } catch (e) {}
   </script>
 </body>
 </html>`;
