@@ -1,5 +1,7 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:url_launcher/url_launcher.dart';
 
 /// Real Instagram Account Profile Metadata retrieved via Meta / Instagram Graph API
 class InstagramProfileInfo {
@@ -22,7 +24,23 @@ class InstagramService {
   InstagramService._internal();
 
   static const String basicDisplayEndpoint = 'https://graph.instagram.com/me';
-  static const String graphApiEndpoint = 'https://graph.facebook.com/v19.0';
+  static const String graphApiEndpoint = 'https://graph.facebook.com/v21.0';
+
+  /// Generates the server-side OAuth initialization URL for Instagram linking
+  String getOAuthStartUrl({required String brandId, String returnUrl = '/accounts'}) {
+    const baseUrl = kIsWeb ? '' : 'https://no5ocial.vercel.app';
+    return '$baseUrl/api/auth/instagram/start?brandId=${Uri.encodeComponent(brandId)}&returnUrl=${Uri.encodeComponent(returnUrl)}';
+  }
+
+  /// Launches the official server-side OAuth flow via Vercel backend
+  Future<bool> launchOAuthConnection({required String brandId, String returnUrl = '/accounts'}) async {
+    final startPath = getOAuthStartUrl(brandId: brandId, returnUrl: returnUrl);
+    final uri = Uri.parse(startPath);
+    return await launchUrl(
+      uri,
+      mode: LaunchMode.externalApplication,
+    );
+  }
 
   /// Fetches authenticated Instagram profile from Instagram / Meta Graph API
   Future<InstagramProfileInfo> fetchProfile({

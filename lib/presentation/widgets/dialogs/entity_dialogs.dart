@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:uuid/uuid.dart';
 
 import 'package:no5ocial/core/theme/app_colors.dart';
 import 'package:no5ocial/core/theme/app_typography.dart';
@@ -11,10 +10,12 @@ import 'package:no5ocial/domain/models/platform_target_config.dart';
 import 'package:no5ocial/presentation/state/app_state.dart';
 import 'package:no5ocial/presentation/widgets/platform_logo.dart';
 import 'package:no5ocial/core/services/youtube_service.dart';
+import 'package:no5ocial/core/services/instagram_service.dart';
+import 'package:no5ocial/core/services/linkedin_service.dart';
+import 'package:no5ocial/core/services/x_service.dart';
+import 'package:no5ocial/core/errors/app_error_handler.dart';
 
 class EntityDialogs {
-  static const _uuid = Uuid();
-
   /// Adaptive container: renders a native Bottom Sheet on mobile and an AlertDialog on desktop.
   static void _showAdaptiveModal(
     BuildContext context, {
@@ -32,69 +33,70 @@ class EntityDialogs {
         context: context,
         isScrollControlled: true,
         backgroundColor: Colors.transparent,
-        builder: (bottomSheetCtx) => StatefulBuilder(
-          builder: (ctx, setModalState) {
-            final bottomInset = MediaQuery.of(ctx).viewInsets.bottom;
-            return Container(
+        builder: (bottomSheetCtx) {
+          final bottomInset = MediaQuery.of(bottomSheetCtx).viewInsets.bottom;
+          final availableHeight = MediaQuery.of(bottomSheetCtx).size.height - bottomInset;
+          return Padding(
+            padding: EdgeInsets.only(bottom: bottomInset),
+            child: Container(
               constraints: BoxConstraints(
-                maxHeight: MediaQuery.of(ctx).size.height * 0.90,
+                maxHeight: availableHeight * 0.88,
               ),
               decoration: const BoxDecoration(
                 color: AppColors.surface,
                 borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
               ),
-              padding: EdgeInsets.only(bottom: bottomInset),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Native Drag Handle
-                  Center(
-                    child: Container(
-                      width: 38,
-                      height: 4,
-                      margin: const EdgeInsets.only(top: 10, bottom: 8),
-                      decoration: BoxDecoration(
-                        color: AppColors.border,
-                        borderRadius: BorderRadius.circular(2),
+              child: SafeArea(
+                top: false,
+                child: StatefulBuilder(
+                  builder: (ctx, setModalState) {
+                    return SingleChildScrollView(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // Native Drag Handle
+                          Center(
+                            child: Container(
+                              width: 38,
+                              height: 4,
+                              margin: const EdgeInsets.only(bottom: 12),
+                              decoration: BoxDecoration(
+                                color: AppColors.border,
+                                borderRadius: BorderRadius.circular(2),
+                              ),
+                            ),
+                          ),
+                          // Header
+                          Row(
+                            children: [
+                              Expanded(child: title),
+                              IconButton(
+                                icon: const Icon(Icons.close, size: 20),
+                                onPressed: () => Navigator.of(ctx).pop(),
+                              ),
+                            ],
+                          ),
+                          const Divider(height: 16),
+                          // Content
+                          contentBuilder(ctx, setModalState, true),
+                          const SizedBox(height: 16),
+                          const Divider(height: 1),
+                          const SizedBox(height: 12),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: actionsBuilder(ctx, setModalState, true),
+                          ),
+                        ],
                       ),
-                    ),
-                  ),
-                  // Header
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-                    child: Row(
-                      children: [
-                        Expanded(child: title),
-                        IconButton(
-                          icon: const Icon(Icons.close, size: 20),
-                          onPressed: () => Navigator.of(ctx).pop(),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Divider(height: 1),
-                  // Scrollable Content
-                  Flexible(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                      child: contentBuilder(ctx, setModalState, true),
-                    ),
-                  ),
-                  const Divider(height: 1),
-                  // Actions Bar
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: actionsBuilder(ctx, setModalState, true),
-                    ),
-                  ),
-                ],
+                    );
+                  },
+                ),
               ),
-            );
-          },
-        ),
+            ),
+          );
+        },
       );
     } else {
       showDialog(
@@ -437,6 +439,7 @@ class EntityDialogs {
           items: availableSubtypes.map((st) => DropdownMenuItem(
             value: st,
             child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
                   st.requiresAdminRole
@@ -446,8 +449,9 @@ class EntityDialogs {
                   color: AppColors.accent,
                 ),
                 const SizedBox(width: 6),
-                Expanded(child: Text(st.name, overflow: TextOverflow.ellipsis)),
-                if (st.isManualOnly)
+                Text(st.name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                if (st.isManualOnly) ...[
+                  const SizedBox(width: 6),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                     decoration: BoxDecoration(
@@ -456,6 +460,7 @@ class EntityDialogs {
                     ),
                     child: const Text('Manual Flow', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: AppColors.warning)),
                   ),
+                ],
               ],
             ),
           )).toList(),
@@ -479,32 +484,20 @@ class EntityDialogs {
             onPressed: isIntegrated
                 ? null
                 : () async {
-                    if (selectedPlatform == PlatformType.youtube) {
-                      try {
-                        await YouTubeService.instance.launchOAuthConnection(
-                          brandId: selectedBrandId,
-                          returnUrl: '/accounts',
-                        );
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Opening Google OAuth to verify YouTube Channel permissions...',
-                              ),
-                              backgroundColor: AppColors.accent,
-                            ),
-                          );
-                        }
-                      } catch (e) {
-                        debugPrint('OAuth launch error: $e');
-                      }
-                    }
-                    setDialogState(() {
-                      isIntegrated = true;
-                      externalAccountId = 'ext_${selectedPlatform.name}_${_uuid.v4().substring(0, 8)}';
-                      apiVerifiedTitle = '${selectedPlatform.displayName} ${selectedSubtype.name}';
-                      apiVerifiedHandle = '@${selectedPlatform.displayName.toLowerCase().replaceAll(' ', '')}_official';
-                    });
+                    await _openPlatformAuthModal(
+                      context: ctx,
+                      platform: selectedPlatform,
+                      subtype: selectedSubtype,
+                      brandId: selectedBrandId,
+                      onSuccess: (name, handle, id) {
+                        setDialogState(() {
+                          isIntegrated = true;
+                          externalAccountId = id;
+                          apiVerifiedTitle = name;
+                          apiVerifiedHandle = handle;
+                        });
+                      },
+                    );
                   },
             icon: Icon(
               isIntegrated ? Icons.check_circle : Icons.sync_lock_outlined,
@@ -935,7 +928,7 @@ class EntityDialogs {
                       child: const Icon(Icons.business_rounded, size: 13, color: AppColors.accent),
                     ),
                     const SizedBox(width: 8),
-                    Flexible(child: Text(b.name, overflow: TextOverflow.ellipsis)),
+                    Text(b.name, overflow: TextOverflow.ellipsis),
                   ],
                 ),
               )).toList(),
@@ -1070,6 +1063,279 @@ class EntityDialogs {
             foregroundColor: Colors.white,
           ),
           child: Text(existingGroup == null ? 'Create Group' : 'Save Changes'),
+        ),
+      ],
+    );
+  }
+
+  // --- Modal Dialog: Platform Integration ---
+  static Future<void> _openPlatformAuthModal({
+    required BuildContext context,
+    required PlatformType platform,
+    required PlatformSubtype subtype,
+    required String brandId,
+    required void Function(String name, String handle, String id) onSuccess,
+  }) async {
+    final tokenCtrl = TextEditingController();
+    bool isSubmitting = false;
+
+    _showAdaptiveModal(
+      context,
+      title: Row(
+        children: [
+          PlatformLogo(platform: platform, size: 22),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Integrate ${platform.displayName} ${subtype.name}',
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+      contentBuilder: (authCtx, setAuthState, isMobile) {
+        String tokenLabel = 'Access Token / Bearer Token';
+        String tokenHint = 'Paste official OAuth token';
+        String apiDescription = '';
+
+        switch (platform) {
+          case PlatformType.youtube:
+            tokenLabel = 'Google OAuth Access Token';
+            tokenHint = 'Paste Google OAuth token';
+            apiDescription = 'Uses YouTube Data API v3 (GET /youtube/v3/channels?mine=true) to upload to standard channel.';
+            break;
+          case PlatformType.instagram:
+            tokenLabel = 'Meta / Instagram Graph API Access Token';
+            tokenHint = 'Paste Instagram Graph token';
+            apiDescription = 'Uses Meta Graph API (GET /me?fields=id,username) to publish to Instagram Professional account.';
+            break;
+          case PlatformType.linkedin:
+            tokenLabel = 'LinkedIn Member / Page Access Token';
+            tokenHint = 'Paste LinkedIn token';
+            apiDescription = 'Uses LinkedIn API to publish to verified member profile or company page.';
+            break;
+          case PlatformType.x:
+            tokenLabel = 'X / Twitter API v2 Bearer Token';
+            tokenHint = 'Paste OAuth 2.0 User Access Token';
+            apiDescription = 'Uses Twitter API v2 (GET /2/users/me) to verify handle.';
+            break;
+          default:
+            apiDescription = 'Official API verification for ${platform.displayName}.';
+        }
+
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(apiDescription, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+            const SizedBox(height: 16),
+
+            if (platform == PlatformType.youtube) ...[
+              ElevatedButton.icon(
+                onPressed: isSubmitting
+                    ? null
+                    : () async {
+                        setAuthState(() => isSubmitting = true);
+                        try {
+                          final channel = await YouTubeService.instance.fetchMyChannel();
+                          onSuccess(channel.title, channel.handle, channel.id);
+                          if (authCtx.mounted) Navigator.of(authCtx).pop();
+                        } catch (e) {
+                          if (authCtx.mounted) {
+                            ScaffoldMessenger.of(authCtx).showSnackBar(
+                              SnackBar(
+                                content: Text(e.toString().replaceAll('Exception: ', '')),
+                                backgroundColor: AppColors.error,
+                              ),
+                            );
+                          }
+                        } finally {
+                          if (authCtx.mounted) setAuthState(() => isSubmitting = false);
+                        }
+                      },
+                icon: const Icon(Icons.account_circle, size: 18),
+                label: const Text('Sign in with Google OAuth'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFFF0000),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: isSubmitting
+                    ? null
+                    : () async {
+                        setAuthState(() => isSubmitting = true);
+                        try {
+                          final launched = await YouTubeService.instance.launchOAuthConnection(
+                            brandId: brandId,
+                            returnUrl: '/accounts',
+                          );
+                          if (!launched && authCtx.mounted) {
+                            ScaffoldMessenger.of(authCtx).showSnackBar(
+                              const SnackBar(
+                                content: Text('Could not open browser for YouTube OAuth.'),
+                                backgroundColor: AppColors.error,
+                              ),
+                            );
+                          }
+                        } catch (e, st) {
+                          if (authCtx.mounted) AppErrorHandler.showError(authCtx, e, stackTrace: st);
+                        } finally {
+                          if (authCtx.mounted) setAuthState(() => isSubmitting = false);
+                        }
+                      },
+                icon: const Icon(Icons.open_in_browser, size: 18),
+                label: const Text('Sign in via Browser (Web OAuth)'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.accent,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Row(
+                children: [
+                  Expanded(child: Divider()),
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 8),
+                    child: Text('OR USE ACCESS TOKEN', style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+                  ),
+                  Expanded(child: Divider()),
+                ],
+              ),
+              const SizedBox(height: 12),
+            ] else if (platform == PlatformType.instagram) ...[
+              ElevatedButton.icon(
+                onPressed: isSubmitting
+                    ? null
+                    : () async {
+                        setAuthState(() => isSubmitting = true);
+                        try {
+                          final launched = await InstagramService.instance.launchOAuthConnection(
+                            brandId: brandId,
+                            returnUrl: '/accounts',
+                          );
+                          if (!launched && authCtx.mounted) {
+                            ScaffoldMessenger.of(authCtx).showSnackBar(
+                              const SnackBar(
+                                content: Text('Could not open browser for Instagram OAuth.'),
+                                backgroundColor: AppColors.error,
+                              ),
+                            );
+                          } else if (authCtx.mounted) {
+                            ScaffoldMessenger.of(authCtx).showSnackBar(
+                              const SnackBar(
+                                content: Text('Opening Instagram Login in browser to authorize your account...'),
+                                backgroundColor: AppColors.instagram,
+                              ),
+                            );
+                          }
+                        } catch (e, st) {
+                          if (authCtx.mounted) AppErrorHandler.showError(authCtx, e, stackTrace: st);
+                        } finally {
+                          if (authCtx.mounted) setAuthState(() => isSubmitting = false);
+                        }
+                      },
+                icon: const Icon(Icons.open_in_browser, size: 18),
+                label: const Text('Sign in with Instagram (Meta OAuth)'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.instagram,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Row(
+                children: [
+                  Expanded(child: Divider()),
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 8),
+                    child: Text('OR USE GRAPH API ACCESS TOKEN', style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+                  ),
+                  Expanded(child: Divider()),
+                ],
+              ),
+              const SizedBox(height: 12),
+            ],
+
+            TextField(
+              controller: tokenCtrl,
+              decoration: InputDecoration(
+                labelText: tokenLabel,
+                hintText: tokenHint,
+                prefixIcon: const Icon(Icons.key, size: 16),
+              ),
+            ),
+          ],
+        );
+      },
+      actionsBuilder: (authCtx, setAuthState, isMobile) => [
+        TextButton(
+          onPressed: () => Navigator.of(authCtx).pop(),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton.icon(
+          onPressed: isSubmitting
+              ? null
+              : () async {
+                  final token = tokenCtrl.text.trim();
+                  if (token.isEmpty) return;
+                  setAuthState(() => isSubmitting = true);
+                  try {
+                    String name = '';
+                    String handle = '';
+                    String id = '';
+
+                    switch (platform) {
+                      case PlatformType.youtube:
+                        final info = await YouTubeService.instance.fetchMyChannel(accessToken: token);
+                        name = info.title;
+                        handle = info.handle;
+                        id = info.id;
+                        break;
+                      case PlatformType.instagram:
+                        final info = await InstagramService.instance.fetchProfile(accessToken: token);
+                        name = info.name;
+                        handle = info.handle;
+                        id = info.id;
+                        break;
+                      case PlatformType.linkedin:
+                        final info = await LinkedInService.instance.fetchMemberProfile(accessToken: token);
+                        name = info.name;
+                        handle = info.handle;
+                        id = info.id;
+                        break;
+                      case PlatformType.x:
+                        final info = await XService.instance.fetchUserProfile(accessToken: token);
+                        name = info.name;
+                        handle = info.handle;
+                        id = info.id;
+                        break;
+                      default:
+                        throw Exception('API token verification not supported for ${platform.displayName}.');
+                    }
+
+                    onSuccess(name, handle, id);
+                    if (authCtx.mounted) Navigator.of(authCtx).pop();
+                  } catch (e, st) {
+                    if (authCtx.mounted) AppErrorHandler.showError(authCtx, e, stackTrace: st);
+                  } finally {
+                    if (authCtx.mounted) setAuthState(() => isSubmitting = false);
+                  }
+                },
+          icon: isSubmitting
+              ? const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                )
+              : const Icon(Icons.verified, size: 16),
+          label: Text(isSubmitting ? 'Verifying...' : 'Verify & Connect'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.accent,
+            foregroundColor: Colors.white,
+          ),
         ),
       ],
     );

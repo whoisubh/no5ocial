@@ -170,28 +170,62 @@ class _ComposerScreenState extends State<ComposerScreen>
     _threadsTextController.text = caption;
   }
 
-  void _onSharedCaptionChanged() {
-    if (_sameCaptionEverywhere) {
-      final text = _sharedCaptionController.text;
-      _ytDescriptionController.text = text;
-      _igCaptionController.text = text;
-      _xTextController.text = text;
-      _liCommentaryController.text = text;
-      _ttCaptionController.text = text;
-      _pinDescriptionController.text = text;
-      _fbTextController.text = text;
-      _threadsTextController.text = text;
+  bool _isSyncing = false;
+
+  void _syncCaptionToOthers(TextEditingController sourceCtrl, String text) {
+    if (!_sameCaptionEverywhere || _isSyncing) return;
+    _isSyncing = true;
+    try {
+      _sharedCaptionController.text = text;
+      void syncOne(TextEditingController target) {
+        if (target != sourceCtrl && target.text != text) {
+          target.value = TextEditingValue(
+            text: text,
+            selection: TextSelection.collapsed(offset: text.length),
+          );
+        }
+      }
+      syncOne(_ytDescriptionController);
+      syncOne(_igCaptionController);
+      syncOne(_xTextController);
+      syncOne(_liCommentaryController);
+      syncOne(_ttCaptionController);
+      syncOne(_pinDescriptionController);
+      syncOne(_fbTextController);
+      syncOne(_threadsTextController);
+    } finally {
+      _isSyncing = false;
     }
   }
 
+  void _syncTitleToOthers(TextEditingController sourceCtrl, String title) {
+    if (_isSyncing) return;
+    _isSyncing = true;
+    try {
+      _titleController.text = title;
+      void syncOne(TextEditingController target) {
+        if (target != sourceCtrl && target.text != title) {
+          target.value = TextEditingValue(
+            text: title,
+            selection: TextSelection.collapsed(offset: title.length),
+          );
+        }
+      }
+      syncOne(_ytTitleController);
+      syncOne(_pinTitleController);
+    } finally {
+      _isSyncing = false;
+    }
+  }
+
+  void _onSharedCaptionChanged() {
+    if (_isSyncing) return;
+    _syncCaptionToOthers(_sharedCaptionController, _sharedCaptionController.text);
+  }
+
   void _onSharedTitleChanged() {
-    final title = _titleController.text;
-    if (_ytTitleController.text.isEmpty || _ytTitleController.text == title) {
-      _ytTitleController.text = title;
-    }
-    if (_pinTitleController.text.isEmpty || _pinTitleController.text == title) {
-      _pinTitleController.text = title;
-    }
+    if (_isSyncing) return;
+    _syncTitleToOthers(_titleController, _titleController.text);
   }
 
   @override
@@ -1431,7 +1465,7 @@ class _ComposerScreenState extends State<ComposerScreen>
                               child: const Icon(Icons.business_rounded, size: 13, color: AppColors.accent),
                             ),
                             const SizedBox(width: 8),
-                            Flexible(child: Text(b.name, overflow: TextOverflow.ellipsis)),
+                            Text(b.name, overflow: TextOverflow.ellipsis),
                           ],
                         ),
                       )),
@@ -1507,9 +1541,7 @@ class _ComposerScreenState extends State<ComposerScreen>
                               child: const Icon(Icons.folder_rounded, size: 13, color: Color(0xFF6366F1)),
                             ),
                             const SizedBox(width: 8),
-                            Flexible(
-                              child: Text('${g.name} (${g.accountIds.length})', overflow: TextOverflow.ellipsis),
-                            ),
+                            Text('${g.name} (${g.accountIds.length})', overflow: TextOverflow.ellipsis),
                           ],
                         ),
                       )),
@@ -1565,9 +1597,7 @@ class _ComposerScreenState extends State<ComposerScreen>
                           children: [
                             PlatformLogo(platform: a.platform, size: 14),
                             const SizedBox(width: 8),
-                            Expanded(
-                              child: Text('${a.displayName} (${a.handle})', overflow: TextOverflow.ellipsis),
-                            ),
+                            Text('${a.displayName} (${a.handle})', overflow: TextOverflow.ellipsis),
                           ],
                         ),
                       )),
@@ -2082,7 +2112,7 @@ class _ComposerScreenState extends State<ComposerScreen>
             hintText: 'Catchy, searchable video headline',
             suffixText: '${_ytTitleController.text.length}/100',
           ),
-          onChanged: (val) => setState(() => _titleController.text = val),
+          onChanged: (val) => _syncTitleToOthers(_ytTitleController, val),
         ),
         const SizedBox(height: 10),
         TextField(
@@ -2094,10 +2124,7 @@ class _ComposerScreenState extends State<ComposerScreen>
             hintText: 'Explain your video, include timestamps, links, and hashtags (#tag)...',
             alignLabelWithHint: true,
           ),
-          onChanged: (val) {
-            if (_sameCaptionEverywhere) _sharedCaptionController.text = val;
-            setState(() {});
-          },
+          onChanged: (val) => _syncCaptionToOthers(_ytDescriptionController, val),
         ),
         const SizedBox(height: 10),
         Row(
@@ -2111,7 +2138,7 @@ class _ComposerScreenState extends State<ComposerScreen>
                   hintText: 'e.g. podcast, tutorial, tech review',
                   isDense: true,
                 ),
-                onChanged: (val) => setState(() => _tagsController.text = val),
+                onChanged: (val) => _tagsController.text = val,
               ),
             ),
             const SizedBox(width: 12),
@@ -2159,10 +2186,7 @@ class _ComposerScreenState extends State<ComposerScreen>
             alignLabelWithHint: true,
             helperText: '$hashtagCount / 30 hashtags used',
           ),
-          onChanged: (val) {
-            if (_sameCaptionEverywhere) _sharedCaptionController.text = val;
-            setState(() {});
-          },
+          onChanged: (val) => _syncCaptionToOthers(_igCaptionController, val),
         ),
         const SizedBox(height: 10),
         TextField(
@@ -2215,7 +2239,7 @@ class _ComposerScreenState extends State<ComposerScreen>
             ),
           ),
           onChanged: (val) {
-            if (_sameCaptionEverywhere) _sharedCaptionController.text = val;
+            _syncCaptionToOthers(_xTextController, val);
             setState(() {});
           },
         ),
@@ -2242,10 +2266,7 @@ class _ComposerScreenState extends State<ComposerScreen>
             hintText: 'Share professional insights, case studies, or company milestones...',
             alignLabelWithHint: true,
           ),
-          onChanged: (val) {
-            if (_sameCaptionEverywhere) _sharedCaptionController.text = val;
-            setState(() {});
-          },
+          onChanged: (val) => _syncCaptionToOthers(_liCommentaryController, val),
         ),
       ],
     );
@@ -2270,10 +2291,7 @@ class _ComposerScreenState extends State<ComposerScreen>
             hintText: 'Describe your clip, tag collaborators, add #fyp #trending...',
             alignLabelWithHint: true,
           ),
-          onChanged: (val) {
-            if (_sameCaptionEverywhere) _sharedCaptionController.text = val;
-            setState(() {});
-          },
+          onChanged: (val) => _syncCaptionToOthers(_ttCaptionController, val),
         ),
         const SizedBox(height: 10),
         Container(
@@ -2334,7 +2352,7 @@ class _ComposerScreenState extends State<ComposerScreen>
           controller: _pinTitleController,
           maxLength: 100,
           decoration: const InputDecoration(labelText: 'Pin Title *', hintText: 'Inspiring, searchable pin title'),
-          onChanged: (val) => setState(() => _titleController.text = val),
+          onChanged: (val) => _syncTitleToOthers(_pinTitleController, val),
         ),
         const SizedBox(height: 10),
         TextField(
@@ -2346,10 +2364,7 @@ class _ComposerScreenState extends State<ComposerScreen>
             hintText: 'Tell pinners what your pin is about...',
             alignLabelWithHint: true,
           ),
-          onChanged: (val) {
-            if (_sameCaptionEverywhere) _sharedCaptionController.text = val;
-            setState(() {});
-          },
+          onChanged: (val) => _syncCaptionToOthers(_pinDescriptionController, val),
         ),
         const SizedBox(height: 10),
         TextField(
@@ -2382,10 +2397,7 @@ class _ComposerScreenState extends State<ComposerScreen>
             hintText: 'What is on your mind? Share updates with your followers...',
             alignLabelWithHint: true,
           ),
-          onChanged: (val) {
-            if (_sameCaptionEverywhere) _sharedCaptionController.text = val;
-            setState(() {});
-          },
+          onChanged: (val) => _syncCaptionToOthers(_fbTextController, val),
         ),
       ],
     );
@@ -2414,7 +2426,7 @@ class _ComposerScreenState extends State<ComposerScreen>
             helperText: '$remaining characters remaining',
           ),
           onChanged: (val) {
-            if (_sameCaptionEverywhere) _sharedCaptionController.text = val;
+            _syncCaptionToOthers(_threadsTextController, val);
             setState(() {});
           },
         ),

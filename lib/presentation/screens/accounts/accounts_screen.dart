@@ -480,6 +480,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
               items: availableSubtypes.map((st) => DropdownMenuItem(
                 value: st,
                 child: Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(
                       st.requiresAdminRole
@@ -489,14 +490,12 @@ class _AccountsScreenState extends State<AccountsScreen> {
                       color: AppColors.accent,
                     ),
                     const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        st.name,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-                      ),
+                    Text(
+                      st.name,
+                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
                     ),
-                    if (st.isManualOnly)
+                    if (st.isManualOnly) ...[
+                      const SizedBox(width: 6),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                         decoration: BoxDecoration(
@@ -505,6 +504,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
                         ),
                         child: const Text('Manual Flow', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: AppColors.warning)),
                       ),
+                    ],
                   ],
                 ),
               )).toList(),
@@ -1195,6 +1195,63 @@ class _AccountsScreenState extends State<AccountsScreen> {
                   Padding(
                     padding: EdgeInsets.symmetric(horizontal: 8),
                     child: Text('OR USE ACCESS TOKEN', style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+                  ),
+                  Expanded(child: Divider()),
+                ],
+              ),
+              const SizedBox(height: 12),
+            ] else if (platform == PlatformType.instagram) ...[
+              ElevatedButton.icon(
+                onPressed: isSubmitting
+                    ? null
+                    : () async {
+                        setAuthState(() => isSubmitting = true);
+                        try {
+                          final brandId = widget.appState.brands.isNotEmpty
+                              ? widget.appState.brands.first.id
+                              : 'default';
+                          final launched = await InstagramService.instance.launchOAuthConnection(
+                            brandId: brandId,
+                            returnUrl: '/accounts',
+                          );
+                          if (!launched && authCtx.mounted) {
+                            ScaffoldMessenger.of(authCtx).showSnackBar(
+                              const SnackBar(
+                                content: Text('Could not open web browser for Instagram OAuth.'),
+                                backgroundColor: AppColors.error,
+                              ),
+                            );
+                          } else if (authCtx.mounted) {
+                            ScaffoldMessenger.of(authCtx).showSnackBar(
+                              const SnackBar(
+                                content: Text('Opening Instagram Login in browser to authorize your account...'),
+                                backgroundColor: AppColors.instagram,
+                              ),
+                            );
+                          }
+                        } catch (e, st) {
+                          if (authCtx.mounted) {
+                            AppErrorHandler.showError(authCtx, e, stackTrace: st);
+                          }
+                        } finally {
+                          if (authCtx.mounted) setAuthState(() => isSubmitting = false);
+                        }
+                      },
+                icon: const Icon(Icons.open_in_browser, size: 18),
+                label: const Text('Sign in with Instagram (Meta OAuth)'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.instagram,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Row(
+                children: [
+                  Expanded(child: Divider()),
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 8),
+                    child: Text('OR USE GRAPH API ACCESS TOKEN', style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
                   ),
                   Expanded(child: Divider()),
                 ],

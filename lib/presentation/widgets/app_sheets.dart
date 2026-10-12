@@ -440,80 +440,73 @@ class AppSheets {
       return showModalBottomSheet<T>(
         context: context,
         isScrollControlled: true,
-        useSafeArea: true,
         backgroundColor: Colors.transparent,
-        elevation: 0,
-        builder: (bottomSheetCtx) => StatefulBuilder(
-          builder: (ctx, setSheetState) {
-            final bottomInset = MediaQuery.of(ctx).viewInsets.bottom;
-            return Container(
+        builder: (bottomSheetCtx) {
+          final bottomInset = MediaQuery.of(bottomSheetCtx).viewInsets.bottom;
+          final availableHeight = MediaQuery.of(bottomSheetCtx).size.height - bottomInset;
+          return Padding(
+            padding: EdgeInsets.only(bottom: bottomInset),
+            child: Container(
               constraints: BoxConstraints(
-                maxHeight: MediaQuery.of(ctx).size.height * 0.90,
+                maxHeight: availableHeight * 0.88,
               ),
               decoration: const BoxDecoration(
                 color: AppColors.surface,
                 borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
               ),
-              padding: EdgeInsets.only(bottom: bottomInset),
-              child: Material(
-                color: Colors.transparent,
-                child: SafeArea(
-                  top: false,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // Native Drag Handle
-                      Center(
-                        child: Container(
-                          width: 38,
-                          height: 4,
-                          margin: const EdgeInsets.only(top: 10, bottom: 8),
-                          decoration: BoxDecoration(
-                            color: AppColors.border,
-                            borderRadius: BorderRadius.circular(2),
+              child: SafeArea(
+                top: false,
+                child: StatefulBuilder(
+                  builder: (ctx, setSheetState) {
+                    return SingleChildScrollView(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // Native Drag Handle
+                          Center(
+                            child: Container(
+                              width: 38,
+                              height: 4,
+                              margin: const EdgeInsets.only(bottom: 12),
+                              decoration: BoxDecoration(
+                                color: AppColors.border,
+                                borderRadius: BorderRadius.circular(2),
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
-                      // Header
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                        child: Row(
-                          children: [
-                            Expanded(child: title),
-                            IconButton(
-                              icon: const Icon(Icons.close, size: 20),
-                              onPressed: () => Navigator.of(ctx).pop(),
+                          // Header
+                          Row(
+                            children: [
+                              Expanded(child: title),
+                              IconButton(
+                                icon: const Icon(Icons.close, size: 20),
+                                onPressed: () => Navigator.of(ctx).pop(),
+                              ),
+                            ],
+                          ),
+                          const Divider(height: 16),
+                          // Body form content
+                          builder(ctx, setSheetState),
+                          if (actionsBuilder != null) ...[
+                            const SizedBox(height: 16),
+                            const Divider(height: 1),
+                            const SizedBox(height: 12),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: actionsBuilder(ctx),
                             ),
                           ],
-                        ),
+                        ],
                       ),
-                      const Divider(height: 1),
-                      // Scrollable Content
-                      Flexible(
-                        fit: FlexFit.loose,
-                        child: SingleChildScrollView(
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                          child: builder(ctx, setSheetState),
-                        ),
-                      ),
-                      if (actionsBuilder != null) ...[
-                        const Divider(height: 1),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.end,
-                            children: actionsBuilder(ctx),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
+                    );
+                  },
                 ),
               ),
-            );
-          },
-        ),
+            ),
+          );
+        },
       );
     } else {
       return showDialog<T>(
