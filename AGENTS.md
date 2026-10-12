@@ -17,6 +17,12 @@ Build no5ocial as a secure, reliable internal publishing workflow for Shaadow. O
 11. **Mandatory Real Authentication Only**: Google Sign-In is strictly mandatory. Login is NEVER optional. NEVER add "Enter offline workspace", "Dev workspace sign-in", "Skip login", demo bypass buttons, or hardcoded dummy profiles (`admin@shaadow.io`, `Workspace Lead`, etc.) anywhere in the UI, dialogs, or error handlers.
 12. **Active Auth Guards Everywhere**: The dashboard shell (`MainScaffold`), `HomeScreen`, and all internal endpoints must enforce active authentication on every render. If `!appState.isLoggedIn`, unauthenticated sessions must be immediately rejected and redirected to the root auth screen.
 13. **Strict Error Handling**: When authentication fails (e.g. missing Android SHA-1 in Google Cloud Console), report the exact error honestly with a Dismiss button only. NEVER provide a bypass button to circumvent failed authentication.
+14. **Official Brand Logo on Websites and Applications**:
+    - The official brand logo is `assets/logo/no5ocial.png` (light backgrounds) and `assets/logo/no5ocial_white.png` (dark backgrounds / navigation bars).
+    - `assets/logo/no5ocial_cropped.png` is used for square icon, tab favicon (`web/favicon.png`), and app icons (`web/icons/*`).
+    - NEVER use `assets/logo/no5ocial_N.png` or arbitrary placeholders where the official full wordmark logo (`no5ocial_white.png` / `no5ocial.png`) is required.
+    - All website pages (static legal pages `/legal/*`, landing pages, web shells) MUST include the official brand logo image (`/assets/logo/no5ocial_white.png`). Never render plain unbranded text or makeshift badges without the official logo.
+    - Web favicon (`web/favicon.png`) and web app icons (`web/icons/*`) MUST always use the official brand logo, NEVER the default Flutter bird icon or unbranded placeholders.
 
 ## Architecture rules
 - Flutter presentation layer → application/use-case layer → domain models/interfaces → repository implementations.

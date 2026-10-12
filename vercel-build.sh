@@ -18,9 +18,14 @@ flutter config --enable-web
 flutter pub get
 flutter build web --release --base-href /
 
-# Ensure static legal pages, sitemap, robots, and verification files are in build/web
+# Ensure static legal pages, sitemap, robots, verification files, and official logo assets are in build/web
 cp -f web/sitemap.xml build/web/ 2>/dev/null || true
 cp -f web/robots.txt build/web/ 2>/dev/null || true
 cp -f web/google*.html build/web/ 2>/dev/null || true
 mkdir -p build/web/legal
 cp -rf web/legal/* build/web/legal/ 2>/dev/null || true
+mkdir -p build/web/assets/logo
+cp -rf assets/logo/* build/web/assets/logo/ 2>/dev/null || true
+cp -f web/favicon.png build/web/favicon.png 2>/dev/null || true
+mkdir -p build/web/icons
+cp -rf web/icons/* build/web/icons/ 2>/dev/null || true
