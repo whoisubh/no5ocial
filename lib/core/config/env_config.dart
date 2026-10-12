@@ -133,5 +133,5 @@ class EnvConfig {
       get('API_BASE_URL', fallback: isDev ? 'http://localhost:8080' : 'https://api.shaadow.io');
 
   static String get appTitle =>
-      get('APP_TITLE', fallback: isDev ? 'no5ocial (Dev)' : 'no5ocial');
+      get('APP_TITLE', fallback: 'no5ocial');
 }

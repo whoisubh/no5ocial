@@ -1,4 +1,5 @@
 // ignore_for_file: camel_case_types
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import 'package:no5ocial/core/theme/app_theme.dart';
@@ -116,8 +117,21 @@ class no5ocialApp extends StatelessWidget {
           onGenerateRoute: (settings) {
             final routeName = settings.name ?? '/';
 
-            // 0. Default Root: Custom Branded Splash Screen
-            if (routeName == '/' || routeName == '/splash') {
+            // 0. Default Root: Public Landing Page on Web, Splash on Native
+            if (routeName == '/' || routeName == '/landing') {
+              if (kIsWeb) {
+                return MaterialPageRoute(
+                  settings: const RouteSettings(name: '/'),
+                  builder: (_) => LandingScreen(appState: appState),
+                );
+              }
+              return MaterialPageRoute(
+                settings: settings,
+                builder: (_) => SplashScreen(appState: appState),
+              );
+            }
+
+            if (routeName == '/splash') {
               return MaterialPageRoute(
                 settings: settings,
                 builder: (_) => SplashScreen(appState: appState),

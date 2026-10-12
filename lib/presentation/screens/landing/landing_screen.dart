@@ -235,6 +235,7 @@ class _LandingScreenState extends State<LandingScreen> {
                     _buildBentoFeaturesSection(_featuresKey, isDesktop),
                     _buildComparisonSection(_compareKey, isDesktop),
                     _buildDataSovereigntySection(isDesktop),
+                    _buildGoogleComplianceSection(isDesktop),
                     _buildFaqSection(_faqKey, isDesktop),
                     _buildFinalCtaSection(isDesktop),
                     _buildFooter(context, isDesktop),
@@ -665,10 +666,10 @@ class _LandingScreenState extends State<LandingScreen> {
                     const SizedBox(width: 10),
                     Flexible(
                       child: Text(
-                        '100% Free Workspace • Zero Cloud Lock-in • Local SQLite • 20+ Languages',
+                        'no5ocial • Multi-Channel Social Publishing & Scheduling Workspace',
                         style: GoogleFonts.plusJakartaSans(
                           color: const Color(0xFFBFDBFE),
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w700,
                           fontSize: 12,
                           letterSpacing: 0.2,
                         ),
@@ -680,7 +681,7 @@ class _LandingScreenState extends State<LandingScreen> {
               ),
               const SizedBox(height: 32),
 
-              // Hero Title
+              // Hero Title with Explicit Application Name
               RichText(
                 textAlign: TextAlign.center,
                 text: TextSpan(
@@ -692,7 +693,7 @@ class _LandingScreenState extends State<LandingScreen> {
                     color: Colors.white,
                   ),
                   children: [
-                    const TextSpan(text: 'Publish to Every Social Network.\nOrganize Once. '),
+                    const TextSpan(text: 'no5ocial: Publish to Every Social Network.\nOrganize Once. '),
                     WidgetSpan(
                       child: ShaderMask(
                         shaderCallback: (bounds) => const LinearGradient(
@@ -715,11 +716,11 @@ class _LandingScreenState extends State<LandingScreen> {
               ),
               const SizedBox(height: 22),
 
-              // Hero Subtitle
+              // Hero Subtitle Clearly Outlining Application Purpose
               ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 720),
+                constraints: const BoxConstraints(maxWidth: 760),
                 child: Text(
-                  'The privacy-first Buffer alternative built for creators, growth teams, and agencies. Schedule campaigns across Instagram, X, LinkedIn, and YouTube with unified channel groups, smart preflights, and zero cloud telemetry.',
+                  'no5ocial is a privacy-first multi-channel social media publishing and scheduling workspace. Plan, compose, and publish video and post campaigns across YouTube, Instagram, X (Twitter), and LinkedIn with smart preflight checks, local SQLite storage, and zero cloud lock-in.',
                   textAlign: TextAlign.center,
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: isDesktop ? 18 : 15,
@@ -1733,6 +1734,159 @@ class _LandingScreenState extends State<LandingScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  // ==========================================
+  // SECTION: GOOGLE APIS COMPLIANCE & SAFETY COMMITMENT
+  // ==========================================
+  Widget _buildGoogleComplianceSection(bool isDesktop) {
+    return Container(
+      width: double.infinity,
+      color: const Color(0xFF070A11),
+      padding: EdgeInsets.symmetric(
+        horizontal: isDesktop ? 64 : 20,
+        vertical: isDesktop ? 70 : 45,
+      ),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1040),
+          child: Container(
+            padding: EdgeInsets.all(isDesktop ? 40 : 24),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0E1524),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0xFF1E293B)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF3865F6).withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.verified_outlined, size: 14, color: Color(0xFF60A5FA)),
+                          const SizedBox(width: 6),
+                          Text(
+                            'GOOGLE APIS & DEVELOPER POLICY COMPLIANCE',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFF60A5FA),
+                              letterSpacing: 0.4,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                Text(
+                  'Application Purpose & Google API Services Transparency',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: isDesktop ? 26 : 20,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'no5ocial is a multi-channel social media management and scheduling workspace that enables creators, teams, and organizations to compose, preflight, schedule, and publish video and post content directly to YouTube, Instagram, X (Twitter), and LinkedIn.',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 14,
+                    height: 1.6,
+                    color: const Color(0xFFCBD5E1),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Wrap(
+                  spacing: 16,
+                  runSpacing: 16,
+                  children: [
+                    _buildCompliancePoint(
+                      icon: Icons.shield_rounded,
+                      iconColor: const Color(0xFF10B981),
+                      title: 'Zero AI NCII / Content Safety Policy',
+                      description:
+                          'no5ocial strictly adheres to Google APIs Terms of Service and Developer Policies. no5ocial does NOT generate, alter, distribute, or facilitate Non-Consensual Intimate Imagery (NCII), deepfakes, or sexually explicit content using Google APIs or any connected channel.',
+                    ),
+                    _buildCompliancePoint(
+                      icon: Icons.lock_outline_rounded,
+                      iconColor: const Color(0xFF3865F6),
+                      title: 'Limited Use & User Data Privacy',
+                      description:
+                          "no5ocial's use and transfer of information received from Google APIs adheres to the Google API Services User Data Policy, including the Limited Use requirements. Tokens are stored purely on your local device and are NEVER sold, rented, or shared with third parties.",
+                    ),
+                    _buildCompliancePoint(
+                      icon: Icons.psychology_outlined,
+                      iconColor: const Color(0xFFA78BFA),
+                      title: 'No Artificial Intelligence Training',
+                      description:
+                          'User content, video metadata, and credentials accessed via Google APIs are NEVER used to train, test, or fine-tune generalized machine learning models or artificial intelligence systems.',
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCompliancePoint({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String description,
+  }) {
+    return Container(
+      width: 470,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF090D17),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF1E283D)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 18, color: iconColor),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  title,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            description,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 12,
+              height: 1.5,
+              color: const Color(0xFF94A3B8),
+            ),
+          ),
+        ],
       ),
     );
   }
