@@ -60,7 +60,7 @@ class YouTubeService {
     String? token = accessToken;
     if (token == null || token.isEmpty) {
       token = await GoogleAuthService.instance.getOrRequestAccessToken(
-        additionalScopes: [youtubeReadOnlyScope],
+        additionalScopes: [youtubeReadOnlyScope, youtubeUploadScope],
       );
     }
 

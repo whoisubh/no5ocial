@@ -55,20 +55,28 @@ class GoogleAuthService {
       }
 
       if (additionalScopes.isNotEmpty) {
+        bool hasScopes = false;
         try {
-          final hasScopes = await client.canAccessScopes(additionalScopes);
-          if (!hasScopes) {
+          hasScopes = await client.canAccessScopes(additionalScopes);
+        } catch (_) {
+          // canAccessScopes() is not implemented on Android; safely assume scopes must be requested
+          hasScopes = false;
+        }
+
+        if (!hasScopes) {
+          try {
             final granted = await client.requestScopes(additionalScopes);
             if (!granted) {
               debugPrint('User did not grant additional requested scopes: $additionalScopes');
             }
+          } catch (e) {
+            debugPrint('requestScopes error: $e');
           }
-        } catch (e) {
-          debugPrint('canAccessScopes check error (may not be supported on web): $e');
         }
       }
 
-      final auth = await user.authentication;
+      final activeUser = client.currentUser ?? user;
+      final auth = await activeUser.authentication;
       return auth.accessToken;
     } catch (e) {
       debugPrint('Error getting Google access token: $e');
