@@ -186,7 +186,8 @@ module.exports = async function handler(req, res) {
 
 function renderSuccessHtml({ channel, returnUrl }) {
   const safeJson = JSON.stringify(channel).replace(/</g, '\\u003c');
-  const redirectTarget = `${returnUrl}${returnUrl.includes('?') ? '&' : '?'}connected=youtube&channelId=${encodeURIComponent(channel.id)}&channelTitle=${encodeURIComponent(channel.title)}`;
+  const appDeepLink = `no5ocial://auth/callback?channelId=${encodeURIComponent(channel.id)}&channelTitle=${encodeURIComponent(channel.title)}&channelHandle=${encodeURIComponent(channel.handle)}&brandId=${encodeURIComponent(channel.brandId || '')}`;
+  const redirectTarget = `${returnUrl}${returnUrl.includes('?') ? '&' : '?'}connected=youtube&channelId=${encodeURIComponent(channel.id)}&channelTitle=${encodeURIComponent(channel.title)}&channelHandle=${encodeURIComponent(channel.handle)}`;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -277,7 +278,7 @@ function renderSuccessHtml({ channel, returnUrl }) {
       display: inline-block;
       width: 100%;
       box-sizing: border-box;
-      background: linear-gradient(135deg, #38BDF8, #6366F1);
+      background: linear-gradient(135deg, #10B981, #059669);
       color: #FFF;
       text-decoration: none;
       padding: 12px 20px;
@@ -287,10 +288,42 @@ function renderSuccessHtml({ channel, returnUrl }) {
       transition: opacity 0.2s;
     }
     .btn:hover { opacity: 0.9; }
+    .btn-secondary {
+      background: #172033;
+      border: 1px solid #2A374E;
+      color: #94A3B8;
+    }
+    .btn-secondary:hover {
+      background: #1E293B;
+      color: #FFF;
+    }
     .status-text {
       font-size: 0.8rem;
       color: #64748B;
       margin-top: 14px;
+    }
+    .copy-box {
+      margin-top: 16px;
+      padding: 12px;
+      background: #0B0F19;
+      border: 1px dashed #2A374E;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      color: #94A3B8;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .copy-btn {
+      background: transparent;
+      border: 1px solid #38BDF8;
+      color: #38BDF8;
+      border-radius: 6px;
+      padding: 4px 10px;
+      cursor: pointer;
+      font-size: 0.75rem;
+      white-space: nowrap;
     }
   </style>
 </head>
@@ -310,8 +343,19 @@ function renderSuccessHtml({ channel, returnUrl }) {
       </div>
     </div>
 
-    <a href="${redirectTarget}" class="btn" id="returnBtn">Open Workspace Dashboard</a>
-    <div class="status-text" id="statusText">Syncing credentials to local workspace...</div>
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      <a href="${appDeepLink}" class="btn" id="appReturnBtn">Return to no5ocial App</a>
+      <a href="${redirectTarget}" class="btn btn-secondary" id="returnBtn">Open Web Workspace</a>
+    </div>
+
+    <div class="copy-box">
+      <div style="text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+        <span>Channel ID: </span><code style="color: #38BDF8; user-select: all;">${channel.id}</code>
+      </div>
+      <button class="copy-btn" id="copyBtn" onclick="navigator.clipboard.writeText('${channel.id}'); this.innerText='Copied!';">Copy ID</button>
+    </div>
+
+    <div class="status-text" id="statusText">Credentials verified. Tap above to return to your workspace.</div>
   </div>
 
   <script>
@@ -334,14 +378,16 @@ function renderSuccessHtml({ channel, returnUrl }) {
       console.warn('Storage sync error:', e);
     }
 
-    // Auto redirect after brief confirmation
+    // On mobile devices, attempt automatic deep link back to app after brief confirmation
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
     setTimeout(function() {
       if (window.opener && !window.opener.closed) {
         window.close();
-      } else {
-        window.location.href = "${redirectTarget}";
+      } else if (isMobile) {
+        // Try switching back to native app
+        window.location.href = "${appDeepLink}";
       }
-    }, 1800);
+    }, 1500);
   </script>
 </body>
 </html>`;

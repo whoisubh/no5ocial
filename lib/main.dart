@@ -188,7 +188,10 @@ class no5ocialApp extends StatelessWidget {
             }
 
             // 5. Dashboard Endpoints (Protected by Auth Guard)
-            if (normalized == '/dashboard' || normalized.startsWith('/dashboard/')) {
+            if (normalized == '/accounts' ||
+                normalized == '/channels' ||
+                normalized == '/dashboard' ||
+                normalized.startsWith('/dashboard/')) {
               if (!appState.isLoggedIn) {
                 return MaterialPageRoute(
                   settings: const RouteSettings(name: '/login'),
@@ -220,6 +223,8 @@ class no5ocialApp extends StatelessWidget {
                 case '/dashboard/calendar':
                   tabIndex = 2;
                   break;
+                case '/accounts':
+                case '/channels':
                 case '/dashboard/channels':
                   tabIndex = 3;
                   break;
