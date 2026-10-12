@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <!-- Homepage & Marketing Overview -->
+  <url>
+    <loc>https://no5ocial.vercel.app/</loc>
+    <lastmod>2026-10-12</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+
+  <!-- Legal & Terms of Service -->
+  <url>
+    <loc>https://no5ocial.vercel.app/legal/terms</loc>
+    <lastmod>2026-10-12</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <!-- Privacy Policy & Google User Data Disclosures -->
+  <url>
+    <loc>https://no5ocial.vercel.app/legal/privacy</loc>
+    <lastmod>2026-10-12</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <!-- Operational Disclaimer -->
+  <url>
+    <loc>https://no5ocial.vercel.app/legal/disclaimer</loc>
+    <lastmod>2026-10-12</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <!-- Login Gateway -->
+  <url>
+    <loc>https://no5ocial.vercel.app/login</loc>
+    <lastmod>2026-10-12</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+</urlset>
