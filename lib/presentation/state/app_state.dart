@@ -1,18 +1,25 @@
-import 'package:flutter/foundation.dart';
+import 'dart:convert';
+import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 
+import 'package:no5ocial/core/services/google_auth_service.dart';
+import 'package:no5ocial/core/utils/input_validator.dart';
 import 'package:no5ocial/core/utils/string_sanitizer.dart';
+import 'package:no5ocial/data/database/app_database.dart';
 import 'package:no5ocial/data/repositories/account_repository.dart';
 import 'package:no5ocial/data/repositories/audit_repository.dart';
 import 'package:no5ocial/data/repositories/brand_repository.dart';
+import 'package:no5ocial/data/repositories/group_repository.dart';
 import 'package:no5ocial/data/repositories/job_repository.dart';
 import 'package:no5ocial/data/repositories/post_repository.dart';
 import 'package:no5ocial/domain/adapters/publishing_adapter.dart';
 import 'package:no5ocial/domain/enums/connection_status.dart';
 import 'package:no5ocial/domain/enums/error_category.dart';
+import 'package:no5ocial/domain/enums/platform_type.dart';
 import 'package:no5ocial/domain/enums/publish_status.dart';
 import 'package:no5ocial/domain/models/audit_event.dart';
 import 'package:no5ocial/domain/models/brand.dart';
+import 'package:no5ocial/domain/models/channel_group.dart';
 import 'package:no5ocial/domain/models/content_post.dart';
 import 'package:no5ocial/domain/models/media_asset.dart';
 import 'package:no5ocial/domain/models/post_variant.dart';
@@ -27,6 +34,7 @@ class AppState extends ChangeNotifier {
   final PostRepository postRepository;
   final JobRepository jobRepository;
   final AuditRepository auditRepository;
+  final GroupRepository groupRepository;
   final PublishingAdapter? publishingAdapter;
 
   final _uuid = const Uuid();
@@ -36,6 +44,154 @@ class AppState extends ChangeNotifier {
   PublishJobStatus? selectedStatusFilter;
   String searchQuery = '';
   String userTimezone = 'Local (UTC+5:30)';
+  Locale currentLocale = const Locale('en');
+
+  // Theme settings (Default to light mode)
+  ThemeMode _themeMode = ThemeMode.light;
+  ThemeMode get themeMode => _themeMode;
+  bool get isDarkMode => _themeMode == ThemeMode.dark;
+
+  void toggleTheme() {
+    _themeMode = _themeMode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
+    notifyListeners();
+    _saveThemeMode();
+  }
+
+  void setThemeMode(ThemeMode mode) {
+    if (_themeMode == mode) return;
+    _themeMode = mode;
+    notifyListeners();
+    _saveThemeMode();
+  }
+
+  Future<void> _saveThemeMode() async {
+    try {
+      await AppDatabase.instance.setSetting('theme_mode', _themeMode == ThemeMode.dark ? 'dark' : 'light');
+    } catch (e) {
+      debugPrint('Error saving theme mode: $e');
+    }
+  }
+
+  Future<void> loadSavedThemeMode() async {
+    try {
+      final saved = await AppDatabase.instance.getSetting('theme_mode');
+      if (saved != null) {
+        _themeMode = saved == 'dark' ? ThemeMode.dark : ThemeMode.light;
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('Error loading theme mode: $e');
+    }
+  }
+
+  /// Indicates if the workspace welcome popup should be shown on the next dashboard render.
+  bool shouldShowWelcomeDialog = false;
+
+  // Local authentication state (Stored in local SQLite database)
+  bool isLoggedIn = false;
+  String? localUserName;
+  String? localUserEmail;
+  String? localUserPhotoUrl;
+  String? localUserId;
+  String? localUserProvider;
+  Map<String, dynamic>? localUserData;
+
+  Future<void> signInLocally({
+    required String name,
+    required String email,
+    String? photoUrl,
+    String? id,
+    String provider = 'google',
+    String? accessToken,
+    String? idToken,
+    String? serverAuthCode,
+    Map<String, dynamic>? rawData,
+  }) async {
+    final sanitizedName = InputValidator.sanitize(name);
+    final safeName = sanitizedName.length > InputValidator.maxBrandNameLength
+        ? sanitizedName.substring(0, InputValidator.maxBrandNameLength)
+        : sanitizedName;
+
+    final sanitizedEmail = InputValidator.sanitize(email);
+    final safeEmail = sanitizedEmail.length > InputValidator.maxEmailLength
+        ? sanitizedEmail.substring(0, InputValidator.maxEmailLength)
+        : sanitizedEmail;
+
+    final sanitizedId = id != null ? InputValidator.sanitize(id) : null;
+    final safeId = (sanitizedId != null && sanitizedId.isNotEmpty)
+        ? (sanitizedId.length > 100 ? sanitizedId.substring(0, 100) : sanitizedId)
+        : 'local_${DateTime.now().millisecondsSinceEpoch}';
+
+    isLoggedIn = true;
+    localUserName = safeName;
+    localUserEmail = safeEmail;
+    localUserPhotoUrl = photoUrl;
+    localUserId = safeId;
+    localUserProvider = provider;
+    localUserData = rawData;
+    notifyListeners();
+
+    try {
+      await AppDatabase.instance.saveUserProfile(
+        id: safeId,
+        name: safeName,
+        email: safeEmail,
+        photoUrl: photoUrl,
+        provider: provider,
+        rawData: rawData != null ? jsonEncode(rawData) : null,
+      );
+    } catch (e) {
+      debugPrint('Error saving user profile to SQLite: $e');
+    }
+  }
+
+  Future<void> signOut() async {
+    try {
+      await GoogleAuthService.instance.signOut();
+    } catch (e) {
+      debugPrint('GoogleAuthService signOut error: $e');
+    }
+
+    isLoggedIn = false;
+    localUserName = null;
+    localUserEmail = null;
+    localUserPhotoUrl = null;
+    localUserId = null;
+    localUserProvider = null;
+    localUserData = null;
+    notifyListeners();
+
+    try {
+      await AppDatabase.instance.clearUserProfile();
+    } catch (e) {
+      debugPrint('Error clearing user profile from SQLite: $e');
+    }
+  }
+
+  Future<void> loadSavedUserProfile() async {
+    try {
+      final profile = await AppDatabase.instance.getUserProfile();
+      if (profile != null) {
+        isLoggedIn = true;
+        localUserId = profile['id'] as String?;
+        localUserName = profile['name'] as String?;
+        localUserEmail = profile['email'] as String?;
+        localUserPhotoUrl = profile['photo_url'] as String?;
+        localUserProvider = profile['provider'] as String?;
+        if (profile['raw_data'] != null) {
+          try {
+            final decoded = jsonDecode(profile['raw_data'] as String);
+            if (decoded is Map<String, dynamic>) {
+              localUserData = decoded;
+            }
+          } catch (_) {}
+        }
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('Error loading user profile from SQLite: $e');
+    }
+  }
 
   AppState({
     required this.brandRepository,
@@ -43,13 +199,21 @@ class AppState extends ChangeNotifier {
     required this.postRepository,
     required this.jobRepository,
     required this.auditRepository,
+    GroupRepository? groupRepository,
     this.publishingAdapter,
-  });
+  }) : groupRepository = groupRepository ?? InMemoryGroupRepository();
 
   // Accessors
   List<Brand> get brands => brandRepository.getAllBrands();
   List<SocialAccount> get accounts => accountRepository.getAllAccounts();
+  List<SocialAccount> getAccountsByBrand(String brandId) =>
+      accountRepository.getAllAccounts().where((a) => a.brandId == brandId).toList();
   List<MediaAsset> get mediaAssets => postRepository.getAllMediaAssets();
+  List<ChannelGroup> get groups => groupRepository.getAllGroups();
+
+  List<ChannelGroup> getGroupsByBrand(String brandId) =>
+      groupRepository.getGroupsByBrand(brandId);
+  ChannelGroup? getGroupById(String id) => groupRepository.getGroupById(id);
 
   List<ContentPost> get allPosts => postRepository.getAllPosts();
 
@@ -81,10 +245,12 @@ class AppState extends ChangeNotifier {
 
   List<PublishJob> get pendingAndFailedJobs {
     return allJobs
-        .where((j) =>
-            j.status == PublishJobStatus.actionRequired ||
-            j.status == PublishJobStatus.failed ||
-            j.status == PublishJobStatus.scheduled)
+        .where(
+          (j) =>
+              j.status == PublishJobStatus.actionRequired ||
+              j.status == PublishJobStatus.failed ||
+              j.status == PublishJobStatus.scheduled,
+        )
         .toList();
   }
 
@@ -97,8 +263,10 @@ class AppState extends ChangeNotifier {
   }
 
   Brand? getBrandById(String id) => brandRepository.getBrandById(id);
-  SocialAccount? getAccountById(String id) => accountRepository.getAccountById(id);
-  MediaAsset? getMediaAssetById(String id) => postRepository.getMediaAssetById(id);
+  SocialAccount? getAccountById(String id) =>
+      accountRepository.getAccountById(id);
+  MediaAsset? getMediaAssetById(String id) =>
+      postRepository.getMediaAssetById(id);
 
   // Summary Metrics
   int get draftCount =>
@@ -108,9 +276,11 @@ class AppState extends ChangeNotifier {
   int get publishedCount =>
       allPosts.where((p) => p.status == PublishJobStatus.published).length;
   int get actionRequiredCount => allJobs
-      .where((j) =>
-          j.status == PublishJobStatus.actionRequired ||
-          j.status == PublishJobStatus.failed)
+      .where(
+        (j) =>
+            j.status == PublishJobStatus.actionRequired ||
+            j.status == PublishJobStatus.failed,
+      )
       .length;
 
   // Filter modifiers
@@ -156,7 +326,9 @@ class AppState extends ChangeNotifier {
       mediaAssetIds: mediaAssetIds,
       tags: tags,
       campaign: campaign,
-      status: scheduledAtUtc != null ? PublishJobStatus.scheduled : PublishJobStatus.draft,
+      status: scheduledAtUtc != null
+          ? PublishJobStatus.scheduled
+          : PublishJobStatus.draft,
       scheduledAtUtc: scheduledAtUtc,
       createdAtUtc: now,
       updatedAtUtc: now,
@@ -183,7 +355,8 @@ class AppState extends ChangeNotifier {
       eventType: postId == null ? 'DRAFT_CREATED' : 'DRAFT_UPDATED',
       entityType: 'ContentPost',
       entityId: effectiveId,
-      description: 'Draft "$title" saved with ${destinationAccountIds.length} destination(s).',
+      description:
+          'Draft "$title" saved with ${destinationAccountIds.length} destination(s).',
     );
 
     notifyListeners();
@@ -203,10 +376,14 @@ class AppState extends ChangeNotifier {
     final postBrand = brandRepository.getBrandById(post.brandId);
 
     // Save/update the post
-    postRepository.savePost(post.copyWith(
-      status: isScheduled ? PublishJobStatus.scheduled : PublishJobStatus.publishing,
-      updatedAtUtc: now,
-    ));
+    postRepository.savePost(
+      post.copyWith(
+        status: isScheduled
+            ? PublishJobStatus.scheduled
+            : PublishJobStatus.publishing,
+        updatedAtUtc: now,
+      ),
+    );
 
     final attachedMedia = post.mediaAssetIds
         .map((id) => postRepository.getMediaAssetById(id))
@@ -217,7 +394,8 @@ class AppState extends ChangeNotifier {
       final account = accountRepository.getAccountById(accountId);
       if (account == null) continue;
 
-      final variant = postRepository.getVariant(post.id, accountId) ??
+      final variant =
+          postRepository.getVariant(post.id, accountId) ??
           PostVariant(
             id: _uuid.v4(),
             contentPostId: post.id,
@@ -272,7 +450,8 @@ class AppState extends ChangeNotifier {
           socialAccountId: accountId,
           status: PublishJobStatus.scheduled,
           isManual: account.isManualOnly,
-          scheduledAtUtc: post.scheduledAtUtc ?? now.add(const Duration(hours: 2)),
+          scheduledAtUtc:
+              post.scheduledAtUtc ?? now.add(const Duration(hours: 2)),
           idempotencyKey: idempotencyKey,
           createdAtUtc: now,
           updatedAtUtc: now,
@@ -294,7 +473,8 @@ class AppState extends ChangeNotifier {
           idempotencyKey: idempotencyKey,
           lastErrorCode: 'MANUAL_HANDOFF_REQUIRED',
           lastErrorCategory: ErrorCategory.unknown,
-          lastErrorMessage: 'Manual publishing handoff required for ${account.platform.displayName}.',
+          lastErrorMessage:
+              'Manual publishing handoff required for ${account.platform.displayName}.',
           lastErrorAtUtc: now,
           createdAtUtc: now,
           updatedAtUtc: now,
@@ -402,7 +582,8 @@ class AppState extends ChangeNotifier {
         // No adapter connected, mark as action required
         final job = initialJob.copyWith(
           status: PublishJobStatus.actionRequired,
-          lastErrorMessage: 'No live publishing adapter configured for this platform.',
+          lastErrorMessage:
+              'No live publishing adapter configured for this platform.',
         );
         jobRepository.saveJob(job);
         createdJobs.add(job);
@@ -430,7 +611,8 @@ class AppState extends ChangeNotifier {
       eventType: 'MANUAL_PUBLISH_CONFIRMED',
       entityType: 'PublishJob',
       entityId: jobId,
-      description: 'Operator confirmed manual publication. URL: ${externalPostUrl ?? "N/A"}',
+      description:
+          'Operator confirmed manual publication. URL: ${externalPostUrl ?? "N/A"}',
       metadata: {'is_manual': true, 'url': externalPostUrl},
     );
 
@@ -464,9 +646,15 @@ class AppState extends ChangeNotifier {
 
     final account = accountRepository.getAccountById(job.socialAccountId);
     final post = postRepository.getPostById(job.contentPostId);
-    final variant = postRepository.getVariant(job.contentPostId, job.socialAccountId);
+    final variant = postRepository.getVariant(
+      job.contentPostId,
+      job.socialAccountId,
+    );
 
-    if (publishingAdapter != null && account != null && post != null && variant != null) {
+    if (publishingAdapter != null &&
+        account != null &&
+        post != null &&
+        variant != null) {
       final attachedMedia = post.mediaAssetIds
           .map((id) => postRepository.getMediaAssetById(id))
           .whereType<MediaAsset>()
@@ -524,6 +712,263 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  // --- Brand / Company Management ---
+  Brand createBrand({
+    required String name,
+    String? slug,
+    String? description,
+    String? websiteUrl,
+    String? logoUrl,
+    String? companySize,
+    String? industry,
+    String? foundUsVia,
+  }) {
+    final cleanName = InputValidator.sanitize(name);
+    final safeName = cleanName.length > InputValidator.maxBrandNameLength
+        ? cleanName.substring(0, InputValidator.maxBrandNameLength)
+        : cleanName;
+
+    final resolvedSlug = (slug != null && slug.trim().isNotEmpty)
+        ? slug.trim().toLowerCase()
+        : InputValidator.generateDynamicSlug(
+            name: safeName,
+            userHandle: localUserEmail?.split('@').first,
+            existingSlugs: brands.map((b) => b.slug).toList(),
+          );
+
+    final cleanSlug = InputValidator.sanitize(resolvedSlug).toLowerCase();
+    final safeSlug = cleanSlug.length > InputValidator.maxBrandSlugLength
+        ? cleanSlug.substring(0, InputValidator.maxBrandSlugLength)
+        : cleanSlug;
+
+    final cleanDesc = description != null ? InputValidator.sanitize(description) : null;
+    final safeDesc = (cleanDesc != null && cleanDesc.isNotEmpty)
+        ? (cleanDesc.length > InputValidator.maxDescriptionLength
+            ? cleanDesc.substring(0, InputValidator.maxDescriptionLength)
+            : cleanDesc)
+        : null;
+
+    final cleanUrl = websiteUrl != null ? InputValidator.sanitize(websiteUrl) : null;
+    final safeUrl = (cleanUrl != null && cleanUrl.isNotEmpty)
+        ? (cleanUrl.length > InputValidator.maxWebsiteUrlLength
+            ? cleanUrl.substring(0, InputValidator.maxWebsiteUrlLength)
+            : cleanUrl)
+        : null;
+
+    final brand = Brand(
+      id: 'brand_${_uuid.v4().substring(0, 8)}',
+      name: safeName,
+      slug: safeSlug,
+      description: safeDesc,
+      websiteUrl: safeUrl,
+      companySize: companySize,
+      industry: industry,
+      foundUsVia: foundUsVia,
+      createdAtUtc: DateTime.now().toUtc(),
+    );
+    brandRepository.saveBrand(brand);
+    _recordAudit(
+      eventType: 'BRAND_CREATED',
+      entityType: 'Brand',
+      entityId: brand.id,
+      description: 'Registered company ${brand.name} (Size: ${companySize ?? 'unspecified'}, Industry: ${industry ?? 'unspecified'}).',
+    );
+    notifyListeners();
+    return brand;
+  }
+
+  void updateBrand(Brand brand) {
+    brandRepository.saveBrand(brand);
+    _recordAudit(
+      eventType: 'BRAND_UPDATED',
+      entityType: 'Brand',
+      entityId: brand.id,
+      description: 'Updated company/brand ${brand.name}.',
+    );
+    notifyListeners();
+  }
+
+  void deleteBrand(String brandId) {
+    final b = brandRepository.getBrandById(brandId);
+    brandRepository.deleteBrand(brandId);
+    _recordAudit(
+      eventType: 'BRAND_DELETED',
+      entityType: 'Brand',
+      entityId: brandId,
+      description: 'Deleted brand ${b?.name ?? brandId}.',
+    );
+    notifyListeners();
+  }
+
+  // --- Platform / Account Management ---
+  SocialAccount connectAccount({
+    required String brandId,
+    required PlatformType platform,
+    required String displayName,
+    required String handle,
+    String? avatarUrl,
+    String? externalAccountId,
+    bool isManualOnly = false,
+    String? targetGroupId,
+    String? newGroupName,
+    List<String> capabilities = const ['post', 'caption', 'image', 'video'],
+    List<String> scopes = const ['publish_posts', 'read_insights'],
+  }) {
+    final cleanDisplayName = InputValidator.sanitize(displayName);
+    final safeDisplayName = cleanDisplayName.length > InputValidator.maxDisplayNameLength
+        ? cleanDisplayName.substring(0, InputValidator.maxDisplayNameLength)
+        : cleanDisplayName;
+
+    final cleanHandle = InputValidator.sanitize(handle);
+    final strippedHandle = cleanHandle.startsWith('@') ? cleanHandle.substring(1) : cleanHandle;
+    final safeHandlePart = strippedHandle.length > InputValidator.maxHandleLength
+        ? strippedHandle.substring(0, InputValidator.maxHandleLength)
+        : strippedHandle;
+    final formattedHandle = '@$safeHandlePart';
+
+    final account = SocialAccount(
+      id: 'acc_${platform.name}_${_uuid.v4().substring(0, 8)}',
+      brandId: brandId,
+      platform: platform,
+      displayName: safeDisplayName,
+      handle: formattedHandle,
+      externalAccountId: externalAccountId,
+      connectionStatus: ConnectionStatus.connected,
+      capabilities: isManualOnly ? const ['manual_handoff', 'caption', 'image', 'video'] : capabilities,
+      scopes: isManualOnly ? const ['manual_workflow'] : scopes,
+      lastVerifiedAtUtc: DateTime.now().toUtc(),
+      isManualOnly: isManualOnly,
+    );
+    accountRepository.saveAccount(account);
+
+    // If user requested placing this account into an existing or new channel group
+    if (targetGroupId != null && targetGroupId.isNotEmpty) {
+      addAccountToGroup(targetGroupId, account.id);
+    } else if (newGroupName != null && newGroupName.trim().isNotEmpty) {
+      createGroup(
+        brandId: brandId,
+        name: newGroupName.trim(),
+        description: 'Auto-created bundle with ${account.displayName}',
+        accountIds: [account.id],
+      );
+    }
+
+    _recordAudit(
+      eventType: 'ACCOUNT_CONNECTED',
+      entityType: 'SocialAccount',
+      entityId: account.id,
+      description: 'Connected ${platform.displayName} profile ${account.handle} (${isManualOnly ? "Manual Handoff" : "Live OAuth/API"}).',
+    );
+    notifyListeners();
+    return account;
+  }
+
+  void addAccountToGroup(String groupId, String accountId) {
+    final group = groupRepository.getGroupById(groupId);
+    if (group != null && !group.accountIds.contains(accountId)) {
+      final updated = group.copyWith(
+        accountIds: [...group.accountIds, accountId],
+      );
+      updateGroup(updated);
+    }
+  }
+
+  /// Returns the group that contains this account ID, if any.
+  ChannelGroup? getGroupForAccount(String accountId) {
+    for (final g in groups) {
+      if (g.accountIds.contains(accountId)) return g;
+    }
+    return null;
+  }
+
+  /// Sets or clears the group for an account (moves between groups or makes standalone).
+  void setAccountGroup(String accountId, String? targetGroupId) {
+    for (final g in groups) {
+      if (g.accountIds.contains(accountId)) {
+        final updated = g.copyWith(
+          accountIds: g.accountIds.where((id) => id != accountId).toList(),
+        );
+        updateGroup(updated);
+      }
+    }
+    if (targetGroupId != null && targetGroupId.isNotEmpty && targetGroupId != 'standalone') {
+      addAccountToGroup(targetGroupId, accountId);
+    }
+  }
+
+  void deleteAccount(String accountId) {
+    final acc = accountRepository.getAccountById(accountId);
+    accountRepository.deleteAccount(accountId);
+    _recordAudit(
+      eventType: 'ACCOUNT_DISCONNECTED',
+      entityType: 'SocialAccount',
+      entityId: accountId,
+      description: 'Disconnected social account ${acc?.handle ?? accountId}.',
+    );
+    notifyListeners();
+  }
+
+  // --- Channel Groups Management ---
+  ChannelGroup createGroup({
+    required String brandId,
+    required String name,
+    String? description,
+    required List<String> accountIds,
+  }) {
+    final group = ChannelGroup(
+      id: 'group_${_uuid.v4().substring(0, 8)}',
+      brandId: brandId,
+      name: name.trim(),
+      description: description?.trim(),
+      accountIds: accountIds,
+      createdAtUtc: DateTime.now().toUtc(),
+    );
+    groupRepository.saveGroup(group);
+    _recordAudit(
+      eventType: 'CHANNEL_GROUP_CREATED',
+      entityType: 'ChannelGroup',
+      entityId: group.id,
+      description: 'Created channel group "${group.name}" with ${accountIds.length} profiles.',
+    );
+    notifyListeners();
+    return group;
+  }
+
+  void updateGroup(ChannelGroup group) {
+    groupRepository.saveGroup(group);
+    _recordAudit(
+      eventType: 'CHANNEL_GROUP_UPDATED',
+      entityType: 'ChannelGroup',
+      entityId: group.id,
+      description: 'Updated channel group "${group.name}".',
+    );
+    notifyListeners();
+  }
+
+  void deleteGroup(String groupId) {
+    final g = groupRepository.getGroupById(groupId);
+    groupRepository.deleteGroup(groupId);
+    _recordAudit(
+      eventType: 'CHANNEL_GROUP_DELETED',
+      entityType: 'ChannelGroup',
+      entityId: groupId,
+      description: 'Deleted channel group "${g?.name ?? groupId}".',
+    );
+    notifyListeners();
+  }
+
+  // --- Media Asset Registration ---
+  void addMediaAsset(MediaAsset asset) {
+    postRepository.saveMediaAsset(asset);
+    _recordAudit(
+      eventType: 'MEDIA_ASSET_UPLOADED',
+      entityType: 'MediaAsset',
+      entityId: asset.id,
+      description: 'Uploaded media asset ${asset.fileName}.',
+    );
+    notifyListeners();
+  }
+
   void deletePost(String postId) {
     postRepository.deletePost(postId);
     final jobs = jobRepository.getJobsByPostId(postId);
@@ -544,6 +989,71 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  static const List<Locale> supportedLocales = [
+    Locale('en'),
+    Locale('es'),
+    Locale('ar'),
+    Locale('fr'),
+    Locale('de'),
+    Locale('pt'),
+    Locale('ja'),
+    Locale('zh'),
+    Locale('ko'),
+    Locale('hi'),
+    Locale('it'),
+    Locale('ru'),
+    Locale('nl'),
+    Locale('tr'),
+    Locale('pl'),
+    Locale('id'),
+    Locale('sv'),
+    Locale('da'),
+    Locale('uk'),
+    Locale('ms'),
+  ];
+
+  static const Map<String, String> localeDisplayNames = {
+    'en': 'English',
+    'es': 'Español',
+    'ar': 'العربية',
+    'fr': 'Français',
+    'de': 'Deutsch',
+    'pt': 'Português',
+    'ja': '日本語',
+    'zh': '中文',
+    'ko': '한국어',
+    'hi': 'हिन्दी',
+    'it': 'Italiano',
+    'ru': 'Русский',
+    'nl': 'Nederlands',
+    'tr': 'Türkçe',
+    'pl': 'Polski',
+    'id': 'Bahasa Indonesia',
+    'sv': 'Svenska',
+    'da': 'Dansk',
+    'uk': 'Українська',
+    'ms': 'Bahasa Melayu',
+  };
+
+  void setLocale(Locale locale) {
+    currentLocale = locale;
+    notifyListeners();
+  }
+
+  /// Cycles through all supported locales in order.
+  void cycleLocale() {
+    final currentIndex = supportedLocales.indexWhere(
+      (l) => l.languageCode == currentLocale.languageCode,
+    );
+    final nextIndex = (currentIndex + 1) % supportedLocales.length;
+    currentLocale = supportedLocales[nextIndex];
+    notifyListeners();
+  }
+
+  /// Legacy toggle kept for compatibility; now cycles all 4 languages.
+  void toggleLocale() => cycleLocale();
+
+
   void _updateMasterPostStatus(String postId) {
     final post = postRepository.getPostById(postId);
     if (post == null) return;
@@ -551,11 +1061,19 @@ class AppState extends ChangeNotifier {
     final jobs = jobRepository.getJobsByPostId(postId);
     if (jobs.isEmpty) return;
 
-    final allPublished = jobs.every((j) => j.status == PublishJobStatus.published);
+    final allPublished = jobs.every(
+      (j) => j.status == PublishJobStatus.published,
+    );
     final anyFailed = jobs.any((j) => j.status == PublishJobStatus.failed);
-    final anyAction = jobs.any((j) => j.status == PublishJobStatus.actionRequired);
-    final anyPublishing = jobs.any((j) => j.status == PublishJobStatus.publishing);
-    final anyScheduled = jobs.any((j) => j.status == PublishJobStatus.scheduled);
+    final anyAction = jobs.any(
+      (j) => j.status == PublishJobStatus.actionRequired,
+    );
+    final anyPublishing = jobs.any(
+      (j) => j.status == PublishJobStatus.publishing,
+    );
+    final anyScheduled = jobs.any(
+      (j) => j.status == PublishJobStatus.scheduled,
+    );
 
     PublishJobStatus overall;
     if (allPublished) {
@@ -570,10 +1088,9 @@ class AppState extends ChangeNotifier {
       overall = PublishJobStatus.draft;
     }
 
-    postRepository.savePost(post.copyWith(
-      status: overall,
-      updatedAtUtc: DateTime.now().toUtc(),
-    ));
+    postRepository.savePost(
+      post.copyWith(status: overall, updatedAtUtc: DateTime.now().toUtc()),
+    );
   }
 
   void _recordAudit({
@@ -586,7 +1103,7 @@ class AppState extends ChangeNotifier {
     auditRepository.recordEvent(
       AuditEvent(
         id: _uuid.v4(),
-        actor: 'operator@shaadow.io',
+        actor: localUserEmail ?? 'user',
         eventType: eventType,
         entityType: entityType,
         entityId: entityId,
@@ -595,5 +1112,57 @@ class AppState extends ChangeNotifier {
         createdAtUtc: DateTime.now().toUtc(),
       ),
     );
+  }
+
+  Future<void> clearAllData() async {
+    await AppDatabase.instance.clearAllData();
+    if (brandRepository is SqliteBrandRepository) {
+      (brandRepository as SqliteBrandRepository).clearCache();
+    }
+    if (accountRepository is SqliteAccountRepository) {
+      (accountRepository as SqliteAccountRepository).clearCache();
+    }
+    if (groupRepository is SqliteGroupRepository) {
+      (groupRepository as SqliteGroupRepository).clearCache();
+    }
+    if (postRepository is SqlitePostRepository) {
+      (postRepository as SqlitePostRepository).clearCache();
+    }
+    if (jobRepository is SqliteJobRepository) {
+      (jobRepository as SqliteJobRepository).clearCache();
+    }
+    selectedBrandFilterId = null;
+    selectedStatusFilter = null;
+    searchQuery = '';
+    notifyListeners();
+  }
+
+  Future<void> reloadRepositories() async {
+    if (brandRepository is SqliteBrandRepository) {
+      await (brandRepository as SqliteBrandRepository).init();
+    }
+    if (accountRepository is SqliteAccountRepository) {
+      await (accountRepository as SqliteAccountRepository).init();
+    }
+    if (groupRepository is SqliteGroupRepository) {
+      await (groupRepository as SqliteGroupRepository).init();
+    }
+    if (postRepository is SqlitePostRepository) {
+      await (postRepository as SqlitePostRepository).init();
+    }
+    if (jobRepository is SqliteJobRepository) {
+      await (jobRepository as SqliteJobRepository).init();
+    }
+    notifyListeners();
+  }
+
+  Future<void> purgeDemoData() async {
+    await AppDatabase.instance.removeSeedDemoData();
+    await reloadRepositories();
+  }
+
+  Future<void> loadSampleDemoData() async {
+    await AppDatabase.instance.seedDemoData();
+    await reloadRepositories();
   }
 }

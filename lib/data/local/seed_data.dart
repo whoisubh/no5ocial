@@ -4,6 +4,7 @@ import 'package:no5ocial/domain/enums/media_type.dart';
 import 'package:no5ocial/domain/enums/platform_type.dart';
 import 'package:no5ocial/domain/enums/publish_status.dart';
 import 'package:no5ocial/domain/models/brand.dart';
+import 'package:no5ocial/domain/models/channel_group.dart';
 import 'package:no5ocial/domain/models/content_post.dart';
 import 'package:no5ocial/domain/models/media_asset.dart';
 import 'package:no5ocial/domain/models/post_variant.dart';
@@ -64,13 +65,13 @@ abstract final class SeedData {
   );
 
   static List<Brand> get initialBrands => [
-        brandShaadow,
-        brandShaadowWorks,
-        brandBoofer,
-        brandFavtunes,
-        brandGalaxious,
-        brandOwlAndFowl,
-      ];
+    brandShaadow,
+    brandShaadowWorks,
+    brandBoofer,
+    brandFavtunes,
+    brandGalaxious,
+    brandOwlAndFowl,
+  ];
 
   // Social Accounts from PRD
   static final SocialAccount accInstaShaadow = SocialAccount(
@@ -182,16 +183,16 @@ abstract final class SeedData {
   );
 
   static List<SocialAccount> get initialAccounts => [
-        accInstaShaadow,
-        accInstaWorks,
-        accInstaBoofer,
-        accInstaOwl,
-        accYtShaadow,
-        accYtOwl,
-        accLinkedInShaadow,
-        accXBoofer,
-        accXShaadow,
-      ];
+    accInstaShaadow,
+    accInstaWorks,
+    accInstaBoofer,
+    accInstaOwl,
+    accYtShaadow,
+    accYtOwl,
+    accLinkedInShaadow,
+    accXBoofer,
+    accXShaadow,
+  ];
 
   // Sample media assets
   static final MediaAsset assetKeyVisual = MediaAsset(
@@ -218,9 +219,9 @@ abstract final class SeedData {
   );
 
   static List<MediaAsset> get initialMediaAssets => [
-        assetKeyVisual,
-        assetTeaserVideo,
-      ];
+    assetKeyVisual,
+    assetTeaserVideo,
+  ];
 
   // Initial Content Post with multi-destination variants
   static List<ContentPost> get initialPosts {
@@ -230,8 +231,7 @@ abstract final class SeedData {
         id: 'post-welcome',
         brandId: brandShaadow.id,
         title: 'Announcing Shaadow v2 Architecture',
-        defaultCaption:
-            'Excited to present the next generation of Shaadow architecture: ultra-low latency internal workflows and modular publishing! #Shaadow #Tech #ProductEngineering',
+        defaultCaption: 'Excited to present the next generation of Shaadow architecture: ultra-low latency internal workflows and modular publishing! #Shaadow #Tech #ProductEngineering',
         mediaAssetIds: [assetKeyVisual.id],
         destinationAccountIds: [
           accInstaShaadow.id,
@@ -248,13 +248,9 @@ abstract final class SeedData {
         id: 'post-draft-1',
         brandId: brandBoofer.id,
         title: 'Weekend Meme Drop: When the build passes first try',
-        defaultCaption:
-            'That rare feeling when you run flutter test and zero red lines appear on screen. Pure tranquility. 🧘‍♂️ #Boofer #DevLife #CodingMeme',
+        defaultCaption: 'That rare feeling when you run flutter test and zero red lines appear on screen. Pure tranquility. 🧘‍♂️ #Boofer #DevLife #CodingMeme',
         mediaAssetIds: [assetKeyVisual.id],
-        destinationAccountIds: [
-          accInstaBoofer.id,
-          accXBoofer.id,
-        ],
+        destinationAccountIds: [accInstaBoofer.id, accXBoofer.id],
         tags: const ['meme', 'weekend'],
         campaign: 'Social Memes',
         status: PublishJobStatus.draft,
@@ -270,24 +266,21 @@ abstract final class SeedData {
         id: 'variant-shaadow-ig',
         contentPostId: 'post-welcome',
         socialAccountId: accInstaShaadow.id,
-        captionOverride:
-            'Excited to present the next generation of Shaadow architecture: ultra-low latency internal workflows and modular publishing! ✨ Swipe for the architectural breakdown.\n\n#Shaadow #Tech #ProductEngineering #Architecture',
+        captionOverride: 'Excited to present the next generation of Shaadow architecture: ultra-low latency internal workflows and modular publishing! ✨ Swipe for the architectural breakdown.\n\n#Shaadow #Tech #ProductEngineering #Architecture',
         mediaAssetIds: [assetKeyVisual.id],
       ),
       PostVariant(
         id: 'variant-shaadow-li',
         contentPostId: 'post-welcome',
         socialAccountId: accLinkedInShaadow.id,
-        captionOverride:
-            'We are proud to share our latest milestone at Shaadow Platforms: an internal publishing suite designed for maximum operational reliability, explicit auditability, and zero recurring seat costs.\n\nRead more about our engineering choices in our whitepaper.',
+        captionOverride: 'We are proud to share our latest milestone at Shaadow Platforms: an internal publishing suite designed for maximum operational reliability, explicit auditability, and zero recurring seat costs.\n\nRead more about our engineering choices in our whitepaper.',
         mediaAssetIds: [assetKeyVisual.id],
       ),
       PostVariant(
         id: 'variant-shaadow-x',
         contentPostId: 'post-welcome',
         socialAccountId: accXShaadow.id,
-        captionOverride:
-            'Announcing Shaadow v2 Architecture: modular publishing, predictable costs, zero boilerplate.',
+        captionOverride: 'Announcing Shaadow v2 Architecture: modular publishing, predictable costs, zero boilerplate.',
         mediaAssetIds: [assetKeyVisual.id],
       ),
       PostVariant(
@@ -355,4 +348,37 @@ abstract final class SeedData {
       ),
     ];
   }
+
+  static List<ChannelGroup> get initialGroups => [
+    ChannelGroup(
+      id: 'group-flagship',
+      brandId: 'brand-shaadow',
+      name: 'Flagship Launch Squad',
+      description: 'All 4 primary channels (Instagram, X, LinkedIn, YouTube)',
+      accountIds: const [
+        'acc-ig-shaadow',
+        'acc-x-shaadow',
+        'acc-li-shaadow',
+        'acc-yt-shaadow',
+      ],
+      createdAtUtc: DateTime.utc(2026, 1, 1),
+    ),
+    ChannelGroup(
+      id: 'group-creators',
+      brandId: 'brand-boofer',
+      name: 'Viral Creators & Memes',
+      description: 'High-engagement social channels',
+      accountIds: const ['acc-ig-boofer', 'acc-x-favtunes'],
+      createdAtUtc: DateTime.utc(2026, 1, 1),
+    ),
+    ChannelGroup(
+      id: 'group-dev-lab',
+      brandId: 'brand-shaadow-works',
+      name: 'Engineering & Dev Lab',
+      description: 'Behind-the-scenes engineering and open source updates',
+      accountIds: const ['acc-ig-works', 'acc-x-shaadow'],
+      createdAtUtc: DateTime.utc(2026, 1, 1),
+    ),
+  ];
 }
+

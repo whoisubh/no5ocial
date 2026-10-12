@@ -62,7 +62,9 @@ class _ManualHandoffSheetState extends State<ManualHandoffSheet> {
     setState(() => _copied = true);
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Caption copied to clipboard! Ready to paste into platform.'),
+        content: Text(
+          'Caption copied to clipboard! Ready to paste into platform.',
+        ),
         duration: Duration(seconds: 2),
         backgroundColor: AppColors.ink,
       ),
@@ -87,7 +89,9 @@ class _ManualHandoffSheetState extends State<ManualHandoffSheet> {
     // If no existing job, create one through appState
     if (effectiveJobId == null) {
       final jobs = widget.appState.getJobsForPost(widget.post.id);
-      final match = jobs.where((j) => j.socialAccountId == widget.account.id).firstOrNull;
+      final match = jobs
+          .where((j) => j.socialAccountId == widget.account.id)
+          .firstOrNull;
       effectiveJobId = match?.id;
     }
 
@@ -103,7 +107,9 @@ class _ManualHandoffSheetState extends State<ManualHandoffSheet> {
     Navigator.of(context).pop(true);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Marked as Manually Published for ${widget.account.handle}'),
+        content: Text(
+          'Marked as Manually Published for ${widget.account.handle}',
+        ),
         backgroundColor: AppColors.success,
       ),
     );
@@ -141,6 +147,35 @@ class _ManualHandoffSheetState extends State<ManualHandoffSheet> {
           'Click "Start a post".',
           'Paste the adapted commentary and attach asset.',
           'Publish and paste the update link below.',
+        ];
+      case PlatformType.facebook:
+        return [
+          'Open Facebook Page for ${widget.account.displayName}.',
+          'Create a new Page post.',
+          'Paste caption and attach media assets.',
+          'Publish or schedule via Meta Business Suite.',
+        ];
+      case PlatformType.tiktok:
+        return [
+          'Open TikTok Creator Portal or app for ${widget.account.handle}.',
+          'Upload vertical video asset.',
+          'Paste caption with trending hashtags.',
+          'Publish video and record link.',
+        ];
+      case PlatformType.pinterest:
+        return [
+          'Open Pinterest for account ${widget.account.displayName}.',
+          'Click Create Pin.',
+          'Upload pin image or video.',
+          'Paste Pin Title, Description, and Destination URL.',
+          'Select board and publish.',
+        ];
+      case PlatformType.threads:
+        return [
+          'Open Threads app or web for ${widget.account.handle}.',
+          'Start a new Thread.',
+          'Paste thread text and attach media.',
+          'Post update.',
         ];
     }
   }
@@ -181,7 +216,7 @@ class _ManualHandoffSheetState extends State<ManualHandoffSheet> {
             ),
             const SizedBox(height: 6),
             Text(
-              'No5ocial guides you through manual publishing without pretending to be automated.',
+              'no5ocial guides you through manual publishing without pretending to be automated.',
               style: AppTypography.bodySecondary.copyWith(fontSize: 12),
             ),
             const SizedBox(height: 16),
@@ -200,7 +235,10 @@ class _ManualHandoffSheetState extends State<ManualHandoffSheet> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('Destination Caption', style: AppTypography.labelSmall),
+                      Text(
+                        'Destination Caption',
+                        style: AppTypography.labelSmall,
+                      ),
                       Text(
                         '${_effectiveCaption.length} chars',
                         style: AppTypography.code.copyWith(fontSize: 11),
@@ -209,7 +247,9 @@ class _ManualHandoffSheetState extends State<ManualHandoffSheet> {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    _effectiveCaption.isEmpty ? '(Empty caption)' : _effectiveCaption,
+                    _effectiveCaption.isEmpty
+                        ? '(Empty caption)'
+                        : _effectiveCaption,
                     style: AppTypography.bodyMedium,
                     maxLines: 6,
                     overflow: TextOverflow.ellipsis,
@@ -217,10 +257,17 @@ class _ManualHandoffSheetState extends State<ManualHandoffSheet> {
                   const SizedBox(height: 10),
                   ElevatedButton.icon(
                     onPressed: _copyCaption,
-                    icon: Icon(_copied ? Icons.check : Icons.copy_rounded, size: 16),
-                    label: Text(_copied ? 'Caption Copied!' : 'Copy Caption to Clipboard'),
+                    icon: Icon(
+                      _copied ? Icons.check : Icons.copy_rounded,
+                      size: 16,
+                    ),
+                    label: Text(
+                      _copied ? 'Caption Copied!' : 'Copy Caption to Clipboard',
+                    ),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: _copied ? AppColors.success : AppColors.ink,
+                      backgroundColor: _copied
+                          ? AppColors.success
+                          : AppColors.ink,
                       minimumSize: const Size.fromHeight(38),
                     ),
                   ),
@@ -231,12 +278,18 @@ class _ManualHandoffSheetState extends State<ManualHandoffSheet> {
 
             // Step 2: Attached media export
             if (widget.attachedMedia.isNotEmpty) ...[
-              Text('Attached Assets', style: AppTypography.titleMedium.copyWith(fontSize: 13)),
+              Text(
+                'Attached Assets',
+                style: AppTypography.titleMedium.copyWith(fontSize: 13),
+              ),
               const SizedBox(height: 6),
               ...widget.attachedMedia.map((media) {
                 return Container(
                   margin: const EdgeInsets.only(bottom: 6),
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.surface,
                     borderRadius: BorderRadius.circular(8),
@@ -256,16 +309,28 @@ class _ManualHandoffSheetState extends State<ManualHandoffSheet> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(media.fileName, style: AppTypography.titleMedium.copyWith(fontSize: 12)),
-                            Text('${media.formattedSize} • ${media.mediaType.label}',
-                                style: AppTypography.bodySecondary.copyWith(fontSize: 11)),
+                            Text(
+                              media.fileName,
+                              style: AppTypography.titleMedium.copyWith(
+                                fontSize: 12,
+                              ),
+                            ),
+                            Text(
+                              '${media.formattedSize} • ${media.mediaType.label}',
+                              style: AppTypography.bodySecondary.copyWith(
+                                fontSize: 11,
+                              ),
+                            ),
                           ],
                         ),
                       ),
                       OutlinedButton.icon(
                         onPressed: () => _simulateExportAsset(media),
                         icon: const Icon(Icons.share_outlined, size: 14),
-                        label: const Text('Export', style: TextStyle(fontSize: 12)),
+                        label: const Text(
+                          'Export',
+                          style: TextStyle(fontSize: 12),
+                        ),
                         style: OutlinedButton.styleFrom(
                           minimumSize: const Size(60, 32),
                           padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -279,7 +344,10 @@ class _ManualHandoffSheetState extends State<ManualHandoffSheet> {
             ],
 
             // Step 3: Platform Checklist
-            Text('Operator Checklist', style: AppTypography.titleMedium.copyWith(fontSize: 13)),
+            Text(
+              'Operator Checklist',
+              style: AppTypography.titleMedium.copyWith(fontSize: 13),
+            ),
             const SizedBox(height: 6),
             Container(
               padding: const EdgeInsets.all(12),
@@ -293,27 +361,31 @@ class _ManualHandoffSheetState extends State<ManualHandoffSheet> {
                 children: _getPlatformChecklist(widget.account.platform)
                     .asMap()
                     .entries
-                    .map((entry) => Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 3),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                '${entry.key + 1}. ',
-                                style: AppTypography.titleMedium.copyWith(
+                    .map(
+                      (entry) => Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 3),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${entry.key + 1}. ',
+                              style: AppTypography.titleMedium.copyWith(
+                                fontSize: 12,
+                                color: AppColors.accent,
+                              ),
+                            ),
+                            Expanded(
+                              child: Text(
+                                entry.value,
+                                style: AppTypography.bodyMedium.copyWith(
                                   fontSize: 12,
-                                  color: AppColors.accent,
                                 ),
                               ),
-                              Expanded(
-                                child: Text(
-                                  entry.value,
-                                  style: AppTypography.bodyMedium.copyWith(fontSize: 12),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ))
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
                     .toList(),
               ),
             ),

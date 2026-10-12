@@ -1,4 +1,4 @@
-/// Supported social platform targets in No5ocial.
+/// Supported social platform targets in no5ocial.
 enum PlatformType {
   instagram(
     displayName: 'Instagram',
@@ -43,6 +43,50 @@ enum PlatformType {
     supportsVideo: true,
     supportsCarousel: false,
     defaultRequiresMedia: false,
+  ),
+  facebook(
+    displayName: 'Facebook',
+    iconName: 'facebook',
+    maxCaptionLength: 63206,
+    maxHashtags: 30,
+    supportsTextOnly: true,
+    supportsImage: true,
+    supportsVideo: true,
+    supportsCarousel: true,
+    defaultRequiresMedia: false,
+  ),
+  tiktok(
+    displayName: 'TikTok',
+    iconName: 'tiktok',
+    maxCaptionLength: 4000,
+    maxHashtags: 30,
+    supportsTextOnly: false,
+    supportsImage: true,
+    supportsVideo: true,
+    supportsCarousel: true,
+    defaultRequiresMedia: true,
+  ),
+  pinterest(
+    displayName: 'Pinterest',
+    iconName: 'pinterest',
+    maxCaptionLength: 500,
+    maxHashtags: 20,
+    supportsTextOnly: false,
+    supportsImage: true,
+    supportsVideo: true,
+    supportsCarousel: false,
+    defaultRequiresMedia: true,
+  ),
+  threads(
+    displayName: 'Threads',
+    iconName: 'threads',
+    maxCaptionLength: 500,
+    maxHashtags: 10,
+    supportsTextOnly: true,
+    supportsImage: true,
+    supportsVideo: true,
+    supportsCarousel: true,
+    defaultRequiresMedia: false,
   );
 
   const PlatformType({
@@ -66,4 +110,28 @@ enum PlatformType {
   final bool supportsVideo;
   final bool supportsCarousel;
   final bool defaultRequiresMedia;
+
+  /// Natural platform entity noun (e.g. 'Channel' for YouTube, 'Profile' for Instagram/X/LinkedIn, 'Page' for Facebook).
+  String get accountNoun {
+    switch (this) {
+      case PlatformType.youtube:
+        return 'Channel';
+      case PlatformType.facebook:
+        return 'Page';
+      case PlatformType.instagram:
+      case PlatformType.x:
+      case PlatformType.linkedin:
+      case PlatformType.threads:
+      case PlatformType.pinterest:
+        return 'Profile';
+      case PlatformType.tiktok:
+        return 'Account';
+    }
+  }
+
+  /// Full target name (e.g. 'YouTube Channel', 'Instagram Profile', 'Facebook Page').
+  String get fullTargetName => '$displayName $accountNoun';
+
+  /// Platform-specific button CTA (e.g. 'Authenticate YouTube Channel', 'Authenticate Instagram Profile').
+  String get authenticateCta => 'Authenticate $displayName $accountNoun';
 }

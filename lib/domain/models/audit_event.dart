@@ -1,3 +1,4 @@
+import 'dart:convert';
 /// Audit log event tracking operational modifications, manual confirmations, and status transitions.
 class AuditEvent {
   final String id;
@@ -31,17 +32,29 @@ class AuditEvent {
         'created_at_utc': createdAtUtc.toIso8601String(),
       };
 
-  factory AuditEvent.fromJson(Map<String, dynamic> json) => AuditEvent(
-        id: json['id'] as String,
-        actor: json['actor'] as String,
-        eventType: json['event_type'] as String,
-        entityType: json['entity_type'] as String,
-        entityId: json['entity_id'] as String,
-        description: json['description'] as String,
-        metadataSanitized:
-            (json['metadata_sanitized'] as Map<String, dynamic>?) ?? const {},
-        createdAtUtc: DateTime.parse(json['created_at_utc'] as String),
-      );
+  factory AuditEvent.fromJson(Map<String, dynamic> json) {
+    Map<String, dynamic> meta = {};
+    final rawMeta = json['metadata_sanitized'] ?? json['metadata_json'];
+    if (rawMeta is Map) {
+      meta = rawMeta.cast<String, dynamic>();
+    } else if (rawMeta is String) {
+      try {
+        final dec = jsonDecode(rawMeta);
+        if (dec is Map) meta = dec.cast<String, dynamic>();
+      } catch (_) {}
+    }
+
+    return AuditEvent(
+      id: json['id'] as String,
+      actor: json['actor'] as String? ?? 'System',
+      eventType: json['event_type'] as String? ?? 'UNKNOWN',
+      entityType: json['entity_type'] as String? ?? 'UNKNOWN',
+      entityId: json['entity_id'] as String? ?? '',
+      description: json['description'] as String? ?? '',
+      metadataSanitized: meta,
+      createdAtUtc: DateTime.tryParse(json['created_at_utc'] as String? ?? '') ?? DateTime.now().toUtc(),
+    );
+  }
 
   @override
   bool operator ==(Object other) =>

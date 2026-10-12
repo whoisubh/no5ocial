@@ -1,5 +1,5 @@
 import 'package:uuid/uuid.dart';
-import 'package:no5ocial/data/local/seed_data.dart';
+import 'package:no5ocial/data/database/app_database.dart';
 import 'package:no5ocial/domain/enums/publish_status.dart';
 import 'package:no5ocial/domain/models/publish_attempt.dart';
 import 'package:no5ocial/domain/models/publish_job.dart';
@@ -24,15 +24,29 @@ abstract class JobRepository {
   });
 }
 
-class InMemoryJobRepository implements JobRepository {
+class SqliteJobRepository implements JobRepository {
   final Map<String, PublishJob> _jobs = {};
   final List<PublishAttempt> _attempts = [];
   final _uuid = const Uuid();
+  final AppDatabase _db = AppDatabase.instance;
 
-  InMemoryJobRepository({List<PublishJob>? initialJobs}) {
-    for (final job in (initialJobs ?? SeedData.initialJobs)) {
+  SqliteJobRepository({List<PublishJob>? initialJobs}) {
+    for (final job in (initialJobs ?? const [])) {
       _jobs[job.id] = job;
     }
+  }
+
+  Future<void> init() async {
+    final list = await _db.getAllJobs();
+    _jobs.clear();
+    for (final j in list) {
+      _jobs[j.id] = j;
+    }
+  }
+
+  void clearCache() {
+    _jobs.clear();
+    _attempts.clear();
   }
 
   @override
@@ -56,12 +70,14 @@ class InMemoryJobRepository implements JobRepository {
   @override
   void saveJob(PublishJob job) {
     _jobs[job.id] = job;
+    _db.saveJob(job).catchError((_) {});
   }
 
   @override
   void deleteJob(String id) {
     _jobs.remove(id);
     _attempts.removeWhere((a) => a.publishJobId == id);
+    _db.deleteJob(id).catchError((_) {});
   }
 
   @override
@@ -95,6 +111,7 @@ class InMemoryJobRepository implements JobRepository {
     );
 
     _jobs[jobId] = updated;
+    _db.saveJob(updated).catchError((_) {});
 
     // Record an audit attempt
     recordAttempt(
@@ -111,3 +128,8 @@ class InMemoryJobRepository implements JobRepository {
     return updated;
   }
 }
+
+class InMemoryJobRepository extends SqliteJobRepository {
+  InMemoryJobRepository({super.initialJobs});
+}
+

@@ -62,8 +62,7 @@ class FakePublishingAdapter implements PublishingAdapter {
 
     if (shouldSimulateTimeout) {
       return const PublishExecutionResult.ambiguousTimeout(
-        sanitizedErrorMessage:
-            'Request timed out after submission. Outcome is ambiguous; check destination before retry.',
+        sanitizedErrorMessage: 'Request timed out after submission. Outcome is ambiguous; check destination before retry.',
       );
     }
 
@@ -71,7 +70,8 @@ class FakePublishingAdapter implements PublishingAdapter {
       return const PublishExecutionResult.failure(
         errorCategory: ErrorCategory.rateLimit,
         rawErrorCode: 'RATE_LIMIT_429',
-        sanitizedErrorMessage: 'Provider rate limit exceeded. Retryable after backoff period.',
+        sanitizedErrorMessage:
+            'Provider rate limit exceeded. Retryable after backoff period.',
       );
     }
 

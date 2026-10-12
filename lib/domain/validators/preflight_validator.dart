@@ -211,6 +211,40 @@ abstract final class PreflightValidator {
           ),
         );
       }
+    } else if (platform == PlatformType.tiktok) {
+      final hasVideo = attachedMedia.any((m) => m.mediaType == MediaType.video);
+      if (!hasVideo) {
+        issues.add(
+          const ValidationIssue(
+            severity: ValidationSeverity.blocker,
+            code: 'VIDEO_REQUIRED_TIKTOK',
+            message: 'TikTok requires a video asset. Text-only uploads are unsupported.',
+            remedy: 'Attach a supported video file.',
+          ),
+        );
+      }
+    } else if (platform == PlatformType.pinterest) {
+      if (attachedMedia.isEmpty) {
+        issues.add(
+          const ValidationIssue(
+            severity: ValidationSeverity.blocker,
+            code: 'MEDIA_REQUIRED_PINTEREST',
+            message: 'Pinterest pins require an image or video asset.',
+            remedy: 'Attach an image or video asset for your pin.',
+          ),
+        );
+      }
+    } else if (platform == PlatformType.facebook || platform == PlatformType.threads) {
+      if (effectiveCaption.trim().isEmpty && attachedMedia.isEmpty) {
+        issues.add(
+          ValidationIssue(
+            severity: ValidationSeverity.blocker,
+            code: 'EMPTY_POST_${platform.name.toUpperCase()}',
+            message: '${platform.displayName} posts require either text copy or media.',
+            remedy: 'Enter copy or attach media.',
+          ),
+        );
+      }
     }
 
     // 8. Format & file size validation

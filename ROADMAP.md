@@ -1,4 +1,4 @@
-# No5ocial Roadmap
+# no5ocial Roadmap
 
 ## Phase 0 — Feasibility (before building the scheduler)
 - Inventory every social account, account type, owner/admin, and intended content formats.

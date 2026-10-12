@@ -1,4 +1,4 @@
-import 'package:no5ocial/data/local/seed_data.dart';
+import 'package:no5ocial/data/database/app_database.dart';
 import 'package:no5ocial/domain/models/brand.dart';
 
 abstract class BrandRepository {
@@ -8,18 +8,33 @@ abstract class BrandRepository {
   void deleteBrand(String id);
 }
 
-class InMemoryBrandRepository implements BrandRepository {
+class SqliteBrandRepository implements BrandRepository {
   final Map<String, Brand> _brands = {};
+  final AppDatabase _db = AppDatabase.instance;
 
-  InMemoryBrandRepository({List<Brand>? initialData}) {
-    final data = initialData ?? SeedData.initialBrands;
+  SqliteBrandRepository({List<Brand>? initialData}) {
+    final data = initialData ?? const [];
     for (final brand in data) {
       _brands[brand.id] = brand;
     }
   }
 
+  Future<void> init() async {
+    final list = await _db.getAllBrands();
+    _brands.clear();
+    for (final brand in list) {
+      _brands[brand.id] = brand;
+    }
+  }
+
+  void clearCache() => _brands.clear();
+
   @override
-  List<Brand> getAllBrands() => _brands.values.toList();
+  List<Brand> getAllBrands() {
+    final list = _brands.values.toList();
+    list.sort((a, b) => a.name.compareTo(b.name));
+    return list;
+  }
 
   @override
   Brand? getBrandById(String id) => _brands[id];
@@ -27,10 +42,16 @@ class InMemoryBrandRepository implements BrandRepository {
   @override
   void saveBrand(Brand brand) {
     _brands[brand.id] = brand;
+    _db.saveBrand(brand).catchError((_) {});
   }
 
   @override
   void deleteBrand(String id) {
     _brands.remove(id);
+    _db.deleteBrand(id).catchError((_) {});
   }
+}
+
+class InMemoryBrandRepository extends SqliteBrandRepository {
+  InMemoryBrandRepository({super.initialData});
 }

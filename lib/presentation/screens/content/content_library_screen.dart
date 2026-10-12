@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:no5ocial/core/extensions/l10n_extension.dart';
 import 'package:no5ocial/core/theme/app_colors.dart';
 import 'package:no5ocial/core/theme/app_typography.dart';
 import 'package:no5ocial/core/utils/date_formatter.dart';
@@ -17,6 +18,18 @@ class ContentLibraryScreen extends StatelessWidget {
   const ContentLibraryScreen({super.key, required this.appState});
 
   void _openComposer(BuildContext context, [ContentPost? post]) {
+    if (appState.accounts.isEmpty) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Please integrate at least one social channel first before creating a post.',
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => ComposerScreen(appState: appState, initialPost: post),
@@ -25,26 +38,29 @@ class ContentLibraryScreen extends StatelessWidget {
   }
 
   void _confirmDelete(BuildContext context, ContentPost post) {
+    final l10n = context.l10n;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Delete Post Draft?'),
-        content: Text('Are you sure you want to delete "${post.title}"? This will cancel associated jobs.'),
+        title: Text(l10n.deleteDraftTitle),
+        content: Text(
+          l10n.deleteDraftConfirm(post.title),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel'),
+            child: Text(l10n.btnCancel),
           ),
           ElevatedButton(
             onPressed: () {
               Navigator.of(ctx).pop();
               appState.deletePost(post.id);
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Post draft deleted.')),
+                SnackBar(content: Text(l10n.draftDeletedSnack)),
               );
             },
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
-            child: const Text('Delete'),
+            child: Text(l10n.btnDelete),
           ),
         ],
       ),
@@ -53,36 +69,46 @@ class ContentLibraryScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return ListenableBuilder(
       listenable: appState,
       builder: (context, _) {
         final posts = appState.filteredPosts;
         final brands = appState.brands;
 
+        final screenWidth = MediaQuery.of(context).size.width;
+        final isDesktop = screenWidth >= 860;
+
         return Scaffold(
-          appBar: AppBar(
-            title: const Text('Content Library'),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.add),
-                tooltip: 'New Post',
-                onPressed: () => _openComposer(context),
-              ),
-              const SizedBox(width: 8),
-            ],
-          ),
+          appBar: isDesktop
+              ? null
+              : AppBar(
+                  automaticallyImplyLeading: false,
+                  title: Text(l10n.contentLibraryTitle),
+                  actions: [
+                    IconButton(
+                      icon: const Icon(Icons.add),
+                      tooltip: l10n.btnNewPost,
+                      onPressed: () => _openComposer(context),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                ),
           body: Column(
             children: [
               // Search & Filter header
               Container(
                 color: AppColors.surface,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
                 child: Column(
                   children: [
                     TextField(
-                      decoration: const InputDecoration(
-                        hintText: 'Search posts, captions, campaigns, or tags...',
-                        prefixIcon: Icon(Icons.search, size: 20),
+                      decoration: InputDecoration(
+                        hintText: l10n.searchHint,
+                        prefixIcon: const Icon(Icons.search, size: 20),
                         isDense: true,
                       ),
                       style: AppTypography.bodyMedium,
@@ -94,20 +120,35 @@ class ContentLibraryScreen extends StatelessWidget {
                       scrollDirection: Axis.horizontal,
                       child: Row(
                         children: [
-                          BrandBadge(
-                            brand: null,
-                            isSelected: appState.selectedBrandFilterId == null,
-                            onTap: () => appState.setBrandFilter(null),
+                          FilterChip(
+                            label: const Text('All'),
+                            labelStyle: TextStyle(
+                              fontSize: 12,
+                              color: appState.selectedBrandFilterId == null
+                                  ? Colors.white
+                                  : AppColors.textPrimary,
+                              fontWeight: appState.selectedBrandFilterId == null
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
+                            ),
+                            selected: appState.selectedBrandFilterId == null,
+                            selectedColor: AppColors.ink,
+                            backgroundColor: AppColors.surfaceSecondary,
+                            showCheckmark: false,
+                            onSelected: (_) => appState.setBrandFilter(null),
                           ),
                           const SizedBox(width: 8),
-                          ...brands.map((b) => Padding(
-                                padding: const EdgeInsets.only(right: 8),
-                                child: BrandBadge(
-                                  brand: b,
-                                  isSelected: appState.selectedBrandFilterId == b.id,
-                                  onTap: () => appState.setBrandFilter(b.id),
-                                ),
-                              )),
+                          ...brands.map(
+                            (b) => Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: CompanyBadge(
+                                brand: b,
+                                isSelected:
+                                    appState.selectedBrandFilterId == b.id,
+                                onTap: () => appState.setBrandFilter(b.id),
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -117,11 +158,23 @@ class ContentLibraryScreen extends StatelessWidget {
                       scrollDirection: Axis.horizontal,
                       child: Row(
                         children: [
-                          _buildStatusFilterChip('All Statuses', null),
-                          _buildStatusFilterChip('Drafts', PublishJobStatus.draft),
-                          _buildStatusFilterChip('Scheduled', PublishJobStatus.scheduled),
-                          _buildStatusFilterChip('Published', PublishJobStatus.published),
-                          _buildStatusFilterChip('Action Needed', PublishJobStatus.actionRequired),
+                          _buildStatusFilterChip(l10n.filterAll, null),
+                          _buildStatusFilterChip(
+                            l10n.filterDraft,
+                            PublishJobStatus.draft,
+                          ),
+                          _buildStatusFilterChip(
+                            l10n.filterScheduled,
+                            PublishJobStatus.scheduled,
+                          ),
+                          _buildStatusFilterChip(
+                            l10n.filterPublished,
+                            PublishJobStatus.published,
+                          ),
+                          _buildStatusFilterChip(
+                            l10n.filterFailed,
+                            PublishJobStatus.actionRequired,
+                          ),
                         ],
                       ),
                     ),
@@ -137,22 +190,28 @@ class ContentLibraryScreen extends StatelessWidget {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(Icons.folder_open_outlined, size: 48, color: AppColors.textMuted),
+                            const Icon(
+                              Icons.folder_open_outlined,
+                              size: 48,
+                              color: AppColors.textMuted,
+                            ),
                             const SizedBox(height: 12),
-                            const Text(
-                              'No posts match your filters.',
+                            Text(
+                              l10n.noPostsMatch,
                               style: AppTypography.titleMedium,
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              'Try adjusting the search query or brand filter.',
-                              style: AppTypography.bodySecondary.copyWith(fontSize: 12),
+                              l10n.noPostsMatchSub,
+                              style: AppTypography.bodySecondary.copyWith(
+                                fontSize: 12,
+                              ),
                             ),
                             const SizedBox(height: 16),
                             ElevatedButton.icon(
                               onPressed: () => _openComposer(context),
                               icon: const Icon(Icons.add, size: 16),
-                              label: const Text('Create New Post'),
+                              label: Text(l10n.btnCreatePost),
                             ),
                           ],
                         ),
@@ -213,19 +272,9 @@ class ContentLibraryScreen extends StatelessWidget {
             Row(
               children: [
                 if (brand != null)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceSecondary,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      brand.name,
-                      style: AppTypography.labelSmall.copyWith(
-                        color: AppColors.textSecondary,
-                        fontSize: 11,
-                      ),
-                    ),
+                  CompanyBadge(
+                    brand: brand,
+                    isCompact: true,
                   ),
                 if (post.campaign != null) ...[
                   const SizedBox(width: 6),
@@ -241,8 +290,14 @@ class ContentLibraryScreen extends StatelessWidget {
                     if (val == 'delete') _confirmDelete(context, post);
                   },
                   itemBuilder: (_) => [
-                    const PopupMenuItem(value: 'edit', child: Text('Edit in Composer')),
-                    const PopupMenuItem(value: 'delete', child: Text('Delete Draft')),
+                    const PopupMenuItem(
+                      value: 'edit',
+                      child: Text('Edit in Composer'),
+                    ),
+                    const PopupMenuItem(
+                      value: 'delete',
+                      child: Text('Delete Draft'),
+                    ),
                   ],
                 ),
               ],
@@ -271,7 +326,9 @@ class ContentLibraryScreen extends StatelessWidget {
                 children: post.destinationAccountIds.map((accId) {
                   final acc = appState.getAccountById(accId);
                   if (acc == null) return const SizedBox.shrink();
-                  final job = jobs.where((j) => j.socialAccountId == accId).firstOrNull;
+                  final job = jobs
+                      .where((j) => j.socialAccountId == accId)
+                      .firstOrNull;
 
                   return Row(
                     mainAxisSize: MainAxisSize.min,
@@ -279,7 +336,11 @@ class ContentLibraryScreen extends StatelessWidget {
                       PlatformIconChip(account: acc, isCompact: true),
                       if (job != null) ...[
                         const SizedBox(width: 4),
-                        StatusBadge(status: job.status, isManual: job.isManual, isCompact: true),
+                        StatusBadge(
+                          status: job.status,
+                          isManual: job.isManual,
+                          isCompact: true,
+                        ),
                       ],
                     ],
                   );
@@ -291,19 +352,33 @@ class ContentLibraryScreen extends StatelessWidget {
             // Footer metadata
             Row(
               children: [
-                const Icon(Icons.access_time, size: 12, color: AppColors.textMuted),
+                const Icon(
+                  Icons.access_time,
+                  size: 12,
+                  color: AppColors.textMuted,
+                ),
                 const SizedBox(width: 4),
                 Text(
                   'Updated: ${DateFormatter.formatRelative(post.updatedAtUtc)}',
-                  style: AppTypography.bodySecondary.copyWith(fontSize: 11, color: AppColors.textMuted),
+                  style: AppTypography.bodySecondary.copyWith(
+                    fontSize: 11,
+                    color: AppColors.textMuted,
+                  ),
                 ),
                 if (post.mediaAssetIds.isNotEmpty) ...[
                   const SizedBox(width: 12),
-                  const Icon(Icons.attach_file, size: 12, color: AppColors.textMuted),
+                  const Icon(
+                    Icons.attach_file,
+                    size: 12,
+                    color: AppColors.textMuted,
+                  ),
                   const SizedBox(width: 2),
                   Text(
                     '${post.mediaAssetIds.length} media',
-                    style: AppTypography.bodySecondary.copyWith(fontSize: 11, color: AppColors.textMuted),
+                    style: AppTypography.bodySecondary.copyWith(
+                      fontSize: 11,
+                      color: AppColors.textMuted,
+                    ),
                   ),
                 ],
               ],

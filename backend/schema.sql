@@ -1,5 +1,5 @@
 -- ==============================================================================
--- No5ocial Database Schema (PostgreSQL / Supabase)
+-- no5ocial Database Schema (PostgreSQL / Supabase)
 -- Designed per ARCHITECTURE.md, SECURITY.md, and PRD.md
 -- 
 -- Principles:

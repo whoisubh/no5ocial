@@ -46,3 +46,19 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Environment files & Secrets (Strictly forbidden from Git)
+.env
+.env.*
+*.env
+!.env.example
+!backend/.env.example
+key.properties
+*.keystore
+*.jks
+google-services.json
+GoogleService-Info.plist
+
+# Flutter temporary screenshots
+flutter_*.png
+

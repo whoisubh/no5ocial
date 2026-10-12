@@ -118,34 +118,53 @@ class PublishJob {
         'updated_at_utc': updatedAtUtc.toIso8601String(),
       };
 
-  factory PublishJob.fromJson(Map<String, dynamic> json) => PublishJob(
-        id: json['id'] as String,
-        contentPostId: json['content_post_id'] as String,
-        postVariantId: json['post_variant_id'] as String,
-        socialAccountId: json['social_account_id'] as String,
-        status: PublishJobStatus.values.byName(json['status'] as String),
-        isManual: json['is_manual'] as bool? ?? false,
-        scheduledAtUtc: json['scheduled_at_utc'] != null
-            ? DateTime.parse(json['scheduled_at_utc'] as String)
-            : null,
-        publishedAtUtc: json['published_at_utc'] != null
-            ? DateTime.parse(json['published_at_utc'] as String)
-            : null,
-        attemptCount: json['attempt_count'] as int? ?? 0,
-        idempotencyKey: json['idempotency_key'] as String,
-        externalPostId: json['external_post_id'] as String?,
-        externalUrl: json['external_url'] as String?,
-        lastErrorCode: json['last_error_code'] as String?,
-        lastErrorCategory: json['last_error_category'] != null
-            ? ErrorCategory.values.byName(json['last_error_category'] as String)
-            : null,
-        lastErrorMessage: json['last_error_message'] as String?,
-        lastErrorAtUtc: json['last_error_at_utc'] != null
-            ? DateTime.parse(json['last_error_at_utc'] as String)
-            : null,
-        createdAtUtc: DateTime.parse(json['created_at_utc'] as String),
-        updatedAtUtc: DateTime.parse(json['updated_at_utc'] as String),
-      );
+  factory PublishJob.fromJson(Map<String, dynamic> json) {
+    bool manual = false;
+    if (json['is_manual'] is bool) {
+      manual = json['is_manual'] as bool;
+    } else if (json['is_manual'] is num) {
+      manual = (json['is_manual'] as num) != 0;
+    }
+
+    PublishJobStatus st = PublishJobStatus.draft;
+    try {
+      st = PublishJobStatus.values.byName(json['status'] as String);
+    } catch (_) {}
+
+    ErrorCategory? errorCat;
+    if (json['last_error_category'] != null) {
+      try {
+        errorCat = ErrorCategory.values.byName(json['last_error_category'] as String);
+      } catch (_) {}
+    }
+
+    return PublishJob(
+      id: json['id'] as String,
+      contentPostId: json['content_post_id'] as String,
+      postVariantId: (json['post_variant_id'] as String?) ?? 'variant_default',
+      socialAccountId: json['social_account_id'] as String,
+      status: st,
+      isManual: manual,
+      scheduledAtUtc: json['scheduled_at_utc'] != null
+          ? DateTime.tryParse(json['scheduled_at_utc'] as String)
+          : null,
+      publishedAtUtc: json['published_at_utc'] != null
+          ? DateTime.tryParse(json['published_at_utc'] as String)
+          : null,
+      attemptCount: (json['attempt_count'] as num?)?.toInt() ?? 0,
+      idempotencyKey: json['idempotency_key'] as String? ?? '',
+      externalPostId: json['external_post_id'] as String?,
+      externalUrl: json['external_url'] as String?,
+      lastErrorCode: json['last_error_code'] as String?,
+      lastErrorCategory: errorCat,
+      lastErrorMessage: json['last_error_message'] as String?,
+      lastErrorAtUtc: json['last_error_at_utc'] != null
+          ? DateTime.tryParse(json['last_error_at_utc'] as String)
+          : null,
+      createdAtUtc: DateTime.tryParse(json['created_at_utc'] as String? ?? '') ?? DateTime.now().toUtc(),
+      updatedAtUtc: DateTime.tryParse(json['updated_at_utc'] as String? ?? '') ?? DateTime.now().toUtc(),
+    );
+  }
 
   @override
   bool operator ==(Object other) =>

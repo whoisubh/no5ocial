@@ -4,7 +4,7 @@ import 'package:no5ocial/core/theme/app_typography.dart';
 import 'package:no5ocial/domain/enums/platform_type.dart';
 import 'package:no5ocial/domain/models/media_asset.dart';
 import 'package:no5ocial/domain/models/social_account.dart';
-import 'package:no5ocial/presentation/widgets/platform_icon_chip.dart';
+import 'package:no5ocial/presentation/widgets/platform_logo.dart';
 
 class PreviewCard extends StatelessWidget {
   final SocialAccount account;
@@ -41,20 +41,24 @@ class PreviewCard extends StatelessWidget {
             ),
             child: Row(
               children: [
-                Icon(
-                  PlatformIconChip.getPlatformIcon(account.platform),
+                PlatformLogo(
+                  platform: account.platform,
                   size: 14,
-                  color: PlatformIconChip.getPlatformColor(account.platform),
                 ),
                 const SizedBox(width: 6),
                 Text(
                   '${account.platform.displayName} Preview (Simulated)',
-                  style: AppTypography.labelSmall.copyWith(color: AppColors.textSecondary),
+                  style: AppTypography.labelSmall.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
                 ),
                 const Spacer(),
                 Text(
                   account.handle,
-                  style: AppTypography.code.copyWith(fontSize: 11, color: AppColors.textMuted),
+                  style: AppTypography.code.copyWith(
+                    fontSize: 11,
+                    color: AppColors.textMuted,
+                  ),
                 ),
               ],
             ),
@@ -67,6 +71,10 @@ class PreviewCard extends StatelessWidget {
               PlatformType.instagram => _buildInstagramPreview(),
               PlatformType.youtube => _buildYouTubePreview(),
               PlatformType.linkedin => _buildLinkedInPreview(),
+              PlatformType.facebook => _buildFacebookPreview(),
+              PlatformType.tiktok => _buildTikTokPreview(),
+              PlatformType.pinterest => _buildPinterestPreview(),
+              PlatformType.threads => _buildThreadsPreview(),
             },
           ),
         ],
@@ -85,15 +93,25 @@ class PreviewCard extends StatelessWidget {
               backgroundColor: AppColors.inkLight,
               child: Text(
                 account.displayName.isNotEmpty ? account.displayName[0] : 'X',
-                style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
             const SizedBox(width: 10),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(account.displayName, style: AppTypography.titleMedium.copyWith(fontSize: 13)),
-                Text(account.handle, style: AppTypography.bodySecondary.copyWith(fontSize: 11)),
+                Text(
+                  account.displayName,
+                  style: AppTypography.titleMedium.copyWith(fontSize: 13),
+                ),
+                Text(
+                  account.handle,
+                  style: AppTypography.bodySecondary.copyWith(fontSize: 11),
+                ),
               ],
             ),
           ],
@@ -130,12 +148,18 @@ class PreviewCard extends StatelessWidget {
                 backgroundColor: Colors.white,
                 child: Text(
                   account.displayName.isNotEmpty ? account.displayName[0] : 'I',
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ),
             const SizedBox(width: 8),
-            Text(account.handle, style: AppTypography.titleMedium.copyWith(fontSize: 13)),
+            Text(
+              account.handle,
+              style: AppTypography.titleMedium.copyWith(fontSize: 13),
+            ),
           ],
         ),
         const SizedBox(height: 10),
@@ -147,10 +171,16 @@ class PreviewCard extends StatelessWidget {
             decoration: BoxDecoration(
               color: AppColors.surfaceSecondary,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: AppColors.border, style: BorderStyle.solid),
+              border: Border.all(
+                color: AppColors.border,
+                style: BorderStyle.solid,
+              ),
             ),
             child: const Center(
-              child: Text('⚠️ Instagram requires an image or video asset', style: AppTypography.bodySecondary),
+              child: Text(
+                '⚠️ Instagram requires an image or video asset',
+                style: AppTypography.bodySecondary,
+              ),
             ),
           ),
         const SizedBox(height: 10),
@@ -163,7 +193,9 @@ class PreviewCard extends StatelessWidget {
               ),
               TextSpan(
                 text: caption.isEmpty ? '(Empty caption)' : caption,
-                style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.textPrimary,
+                ),
               ),
             ],
           ),
@@ -186,7 +218,10 @@ class PreviewCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(8),
             ),
             child: const Center(
-              child: Text('⚠️ YouTube requires video asset', style: AppTypography.bodySecondary),
+              child: Text(
+                '⚠️ YouTube requires video asset',
+                style: AppTypography.bodySecondary,
+              ),
             ),
           ),
         const SizedBox(height: 10),
@@ -232,8 +267,14 @@ class PreviewCard extends StatelessWidget {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(account.displayName, style: AppTypography.titleMedium.copyWith(fontSize: 13)),
-                Text('Shaadow Platforms • Promoted', style: AppTypography.bodySecondary.copyWith(fontSize: 11)),
+                Text(
+                  account.displayName,
+                  style: AppTypography.titleMedium.copyWith(fontSize: 13),
+                ),
+                Text(
+                  '14,820 followers • Just now',
+                  style: AppTypography.bodySecondary.copyWith(fontSize: 11),
+                ),
               ],
             ),
           ],
@@ -251,7 +292,163 @@ class PreviewCard extends StatelessWidget {
     );
   }
 
-  Widget _buildMediaPlaceholder(MediaAsset media, {double aspectRatio = 16 / 9}) {
+  Widget _buildFacebookPreview() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            CircleAvatar(
+              radius: 16,
+              backgroundColor: AppColors.facebook,
+              child: const Icon(Icons.thumb_up, color: Colors.white, size: 14),
+            ),
+            const SizedBox(width: 8),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  account.displayName,
+                  style: AppTypography.titleMedium.copyWith(fontSize: 13),
+                ),
+                Text(
+                  'Sponsored / Page Post • Public',
+                  style: AppTypography.bodySecondary.copyWith(fontSize: 11),
+                ),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Text(
+          caption.isEmpty ? '(Empty post copy)' : caption,
+          style: AppTypography.bodyMedium.copyWith(fontSize: 13),
+        ),
+        if (mediaAssets.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          _buildMediaPlaceholder(mediaAssets.first, aspectRatio: 16 / 9),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildTikTokPreview() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.black,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const CircleAvatar(
+                radius: 14,
+                backgroundColor: Colors.white24,
+                child: Icon(Icons.music_note, color: Colors.white, size: 14),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                account.handle,
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            caption.isEmpty ? '#foryou #fyp' : caption,
+            style: const TextStyle(color: Colors.white, fontSize: 12),
+          ),
+          const SizedBox(height: 10),
+          if (mediaAssets.isNotEmpty)
+            _buildMediaPlaceholder(mediaAssets.first, aspectRatio: 9 / 16)
+          else
+            Container(
+              height: 140,
+              decoration: BoxDecoration(
+                color: Colors.white12,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Center(
+                child: Icon(Icons.videocam, color: Colors.white60, size: 36),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPinterestPreview() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (mediaAssets.isNotEmpty)
+          _buildMediaPlaceholder(mediaAssets.first, aspectRatio: 2 / 3)
+        else
+          Container(
+            height: 160,
+            decoration: BoxDecoration(
+              color: AppColors.surfaceMuted,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Center(
+              child: Icon(Icons.push_pin, color: AppColors.pinterest, size: 36),
+            ),
+          ),
+        const SizedBox(height: 8),
+        Text(
+          postTitle.isNotEmpty ? postTitle : 'Pin Idea',
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          caption.isEmpty ? 'Description and destination pin idea.' : caption,
+          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildThreadsPreview() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            CircleAvatar(
+              radius: 14,
+              backgroundColor: Colors.black,
+              child: Text(
+                account.displayName.isNotEmpty ? account.displayName[0] : '@',
+                style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              account.handle,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          caption.isEmpty ? 'Start a thread...' : caption,
+          style: const TextStyle(fontSize: 13),
+        ),
+        if (mediaAssets.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          _buildMediaPlaceholder(mediaAssets.first, aspectRatio: 4 / 3),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildMediaPlaceholder(
+    MediaAsset media, {
+    double aspectRatio = 16 / 9,
+  }) {
     return AspectRatio(
       aspectRatio: aspectRatio,
       child: Container(

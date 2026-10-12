@@ -6,14 +6,14 @@ import 'package:no5ocial/domain/validators/preflight_validator.dart';
 class PreflightChecklistView extends StatelessWidget {
   final PreflightResult result;
 
-  const PreflightChecklistView({
-    super.key,
-    required this.result,
-  });
+  const PreflightChecklistView({super.key, required this.result});
 
   @override
   Widget build(BuildContext context) {
-    final charRatio = (result.characterCount / result.maxCharacters).clamp(0.0, 1.0);
+    final charRatio = (result.characterCount / result.maxCharacters).clamp(
+      0.0,
+      1.0,
+    );
     final isCharOverflow = result.characterCount > result.maxCharacters;
 
     return Container(
@@ -33,15 +33,21 @@ class PreflightChecklistView extends StatelessWidget {
               Row(
                 children: [
                   Icon(
-                    result.isValid ? Icons.check_circle : Icons.warning_amber_rounded,
+                    result.isValid
+                        ? Icons.check_circle
+                        : Icons.warning_amber_rounded,
                     size: 16,
                     color: result.isValid ? AppColors.success : AppColors.error,
                   ),
                   const SizedBox(width: 6),
                   Text(
-                    result.isValid ? 'Preflight Passed' : 'Action Required (${result.blockers.length} Blocker)',
+                    result.isValid
+                        ? 'Preflight Passed'
+                        : 'Action Required (${result.blockers.length} Blocker)',
                     style: AppTypography.titleMedium.copyWith(
-                      color: result.isValid ? AppColors.success : AppColors.error,
+                      color: result.isValid
+                          ? AppColors.success
+                          : AppColors.error,
                       fontSize: 13,
                     ),
                   ),
@@ -50,8 +56,12 @@ class PreflightChecklistView extends StatelessWidget {
               Text(
                 '${result.characterCount} / ${result.maxCharacters} chars',
                 style: AppTypography.code.copyWith(
-                  color: isCharOverflow ? AppColors.error : AppColors.textSecondary,
-                  fontWeight: isCharOverflow ? FontWeight.w700 : FontWeight.w500,
+                  color: isCharOverflow
+                      ? AppColors.error
+                      : AppColors.textSecondary,
+                  fontWeight: isCharOverflow
+                      ? FontWeight.w700
+                      : FontWeight.w500,
                   fontSize: 12,
                 ),
               ),
@@ -68,8 +78,8 @@ class PreflightChecklistView extends StatelessWidget {
                 isCharOverflow
                     ? AppColors.error
                     : charRatio > 0.9
-                        ? AppColors.warning
-                        : AppColors.accent,
+                    ? AppColors.warning
+                    : AppColors.accent,
               ),
             ),
           ),

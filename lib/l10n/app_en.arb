@@ -1,0 +1,265 @@
+{
+  "@@locale": "en",
+  "appTitle": "no5ocial",
+  "appTagline": "Social Publishing & Scheduling Workspace",
+  "proWorkspace": "PRO WORKSPACE",
+
+  "navQueue": "Overview",
+  "navContent": "Content Library",
+  "navCalendar": "Schedule",
+  "navChannels": "Connected Channels",
+  "navSettings": "Workspace Settings",
+
+  "btnNewPost": "New Post",
+  "btnCreatePost": "Create Post",
+  "btnComposePost": "Compose Post",
+  "btnQueuePost": "Queue Post",
+  "btnSchedule": "Schedule",
+  "btnShareNow": "Share Now",
+  "btnSaveDraft": "Save as Draft",
+  "btnConnectChannel": "Connect Channel",
+  "btnCreateChannelGroup": "Create Channel Group",
+  "btnRegisterCompany": "Register Company",
+  "btnCancel": "Cancel",
+  "btnSave": "Save",
+  "btnConfirm": "Confirm",
+  "btnDelete": "Delete",
+  "btnClose": "Close",
+  "btnDisconnect": "Disconnect",
+  "btnSchedulePost": "Schedule a Post",
+  "btnConfirmWipe": "Confirm & Wipe Data",
+  "btnClearAllData": "Clear All Data & Start Fresh",
+  "btnLoadDemoData": "Load Sample Demo Data",
+
+  "consoleTitle": "Publishing Operations Console",
+  "growthWorkspace": "Growth Workspace",
+  "selectTimezoneTitle": "Select Publishing Timezone",
+  "languageSetTo": "Language set to: {language}",
+  "@languageSetTo": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+
+  "channelsActive": "{count} Channels Active",
+  "@channelsActive": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "channelsConnected": "{count} Channels Connected",
+  "@channelsConnected": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+
+  "heroTitle": "Grow Your Reach Across Every Social Network",
+  "heroSubtitle": "Plan, collaborate, and schedule engaging posts across Instagram, X, LinkedIn, and YouTube from one unified queue.",
+
+  "actionRequiredTitle": "Action Required ({count} Destination Issues)",
+  "@actionRequiredTitle": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "actionRequiredSub": "One or more publishing destinations encountered a timeout or require manual handoff. Review and resolve below:",
+
+  "metricDrafts": "Drafts",
+  "metricDraftsSub": "Ideas & in-progress",
+  "metricScheduled": "Scheduled",
+  "metricScheduledSub": "Next in queue",
+  "metricPublished": "Published",
+  "metricPublishedSub": "Live on channels",
+  "metricNeedsReview": "Needs Review",
+  "metricNeedsReviewSub": "Action required",
+
+  "queueSectionTitle": "Upcoming Publishing Queue",
+  "queueEmptyTitle": "Your publishing queue is empty",
+  "queueEmptySubtitle": "Plan and queue upcoming posts to maintain a consistent social media presence across all your networks.",
+  "recentActivityTitle": "Recent Publishing Activity",
+  "recentActivitySub": "Execution audit log & real-time delivery status",
+  "noRecentActivity": "No completed jobs yet. Published and verified posts will appear here.",
+
+  "contentLibraryTitle": "Multi-Platform Content Library",
+  "searchHint": "Search posts, captions, campaigns, or tags...",
+  "filterAll": "All Posts",
+  "filterDraft": "Drafts",
+  "filterScheduled": "Scheduled",
+  "filterPublished": "Published",
+  "filterFailed": "Failed / Blocked",
+  "noPostsMatch": "No posts match your filters.",
+  "noPostsMatchSub": "Try adjusting the search query or brand filter.",
+  "deleteDraftTitle": "Delete Post Draft?",
+  "deleteDraftConfirm": "Are you sure you want to delete \"{title}\"? This will cancel associated jobs.",
+  "@deleteDraftConfirm": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "draftDeletedSnack": "Post draft deleted.",
+
+  "calendarTitle": "Scheduled Editorial Calendar",
+  "calendarEmptyTitle": "Editorial queue is empty",
+  "calendarEmptySub": "No upcoming posts scheduled in your timezone.",
+
+  "registryTitle": "Brand & Channel Registry",
+  "connectedWorkspaceTitle": "Connected Social Workspace",
+  "connectedWorkspaceSub": "Manage all your multi-platform identities, bundle same-product profiles into Groups, and publish seamlessly to Instagram, X (Twitter), LinkedIn, and YouTube.",
+  "tabSocialChannels": "Social Channels ({count})",
+  "@tabSocialChannels": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "tabChannelGroups": "Channel Groups ({count})",
+  "@tabChannelGroups": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "tabCompanyPortfolio": "Company Portfolio ({count})",
+  "@tabCompanyPortfolio": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "noCompaniesTitle": "No Companies Registered Yet",
+  "noCompaniesSub": "Get started by registering your company to connect social channels.",
+  "noGroupsTitle": "No Channel Groups Created Yet",
+  "noGroupsSub": "Groups let you bundle multiple social profiles for the same product to publish to all of them with a single click!",
+  "noChannelsForBrand": "No social accounts registered for this brand yet.",
+  "btnConnectBrandChannel": "+ Connect Channel",
+
+  "registerCompanyDialogTitle": "Register Company / Brand",
+  "companyNameLabel": "Company / Brand Name *",
+  "companyNameHint": "e.g. Acme Corporation or Nova Media",
+  "brandSlugLabel": "Brand Slug *",
+  "brandSlugHint": "e.g. acme-corp",
+  "brandDescLabel": "Description",
+  "brandDescHint": "Short summary of this company or brand",
+  "websiteUrlLabel": "Website URL (Optional)",
+
+  "connectChannelDialogTitle": "Connect Social Channel",
+  "connectChannelDialogSub": "Link a social profile across platforms to schedule and publish posts.",
+  "selectCompanyLabel": "Associated Company / Brand *",
+  "selectPlatformLabel": "Social Network Platform *",
+  "displayNameLabel": "Display Name *",
+  "displayNameHint": "e.g. Acme Tech Global",
+  "handleLabel": "Handle / User ID *",
+  "handleHint": "e.g. @acme_official",
+
+  "disconnectConfirmTitle": "Disconnect Channel",
+  "disconnectConfirmMessage": "Are you sure you want to disconnect {handle}? Historical posts referencing this channel will remain saved.",
+  "@disconnectConfirmMessage": {
+    "placeholders": {
+      "handle": {
+        "type": "String"
+      }
+    }
+  },
+
+  "createGroupDialogTitle": "Create Channel Group",
+  "createGroupDialogSub": "Bundle multiple social network accounts for the same product (e.g. Acme Instagram + Acme X) so you can publish to all at once.",
+  "groupNameLabel": "Group Name *",
+  "groupNameHint": "e.g. Acme Global Bundle (IG + X)",
+  "groupDescLabel": "Group Description (Optional)",
+  "groupDescHint": "e.g. Global primary marketing identities",
+  "groupSelectChannels": "Select Channels to Bundle ({count} selected):",
+  "@groupSelectChannels": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+
+  "composerTitle": "Commercial Post Composer",
+  "composerEditTitle": "Edit Post",
+  "stepChannelsTitle": "1. Select Channels & Groups",
+  "stepChannelsEmptyBrands": "No companies registered yet. Register a company in Connected Channels to organize profiles.",
+  "stepChannelsEmptyAccounts": "No social channels connected yet. Go to Connected Channels to link Instagram, X, LinkedIn, or YouTube accounts.",
+  "brandIdentityLabel": "Brand / Company Identity",
+  "quickSelectGroup": "Quick-Select by Channel Group:",
+  "destinationProfiles": "Destination Profiles:",
+  "stepPostDetails": "2. Post Details",
+  "postTitleLabel": "Post Title *",
+  "postTitleHint": "Internal reference name for this campaign...",
+  "campaignLabel": "Campaign Name (Optional)",
+  "campaignHint": "e.g. Summer Launch 2026",
+  "tagsLabel": "Tags / Categorization",
+  "tagsHint": "marketing, launch, update (comma separated)",
+  "stepContentCopy": "3. Content & Captions",
+  "sharedCaptionTab": "Shared (All Networks)",
+  "captionLabel": "Main Post Caption",
+  "captionHint": "Write your core post message here...",
+  "sameCaptionToggle": "Use Same Caption Across All Networks",
+  "stepMediaAssets": "4. Attached Media Assets",
+  "stepMediaAssetsSub": "Select existing assets from your library or click \"Add Media Asset\" to link new images/videos.",
+  "addMediaAssetBtn": "Add Media Asset",
+  "livePreviewTitle": "Live Social Media Preview",
+  "simulatedBadge": "Simulated",
+  "previewEmptyPlaceholder": "Select at least one destination channel to preview mockup.",
+  "preflightRulesTitle": "Preflight Rules",
+  "btnQueueForPublication": "Queue for Publication ({count})",
+  "@btnQueueForPublication": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "btnPublishNow": "Publish Now ({count} Targets)",
+  "@btnPublishNow": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "draftSavedSnack": "Draft saved to library.",
+  "confirmPublishTitle": "Confirm Multi-Destination Publish",
+  "confirmPublishMessage": "Are you ready to publish to {count} destination account(s)? Each account will be published independently.",
+  "@confirmPublishMessage": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+
+  "settingsTitle": "Workspace Settings",
+  "settingsSubtitle": "Manage workspace preferences, inspect audit events, and configure workspace settings.",
+  "dbManagementTitle": "Database & Workspace Management",
+  "dbManagementSub": "Manage local SQLite database records, reset workspace state, or load demonstration data.",
+  "wipeConfirmTitle": "Confirm Database Wipe",
+  "wipeConfirmMessage": "Are you sure you want to delete ALL data? This will clear all registered brands, connected accounts, groups, drafts, and queue jobs from local SQLite.",
+  "dbWipedSnack": "Workspace database reset to clean state (0 records).",
+  "demoLoadedSnack": "Sample demo brands, accounts, and groups loaded into SQLite.",
+
+  "loginTitle": "Welcome to no5ocial",
+  "loginSubtitle": "Your all-in-one social publishing workspace",
+  "loginWithGoogle": "Continue with Google",
+  "loginDisclaimer": "By continuing, you agree to our",
+  "termsOfService": "Terms of Service",
+  "privacyPolicy": "Privacy Policy",
+  "disclaimer": "Disclaimer",
+  "loginLocalNote": "Your data is stored locally on this device only.",
+  "andText": "and"
+}

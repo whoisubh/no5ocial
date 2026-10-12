@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// App color palette defined in DESIGN.md for No5ocial's operations console.
+/// App color palette defined in DESIGN.md for no5ocial's operations console.
 abstract final class AppColors {
   // Surfaces & Backgrounds
   static const Color background = Color(0xFFF7F8FA);
@@ -50,6 +50,14 @@ abstract final class AppColors {
   static const Color linkedinBg = Color(0xFFEFF6FC);
   static const Color x = Color(0xFF0F1419);
   static const Color xBg = Color(0xFFF2F4F6);
+  static const Color facebook = Color(0xFF1877F2);
+  static const Color facebookBg = Color(0xFFEFF6FF);
+  static const Color tiktok = Color(0xFF010101);
+  static const Color tiktokBg = Color(0xFFF1F5F9);
+  static const Color pinterest = Color(0xFFE60023);
+  static const Color pinterestBg = Color(0xFFFEF2F2);
+  static const Color threads = Color(0xFF101010);
+  static const Color threadsBg = Color(0xFFF1F5F9);
 
   // Executive Dark Cards & Highlights
   static const Color darkCard = Color(0xFF0C1017);
@@ -58,43 +66,43 @@ abstract final class AppColors {
 
   // Ambient Shadows
   static const List<BoxShadow> cardShadow = [
-    BoxShadow(
-      color: Color(0x08000000),
-      blurRadius: 12,
-      offset: Offset(0, 4),
-    ),
-    BoxShadow(
-      color: Color(0x04000000),
-      blurRadius: 2,
-      offset: Offset(0, 1),
-    ),
+    BoxShadow(color: Color(0x08000000), blurRadius: 12, offset: Offset(0, 4)),
+    BoxShadow(color: Color(0x04000000), blurRadius: 2, offset: Offset(0, 1)),
   ];
 
   static const List<BoxShadow> glowShadow = [
-    BoxShadow(
-      color: Color(0x1F3659D9),
-      blurRadius: 16,
-      offset: Offset(0, 4),
-    ),
+    BoxShadow(color: Color(0x1F3659D9), blurRadius: 16, offset: Offset(0, 4)),
   ];
 
   // Gradients
   static const LinearGradient heroGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [
-      Color(0xFF0D1117),
-      Color(0xFF161E2E),
-      Color(0xFF1F293D),
-    ],
+    colors: [Color(0xFF0D1117), Color(0xFF161E2E), Color(0xFF1F293D)],
   );
 
   static const LinearGradient accentGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [
-      Color(0xFF3659D9),
-      Color(0xFF4F70ED),
-    ],
+    colors: [Color(0xFF3659D9), Color(0xFF4F70ED)],
   );
+
+  // Dynamic theme-aware resolvers
+  static Color surfaceOf(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark ? const Color(0xFF101522) : surface;
+
+  static Color surfaceSecOf(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark ? const Color(0xFF161D2E) : surfaceSecondary;
+
+  static Color bgOf(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark ? const Color(0xFF0A0D14) : background;
+
+  static Color borderOf(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark ? const Color(0xFF222C40) : border;
+
+  static Color textOf(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark ? Colors.white : textPrimary;
+
+  static Color textSecOf(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark ? const Color(0xFF94A3B8) : textSecondary;
 }

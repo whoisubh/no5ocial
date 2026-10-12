@@ -6,7 +6,7 @@ Use Flutter as the client and a server-side publishing service as the authority 
 ```text
 Flutter app
   ├── Home / Content / Composer / Calendar / Accounts
-  └── No5ocial API client
+  └── no5ocial API client
           |
 Backend API + Auth
   ├── Brand and account registry

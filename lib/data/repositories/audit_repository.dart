@@ -1,3 +1,4 @@
+import 'package:no5ocial/data/database/app_database.dart';
 import 'package:no5ocial/domain/models/audit_event.dart';
 
 abstract class AuditRepository {
@@ -5,8 +6,17 @@ abstract class AuditRepository {
   void recordEvent(AuditEvent event);
 }
 
-class InMemoryAuditRepository implements AuditRepository {
+class SqliteAuditRepository implements AuditRepository {
   final List<AuditEvent> _events = [];
+  final AppDatabase _db = AppDatabase.instance;
+
+  Future<void> init() async {
+    final list = await _db.getAllAuditEvents();
+    if (list.isNotEmpty) {
+      _events.clear();
+      _events.addAll(list);
+    }
+  }
 
   @override
   List<AuditEvent> getAllEvents() {
@@ -18,5 +28,9 @@ class InMemoryAuditRepository implements AuditRepository {
   @override
   void recordEvent(AuditEvent event) {
     _events.add(event);
+    _db.saveAuditEvent(event).catchError((_) {});
   }
 }
+
+class InMemoryAuditRepository extends SqliteAuditRepository {}
+

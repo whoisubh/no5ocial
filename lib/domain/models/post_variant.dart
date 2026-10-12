@@ -1,3 +1,4 @@
+import 'dart:convert';
 import '../enums/privacy_status.dart';
 
 /// Platform/account specific adaptation of a ContentPost.
@@ -59,18 +60,35 @@ class PostVariant {
         'privacy_status': privacyStatus.name,
       };
 
-  factory PostVariant.fromJson(Map<String, dynamic> json) => PostVariant(
-        id: json['id'] as String,
-        contentPostId: json['content_post_id'] as String,
-        socialAccountId: json['social_account_id'] as String,
-        captionOverride: json['caption_override'] as String?,
-        mediaAssetIds: (json['media_asset_ids'] as List<dynamic>?)?.cast<String>() ?? const [],
-        firstComment: json['first_comment'] as String?,
-        altText: json['alt_text'] as String?,
-        privacyStatus: json['privacy_status'] != null
-            ? PrivacyStatus.values.byName(json['privacy_status'] as String)
-            : PrivacyStatus.public,
-      );
+  factory PostVariant.fromJson(Map<String, dynamic> json) {
+    List<String> media = [];
+    if (json['media_asset_ids'] is List) {
+      media = (json['media_asset_ids'] as List).map((e) => e.toString()).toList();
+    } else if (json['media_asset_ids'] is String) {
+      try {
+        final dec = jsonDecode(json['media_asset_ids'] as String);
+        if (dec is List) media = dec.map((e) => e.toString()).toList();
+      } catch (_) {}
+    }
+
+    PrivacyStatus ps = PrivacyStatus.public;
+    if (json['privacy_status'] != null) {
+      try {
+        ps = PrivacyStatus.values.byName(json['privacy_status'] as String);
+      } catch (_) {}
+    }
+
+    return PostVariant(
+      id: json['id'] as String,
+      contentPostId: json['content_post_id'] as String,
+      socialAccountId: json['social_account_id'] as String,
+      captionOverride: json['caption_override'] as String?,
+      mediaAssetIds: media,
+      firstComment: json['first_comment'] as String?,
+      altText: json['alt_text'] as String?,
+      privacyStatus: ps,
+    );
+  }
 
   @override
   bool operator ==(Object other) =>

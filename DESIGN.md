@@ -1,7 +1,7 @@
-# No5ocial Design Specification
+# no5ocial Design Specification
 
 ## 1. Product character
-No5ocial should feel like a calm, capable operations console, not a social network and not an analytics-heavy enterprise dashboard. The key interaction is: **one content item → many destinations → clear per-account outcomes**.
+no5ocial should feel like a calm, capable operations console, not a social network and not an analytics-heavy enterprise dashboard. The key interaction is: **one content item → many destinations → clear per-account outcomes**.
 
 ## 2. Design principles
 - Destination clarity beats visual decoration.

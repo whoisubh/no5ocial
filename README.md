@@ -1,4 +1,4 @@
-# No5ocial — Shaadow Internal Publishing Manager
+# no5ocial — Shaadow Internal Publishing Manager
 
 > **Internal Operations Workflow for Shaadow Multi-Brand Social Publishing**  
 > Built with Flutter (Material 3), typed Dart domain models, and server-side publishing interfaces.  
@@ -62,7 +62,7 @@ Backend / Cloud Boundary (PostgreSQL / Supabase / OAuth Worker)
 
 ## 4. Recurring Operating Cost Model
 
-Commercial publishing tools typically charge ₹3,000 to ₹10,000/month for multi-brand workspaces. No5ocial's internal architecture slashes this to nearly **₹0**:
+Commercial publishing tools typically charge ₹3,000 to ₹10,000/month for multi-brand workspaces. no5ocial's internal architecture slashes this to nearly **₹0**:
 
 | Component | Provider / Service | Monthly Cost | Notes |
 | :--- | :--- | :--- | :--- |
@@ -70,7 +70,7 @@ Commercial publishing tools typically charge ₹3,000 to ₹10,000/month for mul
 | **Instagram API** | Meta Graph API | ₹0 / mo | Up to 25 published posts per 24 hours per account. |
 | **YouTube API** | Google Cloud YouTube Data API v3 | ₹0 / mo | 10,000 free quota units/day (~6 video uploads/day). |
 | **LinkedIn API** | LinkedIn Community Management | ₹0 / mo | Standard company page posting within rate limits. |
-| **X (Twitter)** | **Manual Handoff Flow** | **₹0 / mo** | Avoids the $100/mo (₹8,300/mo) Basic API fee by using No5ocial's 15-second manual copy & confirm flow. |
+| **X (Twitter)** | **Manual Handoff Flow** | **₹0 / mo** | Avoids the $100/mo (₹8,300/mo) Basic API fee by using no5ocial's 15-second manual copy & confirm flow. |
 | **Hosting & Worker** | Self-hosted / Fly.io / Render | ₹0–₹500 / mo | Small Docker container or edge function worker. |
 | **Total Monthly Spend** | | **₹0 – ₹500 / month** | **90–95% savings** vs commercial tools. |
 
@@ -104,6 +104,6 @@ Commercial publishing tools typically charge ₹3,000 to ₹10,000/month for mul
    ```
 
 ### Backend & OAuth Configuration
-- Refer to [`DEVELOPER_SETUP.md`](file:///E:/No5ocial/DEVELOPER_SETUP.md) for step-by-step developer portal guides for Meta, Google, LinkedIn, and X.
-- Refer to [`PLATFORM_CAPABILITIES.md`](file:///E:/No5ocial/PLATFORM_CAPABILITIES.md) for the verified platform capability matrix and documentation links.
-- Refer to [`backend/.env.example`](file:///E:/No5ocial/backend/.env.example) for required server environment variables.
+- Refer to [`DEVELOPER_SETUP.md`](file:///E:/no5ocial/DEVELOPER_SETUP.md) for step-by-step developer portal guides for Meta, Google, LinkedIn, and X.
+- Refer to [`PLATFORM_CAPABILITIES.md`](file:///E:/no5ocial/PLATFORM_CAPABILITIES.md) for the verified platform capability matrix and documentation links.
+- Refer to [`backend/.env.example`](file:///E:/no5ocial/backend/.env.example) for required server environment variables.

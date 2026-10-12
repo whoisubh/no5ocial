@@ -6,6 +6,9 @@ class Brand {
   final String slug;
   final String? description;
   final String? websiteUrl;
+  final String? companySize;
+  final String? industry;
+  final String? foundUsVia;
   final bool isActive;
   final DateTime createdAtUtc;
 
@@ -15,6 +18,9 @@ class Brand {
     required this.slug,
     this.description,
     this.websiteUrl,
+    this.companySize,
+    this.industry,
+    this.foundUsVia,
     this.isActive = true,
     required this.createdAtUtc,
   });
@@ -25,6 +31,9 @@ class Brand {
     String? slug,
     String? description,
     String? websiteUrl,
+    String? companySize,
+    String? industry,
+    String? foundUsVia,
     bool? isActive,
     DateTime? createdAtUtc,
   }) {
@@ -34,6 +43,9 @@ class Brand {
       slug: slug ?? this.slug,
       description: description ?? this.description,
       websiteUrl: websiteUrl ?? this.websiteUrl,
+      companySize: companySize ?? this.companySize,
+      industry: industry ?? this.industry,
+      foundUsVia: foundUsVia ?? this.foundUsVia,
       isActive: isActive ?? this.isActive,
       createdAtUtc: createdAtUtc ?? this.createdAtUtc,
     );
@@ -45,6 +57,9 @@ class Brand {
         'slug': slug,
         'description': description,
         'website_url': websiteUrl,
+        'company_size': companySize,
+        'industry': industry,
+        'found_us_via': foundUsVia,
         'is_active': isActive,
         'created_at_utc': createdAtUtc.toIso8601String(),
       };
@@ -55,8 +70,13 @@ class Brand {
         slug: json['slug'] as String,
         description: json['description'] as String?,
         websiteUrl: json['website_url'] as String?,
-        isActive: json['is_active'] as bool? ?? true,
-        createdAtUtc: DateTime.parse(json['created_at_utc'] as String),
+        companySize: json['company_size'] as String?,
+        industry: json['industry'] as String?,
+        foundUsVia: json['found_us_via'] as String?,
+        isActive: json['is_active'] is bool
+            ? json['is_active'] as bool
+            : (json['is_active'] == 1 || json['is_active'] == '1' || json['is_active'] == null),
+        createdAtUtc: DateTime.tryParse(json['created_at_utc'] as String? ?? '') ?? DateTime.now().toUtc(),
       );
 
   @override

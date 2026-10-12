@@ -1,7 +1,7 @@
 # Social Platform Capabilities Matrix & Official API Analysis
 
 > **Last Verified Date:** October 2026  
-> **Status:** Authoritative reference for No5ocial publishing orchestrator and preflight validation engine.  
+> **Status:** Authoritative reference for no5ocial publishing orchestrator and preflight validation engine.  
 > **Rule:** Never fabricate API capabilities. If an official API route is restricted, unapproved, or cost-prohibitive, fall back to **Manual Publishing Handoff** with full status clarity.
 
 ---
@@ -91,13 +91,13 @@
 - **Pricing & Practical Constraints:**
   - **Free Tier:** Restricted to 1,500 post writes per month at the app level (500 posts/month per authenticated user). Media upload endpoints (`upload.twitter.com/1.1/media/upload.json`) may experience unpredictable tier blocks.
   - **Basic Tier:** Costs **$100 USD/month (~₹8,300/month)**.
-  - **Pragmatic Decision for Shaadow:** Because No5ocial targets low operating costs (₹0–₹2,000/mo total), **we implement Manual Publishing Handoff for X** by default. Users can copy the optimized ≤280 character text, export media to the clipboard/gallery, and confirm with live URL in under 15 seconds without paying $100/mo for an API subscription.
+  - **Pragmatic Decision for Shaadow:** Because no5ocial targets low operating costs (₹0–₹2,000/mo total), **we implement Manual Publishing Handoff for X** by default. Users can copy the optimized ≤280 character text, export media to the clipboard/gallery, and confirm with live URL in under 15 seconds without paying $100/mo for an API subscription.
 
 ---
 
 ## 3. Manual Publishing Handoff Fallback Standard
 
-When any of the following conditions occur, No5ocial immediately routes the post variant to **Manual Publishing Handoff**:
+When any of the following conditions occur, no5ocial immediately routes the post variant to **Manual Publishing Handoff**:
 
 1. **Unapproved API Status:** Developer app is pending Meta App Review, Google Quota Audit, or LinkedIn verification.
 2. **Unsupported Format:** User attempts an Instagram text-only post, a YouTube image post, or an unauthenticated profile story.

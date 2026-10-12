@@ -1,3 +1,4 @@
+import 'dart:convert';
 import '../enums/publish_status.dart';
 
 /// Master content record representing a campaign post or piece of content.
@@ -75,23 +76,59 @@ class ContentPost {
         'updated_at_utc': updatedAtUtc.toIso8601String(),
       };
 
-  factory ContentPost.fromJson(Map<String, dynamic> json) => ContentPost(
-        id: json['id'] as String,
-        brandId: json['brand_id'] as String,
-        title: json['title'] as String,
-        defaultCaption: json['default_caption'] as String,
-        mediaAssetIds: (json['media_asset_ids'] as List<dynamic>?)?.cast<String>() ?? const [],
-        destinationAccountIds:
-            (json['destination_account_ids'] as List<dynamic>?)?.cast<String>() ?? const [],
-        tags: (json['tags'] as List<dynamic>?)?.cast<String>() ?? const [],
-        campaign: json['campaign'] as String?,
-        status: PublishJobStatus.values.byName(json['status'] as String),
-        scheduledAtUtc: json['scheduled_at_utc'] != null
-            ? DateTime.parse(json['scheduled_at_utc'] as String)
-            : null,
-        createdAtUtc: DateTime.parse(json['created_at_utc'] as String),
-        updatedAtUtc: DateTime.parse(json['updated_at_utc'] as String),
-      );
+  factory ContentPost.fromJson(Map<String, dynamic> json) {
+    List<String> media = [];
+    if (json['media_asset_ids'] is List) {
+      media = (json['media_asset_ids'] as List).map((e) => e.toString()).toList();
+    } else if (json['media_asset_ids'] is String) {
+      try {
+        final dec = jsonDecode(json['media_asset_ids'] as String);
+        if (dec is List) media = dec.map((e) => e.toString()).toList();
+      } catch (_) {}
+    }
+
+    List<String> dests = [];
+    if (json['destination_account_ids'] is List) {
+      dests = (json['destination_account_ids'] as List).map((e) => e.toString()).toList();
+    } else if (json['destination_account_ids'] is String) {
+      try {
+        final dec = jsonDecode(json['destination_account_ids'] as String);
+        if (dec is List) dests = dec.map((e) => e.toString()).toList();
+      } catch (_) {}
+    }
+
+    List<String> postTags = [];
+    if (json['tags'] is List) {
+      postTags = (json['tags'] as List).map((e) => e.toString()).toList();
+    } else if (json['tags'] is String) {
+      try {
+        final dec = jsonDecode(json['tags'] as String);
+        if (dec is List) postTags = dec.map((e) => e.toString()).toList();
+      } catch (_) {}
+    }
+
+    PublishJobStatus st = PublishJobStatus.draft;
+    try {
+      st = PublishJobStatus.values.byName(json['status'] as String);
+    } catch (_) {}
+
+    return ContentPost(
+      id: json['id'] as String,
+      brandId: json['brand_id'] as String? ?? '',
+      title: json['title'] as String? ?? '',
+      defaultCaption: json['default_caption'] as String? ?? '',
+      destinationAccountIds: dests,
+      mediaAssetIds: media,
+      campaign: json['campaign'] as String?,
+      tags: postTags,
+      status: st,
+      scheduledAtUtc: json['scheduled_at_utc'] != null
+          ? DateTime.tryParse(json['scheduled_at_utc'] as String)
+          : null,
+      createdAtUtc: DateTime.tryParse(json['created_at_utc'] as String? ?? '') ?? DateTime.now().toUtc(),
+      updatedAtUtc: DateTime.tryParse(json['updated_at_utc'] as String? ?? '') ?? DateTime.now().toUtc(),
+    );
+  }
 
   @override
   bool operator ==(Object other) =>

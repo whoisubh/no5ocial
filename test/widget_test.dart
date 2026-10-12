@@ -6,7 +6,8 @@ import 'package:no5ocial/data/repositories/brand_repository.dart';
 import 'package:no5ocial/data/repositories/job_repository.dart';
 import 'package:no5ocial/data/repositories/post_repository.dart';
 import 'package:no5ocial/domain/adapters/fake_publishing_adapter.dart';
-import 'package:no5ocial/main.dart';
+import 'package:no5ocial/l10n/app_localizations.dart';
+import 'package:no5ocial/presentation/navigation/main_scaffold.dart';
 import 'package:no5ocial/presentation/state/app_state.dart';
 
 void main() {
@@ -23,8 +24,16 @@ void main() {
       auditRepository: InMemoryAuditRepository(),
       publishingAdapter: const FakePublishingAdapter(),
     );
+    appState.isLoggedIn = true;
+    appState.localUserName = 'Test User';
 
-    await tester.pumpWidget(No5ocialApp(appState: appState));
+    await tester.pumpWidget(
+      MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: MainScaffold(appState: appState),
+      ),
+    );
     await tester.pumpAndSettle();
 
     // Verify main console title in desktop top bar

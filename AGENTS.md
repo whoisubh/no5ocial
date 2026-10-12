@@ -1,7 +1,7 @@
 # AGENTS.md — Instructions for AI Coding Agents
 
 ## Mission
-Build No5ocial as a secure, reliable internal publishing workflow for Shaadow. Optimize for correctness, clear failure states, and low operating cost—not for feature count.
+Build no5ocial as a secure, reliable internal publishing workflow for Shaadow. Optimize for correctness, clear failure states, and low operating cost—not for feature count.
 
 ## Mandatory behavior
 1. Read `README.md`, `PRD.md`, `DESIGN.md`, `ARCHITECTURE.md`, `INTEGRATIONS.md`, and `SECURITY.md` before major implementation.
@@ -14,10 +14,13 @@ Build No5ocial as a secure, reliable internal publishing workflow for Shaadow. O
 8. For a multi-destination publish, track each destination independently.
 9. Treat timeouts after a publish request as ambiguous outcomes. Query/reconcile if supported; otherwise warn before retrying to avoid duplicates.
 10. Add tests for business logic and failure paths alongside implementation.
+11. **Mandatory Real Authentication Only**: Google Sign-In is strictly mandatory. Login is NEVER optional. NEVER add "Enter offline workspace", "Dev workspace sign-in", "Skip login", demo bypass buttons, or hardcoded dummy profiles (`admin@shaadow.io`, `Workspace Lead`, etc.) anywhere in the UI, dialogs, or error handlers.
+12. **Active Auth Guards Everywhere**: The dashboard shell (`MainScaffold`), `HomeScreen`, and all internal endpoints must enforce active authentication on every render. If `!appState.isLoggedIn`, unauthenticated sessions must be immediately rejected and redirected to the root auth screen.
+13. **Strict Error Handling**: When authentication fails (e.g. missing Android SHA-1 in Google Cloud Console), report the exact error honestly with a Dismiss button only. NEVER provide a bypass button to circumvent failed authentication.
 
 ## Architecture rules
 - Flutter presentation layer → application/use-case layer → domain models/interfaces → repository implementations.
-- Platform adapters are server-side. Flutter calls the No5ocial backend only.
+- Platform adapters are server-side. Flutter calls the no5ocial backend only.
 - Use typed models and explicit status enums; avoid free-form status strings.
 - Keep provider-specific IDs and errors in adapter/repository boundaries.
 - Persist all timestamps as UTC; render in configured timezone.

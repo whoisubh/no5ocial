@@ -1,4 +1,4 @@
-# Product Requirements Document — No5ocial
+# Product Requirements Document — no5ocial
 
 **Status:** Initial proposal  
 **Product owner:** Shaadow  
@@ -10,7 +10,7 @@
 Shaadow publishes across multiple brands and platforms. Team members repeatedly upload the same or adapted content to separate accounts, manually track what has been published, and switch between apps. Paid social schedulers are not currently justified by the team's budget.
 
 ## 2. Product vision
-No5ocial becomes the single place to organize social content, choose destination accounts, adapt copy/media for each network, publish or schedule where officially supported, and clearly manage the remaining manual steps.
+no5ocial becomes the single place to organize social content, choose destination accounts, adapt copy/media for each network, publish or schedule where officially supported, and clearly manage the remaining manual steps.
 
 ## 3. Goals
 - Reduce repetitive publishing work and context switching.

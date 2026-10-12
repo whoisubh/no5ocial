@@ -1,5 +1,5 @@
 -- ==============================================================================
--- No5ocial Seed Data (Shaadow Brands & Accounts)
+-- no5ocial Seed Data (Shaadow Brands & Accounts)
 -- For local and staging environments
 -- ==============================================================================
 
@@ -65,5 +65,5 @@ VALUES (
     'system_seeded',
     'system',
     'initial_setup',
-    '{"message": "No5ocial initial portfolio seeded successfully", "brandCount": 6, "accountCount": 9}'::jsonb
+    '{"message": "no5ocial initial portfolio seeded successfully", "brandCount": 6, "accountCount": 9}'::jsonb
 );

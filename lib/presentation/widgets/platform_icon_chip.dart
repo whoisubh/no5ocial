@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:no5ocial/core/theme/app_colors.dart';
 import 'package:no5ocial/core/theme/app_typography.dart';
 import 'package:no5ocial/domain/enums/connection_status.dart';
 import 'package:no5ocial/domain/enums/platform_type.dart';
 import 'package:no5ocial/domain/models/social_account.dart';
+import 'package:no5ocial/presentation/widgets/platform_logo.dart';
 
 class PlatformIconChip extends StatelessWidget {
   final SocialAccount account;
@@ -21,35 +23,16 @@ class PlatformIconChip extends StatelessWidget {
     this.isCompact = false,
   });
 
-  static IconData getPlatformIcon(PlatformType platform) {
-    switch (platform) {
-      case PlatformType.instagram:
-        return Icons.camera_alt_outlined;
-      case PlatformType.youtube:
-        return Icons.play_circle_outline;
-      case PlatformType.linkedin:
-        return Icons.business_outlined;
-      case PlatformType.x:
-        return Icons.tag_outlined;
-    }
+  static FaIconData getPlatformIcon(PlatformType platform) {
+    return PlatformLogo.getIcon(platform);
   }
 
   static Color getPlatformColor(PlatformType platform) {
-    switch (platform) {
-      case PlatformType.instagram:
-        return AppColors.instagram;
-      case PlatformType.youtube:
-        return AppColors.youtube;
-      case PlatformType.linkedin:
-        return AppColors.linkedin;
-      case PlatformType.x:
-        return AppColors.x;
-    }
+    return PlatformLogo.getBrandColor(platform);
   }
 
   @override
   Widget build(BuildContext context) {
-    final platformColor = getPlatformColor(account.platform);
     final isConnected = account.connectionStatus == ConnectionStatus.connected;
 
     final border = isSelected
@@ -77,20 +60,9 @@ class PlatformIconChip extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: isCompact ? 18 : 22,
-                height: isCompact ? 18 : 22,
-                decoration: BoxDecoration(
-                  color: platformColor.withAlpha(25),
-                  shape: BoxShape.circle,
-                ),
-                child: Center(
-                  child: Icon(
-                    getPlatformIcon(account.platform),
-                    size: isCompact ? 11 : 13,
-                    color: platformColor,
-                  ),
-                ),
+              PlatformLogo(
+                platform: account.platform,
+                size: isCompact ? 18 : 22,
               ),
               const SizedBox(width: 6),
               Text(
@@ -104,7 +76,10 @@ class PlatformIconChip extends StatelessWidget {
               if (account.isManualOnly) ...[
                 const SizedBox(width: 4),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 1,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.surfaceSecondary,
                     borderRadius: BorderRadius.circular(4),
@@ -118,7 +93,9 @@ class PlatformIconChip extends StatelessWidget {
                   ),
                 ),
               ],
-              if (showConnectionState && !isConnected && !account.isManualOnly) ...[
+              if (showConnectionState &&
+                  !isConnected &&
+                  !account.isManualOnly) ...[
                 const SizedBox(width: 4),
                 const Icon(
                   Icons.warning_amber_rounded,

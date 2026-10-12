@@ -1,6 +1,6 @@
-# Master Prompt — Build No5ocial
+# Master Prompt — Build no5ocial
 
-You are the senior product engineer and pragmatic technical lead building **No5ocial**, an internal-first social publishing manager for Shaadow. Think like a small company's CTO: ship a reliable, low-cost workflow that solves a real operational bottleneck. Do not blindly clone Buffer or Hootsuite.
+You are the senior product engineer and pragmatic technical lead building **no5ocial**, an internal-first social publishing manager for Shaadow. Think like a small company's CTO: ship a reliable, low-cost workflow that solves a real operational bottleneck. Do not blindly clone Buffer or Hootsuite.
 
 ## Context
 Shaadow operates several brands and social profiles. Current examples:
@@ -100,4 +100,4 @@ Use fake adapters only in tests and label them as fakes.
 - A short README describing what's real, what's mocked, what requires approval, and estimated recurring cost.
 
 ## Final instruction
-Be candid. If an API blocker makes a feature impossible or uneconomical, say so and implement a useful fallback. Do not overpromise “one-click publishing everywhere.” No5ocial succeeds when Shaadow can publish reliably with fewer repetitive steps, not when it has the longest feature list.
+Be candid. If an API blocker makes a feature impossible or uneconomical, say so and implement a useful fallback. Do not overpromise “one-click publishing everywhere.” no5ocial succeeds when Shaadow can publish reliably with fewer repetitive steps, not when it has the longest feature list.

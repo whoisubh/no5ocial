@@ -1,5 +1,7 @@
+import 'dart:convert';
 import '../enums/connection_status.dart';
 import '../enums/platform_type.dart';
+import 'platform_target_config.dart';
 
 /// Represents a connected or manually managed destination account.
 /// Examples: Instagram @boofer, YouTube channel Owl and Fowl Studios, LinkedIn Shaadow Platforms.
@@ -31,6 +33,32 @@ class SocialAccount {
   });
 
   bool get isPublishable => connectionStatus.isPublishable;
+
+  /// Extracts the subtype ID if stored in capabilities (e.g. 'subtype:linkedin_page').
+  String? get subtypeId {
+    for (final c in capabilities) {
+      if (c.startsWith('subtype:')) return c.substring(8);
+    }
+    return null;
+  }
+
+  /// Extracts configured default video privacy if stored (e.g. 'privacy:unlisted').
+  String? get defaultPrivacy {
+    for (final c in capabilities) {
+      if (c.startsWith('privacy:')) return c.substring(8);
+    }
+    return null;
+  }
+
+  /// Human-friendly target sub-type name (e.g. 'Company Page', 'Personal Profile', 'Brand Channel').
+  String get subtypeLabel {
+    final subId = subtypeId;
+    if (subId != null) {
+      final config = PlatformConfigRegistry.findSubtypeById(subId);
+      if (config != null) return config.name;
+    }
+    return platform.fullTargetName;
+  }
 
   SocialAccount copyWith({
     String? id,
@@ -74,21 +102,60 @@ class SocialAccount {
         'is_manual_only': isManualOnly,
       };
 
-  factory SocialAccount.fromJson(Map<String, dynamic> json) => SocialAccount(
-        id: json['id'] as String,
-        brandId: json['brand_id'] as String,
-        platform: PlatformType.values.byName(json['platform'] as String),
-        displayName: json['display_name'] as String,
-        handle: json['handle'] as String,
-        externalAccountId: json['external_account_id'] as String?,
-        connectionStatus: ConnectionStatus.values.byName(json['connection_status'] as String),
-        capabilities: (json['capabilities'] as List<dynamic>?)?.cast<String>() ?? const [],
-        scopes: (json['scopes'] as List<dynamic>?)?.cast<String>() ?? const [],
-        lastVerifiedAtUtc: json['last_verified_at_utc'] != null
-            ? DateTime.parse(json['last_verified_at_utc'] as String)
-            : null,
-        isManualOnly: json['is_manual_only'] as bool? ?? false,
-      );
+  factory SocialAccount.fromJson(Map<String, dynamic> json) {
+    List<String> caps = [];
+    if (json['capabilities'] is List) {
+      caps = (json['capabilities'] as List).map((e) => e.toString()).toList();
+    } else if (json['capabilities'] is String) {
+      try {
+        final dec = jsonDecode(json['capabilities'] as String);
+        if (dec is List) caps = dec.map((e) => e.toString()).toList();
+      } catch (_) {}
+    }
+
+    List<String> scs = [];
+    if (json['scopes'] is List) {
+      scs = (json['scopes'] as List).map((e) => e.toString()).toList();
+    } else if (json['scopes'] is String) {
+      try {
+        final dec = jsonDecode(json['scopes'] as String);
+        if (dec is List) scs = dec.map((e) => e.toString()).toList();
+      } catch (_) {}
+    }
+
+    PlatformType plat = PlatformType.instagram;
+    try {
+      plat = PlatformType.values.byName(json['platform'] as String);
+    } catch (_) {}
+
+    ConnectionStatus stat = ConnectionStatus.connected;
+    try {
+      stat = ConnectionStatus.values.byName(json['connection_status'] as String);
+    } catch (_) {}
+
+    bool manual = false;
+    if (json['is_manual_only'] is bool) {
+      manual = json['is_manual_only'] as bool;
+    } else if (json['is_manual_only'] is num) {
+      manual = (json['is_manual_only'] as num) != 0;
+    }
+
+    return SocialAccount(
+      id: json['id'] as String,
+      brandId: json['brand_id'] as String,
+      platform: plat,
+      displayName: json['display_name'] as String? ?? '',
+      handle: json['handle'] as String? ?? '',
+      externalAccountId: json['external_account_id'] as String?,
+      connectionStatus: stat,
+      capabilities: caps,
+      scopes: scs,
+      lastVerifiedAtUtc: json['last_verified_at_utc'] != null
+          ? DateTime.tryParse(json['last_verified_at_utc'] as String)
+          : null,
+      isManualOnly: manual,
+    );
+  }
 
   @override
   bool operator ==(Object other) =>

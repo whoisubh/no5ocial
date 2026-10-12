@@ -17,7 +17,7 @@
 1. Go to [Meta for Developers](https://developers.facebook.com/) and log in with your primary business administrator account.
 2. Click **My Apps** → **Create App**.
 3. Select **Other** → **Business** as the app type.
-4. Enter App Name (e.g., `Shaadow No5ocial Publisher`) and link your Meta Business Account.
+4. Enter App Name (e.g., `Shaadow no5ocial Publisher`) and link your Meta Business Account.
 
 ### Step 2: Add Products & Permissions
 1. In the App Dashboard, add **Instagram Graph API** and **Facebook Login for Business**.
@@ -61,7 +61,7 @@ META_REDIRECT_URI="https://api.yourdomain.com/auth/callback/meta"
 ### Step 3: Generate OAuth 2.0 Credentials
 1. Go to **APIs & Services > Credentials** → **Create Credentials** → **OAuth client ID**.
 2. Application type: **Web application**.
-3. Name: `No5ocial YouTube Client`.
+3. Name: `no5ocial YouTube Client`.
 4. Authorized redirect URIs:
    - `https://api.yourdomain.com/auth/callback/google`
    - `http://localhost:8080/auth/callback/google`
@@ -81,7 +81,7 @@ GOOGLE_REDIRECT_URI="https://api.yourdomain.com/auth/callback/google"
 ### Step 1: Create LinkedIn App
 1. Go to [LinkedIn Developer Portal](https://www.linkedin.com/developers/).
 2. Click **Create App**.
-3. App name: `Shaadow No5ocial Publisher`.
+3. App name: `Shaadow no5ocial Publisher`.
 4. Associate the app with your verified **Shaadow Platforms** LinkedIn Page.
 
 ### Step 2: Request Products
@@ -121,7 +121,7 @@ LINKEDIN_REDIRECT_URI="https://api.yourdomain.com/auth/callback/linkedin"
 ### Step 2: Pricing & Quota Awareness
 - **Free Tier:** 1,500 tweets/month at app level. Media upload can encounter restrictions.
 - **Basic Tier:** $100/month.
-- **No5ocial Standard:** Because No5ocial prioritizes minimal operating expenses, use the **Manual Publishing Handoff** flow for X posts until publishing volume warrants the $100/month API fee.
+- **no5ocial Standard:** Because no5ocial prioritizes minimal operating expenses, use the **Manual Publishing Handoff** flow for X posts until publishing volume warrants the $100/month API fee.
 
 ---
 
