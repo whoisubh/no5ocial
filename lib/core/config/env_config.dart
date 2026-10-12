@@ -80,17 +80,38 @@ class EnvConfig {
   /// 2. Loaded `.env` map
   /// 3. Supplied fallback
   static String get(String key, {String fallback = ''}) {
-    // 1. Check dart-define
-    const envDefined = String.fromEnvironment('');
-    final dartDefineVal = String.fromEnvironment(key, defaultValue: envDefined);
-    if (dartDefineVal.isNotEmpty) {
-      return dartDefineVal;
-    }
-
-    // 2. Check loaded .env map
+    // 1. Check loaded .env map
     final mapVal = _envValues[key];
     if (mapVal != null && mapVal.isNotEmpty) {
       return mapVal;
+    }
+
+    // 2. Check compile-time constants safely
+    switch (key) {
+      case 'GOOGLE_WEB_CLIENT_ID':
+        const val = String.fromEnvironment('GOOGLE_WEB_CLIENT_ID');
+        if (val.isNotEmpty) return val;
+        break;
+      case 'GOOGLE_CLIENT_ID':
+        const val = String.fromEnvironment('GOOGLE_CLIENT_ID');
+        if (val.isNotEmpty) return val;
+        break;
+      case 'GOOGLE_ANDROID_CLIENT_ID':
+        const val = String.fromEnvironment('GOOGLE_ANDROID_CLIENT_ID');
+        if (val.isNotEmpty) return val;
+        break;
+      case 'GOOGLE_SERVER_CLIENT_ID':
+        const val = String.fromEnvironment('GOOGLE_SERVER_CLIENT_ID');
+        if (val.isNotEmpty) return val;
+        break;
+      case 'API_BASE_URL':
+        const val = String.fromEnvironment('API_BASE_URL');
+        if (val.isNotEmpty) return val;
+        break;
+      case 'APP_TITLE':
+        const val = String.fromEnvironment('APP_TITLE');
+        if (val.isNotEmpty) return val;
+        break;
     }
 
     // 3. Fallback
