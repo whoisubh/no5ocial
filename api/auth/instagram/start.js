@@ -13,10 +13,17 @@ module.exports = async function handler(req, res) {
       '1406614248351632';
 
     let host = req.headers['x-forwarded-host'] || req.headers.host || 'no5ocial.vercel.app';
+    if (host.includes(',')) {
+      host = host.split(',')[0].trim();
+    }
     const proto = req.headers['x-forwarded-proto'] || (host.includes('localhost') ? 'http' : 'https');
+
+    // Canonical production URI guarantees exact match with Meta App settings and callback
     const redirectUri =
       process.env.INSTAGRAM_REDIRECT_URI ||
-      `${proto}://${host}/api/auth/callback/instagram`;
+      (host.includes('localhost')
+        ? `${proto}://${host}/api/auth/callback/instagram`
+        : 'https://no5ocial.vercel.app/api/auth/callback/instagram');
 
     // Secure signed state parameter to protect against CSRF attacks
     const secret =
@@ -28,6 +35,7 @@ module.exports = async function handler(req, res) {
     const statePayload = JSON.stringify({
       brandId,
       returnUrl,
+      redirectUri,
       nonce: crypto.randomBytes(16).toString('hex'),
       timestamp: Date.now(),
     });

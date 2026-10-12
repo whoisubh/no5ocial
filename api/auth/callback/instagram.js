@@ -29,6 +29,7 @@ module.exports = async function handler(req, res) {
     // Verify HMAC signed state to prevent CSRF
     let brandId = '';
     let returnUrl = '/accounts';
+    let stateRedirectUri = null;
     const secret =
       process.env.INSTAGRAM_APP_SECRET ||
       process.env.META_APP_SECRET ||
@@ -47,6 +48,9 @@ module.exports = async function handler(req, res) {
           const payload = JSON.parse(decodedState.payload);
           brandId = payload.brandId || '';
           returnUrl = payload.returnUrl || '/accounts';
+          if (payload.redirectUri) {
+            stateRedirectUri = payload.redirectUri;
+          }
         }
       } catch (e) {
         console.warn('[Instagram State Verification Warning]', e.message);
@@ -72,11 +76,21 @@ module.exports = async function handler(req, res) {
       }));
     }
 
+    // Clean authorization code: Instagram appends #_ fragment which breaks validation if included
+    const cleanCode = code ? String(code).replace(/#_$/, '').split('#')[0].trim() : '';
+
     let host = req.headers['x-forwarded-host'] || req.headers.host || 'no5ocial.vercel.app';
+    if (host.includes(',')) {
+      host = host.split(',')[0].trim();
+    }
     const proto = req.headers['x-forwarded-proto'] || (host.includes('localhost') ? 'http' : 'https');
-    const redirectUri =
+
+    let redirectUri =
+      stateRedirectUri ||
       process.env.INSTAGRAM_REDIRECT_URI ||
-      `${proto}://${host}/api/auth/callback/instagram`;
+      (host.includes('localhost')
+        ? `${proto}://${host}/api/auth/callback/instagram`
+        : 'https://no5ocial.vercel.app/api/auth/callback/instagram');
 
     // 1. Exchange authorization code for short-lived access token
     const tokenFormData = new URLSearchParams({
@@ -84,16 +98,43 @@ module.exports = async function handler(req, res) {
       client_secret: appSecret,
       grant_type: 'authorization_code',
       redirect_uri: redirectUri,
-      code: code,
+      code: cleanCode,
     });
 
-    const tokenRes = await fetch('https://api.instagram.com/oauth/access_token', {
+    let tokenRes = await fetch('https://api.instagram.com/oauth/access_token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: tokenFormData.toString(),
     });
 
-    const tokenData = await tokenRes.json();
+    let tokenData = await tokenRes.json();
+
+    // If Meta complains about redirect_uri mismatch, automatically retry with/without trailing slash
+    if (!tokenRes.ok && (tokenData.error_message?.includes('redirect_uri') || tokenData.error?.message?.includes('redirect_uri'))) {
+      const altRedirectUri = redirectUri.endsWith('/')
+        ? redirectUri.slice(0, -1)
+        : `${redirectUri}/`;
+
+      const altFormData = new URLSearchParams({
+        client_id: appId,
+        client_secret: appSecret,
+        grant_type: 'authorization_code',
+        redirect_uri: altRedirectUri,
+        code: cleanCode,
+      });
+
+      const altRes = await fetch('https://api.instagram.com/oauth/access_token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: altFormData.toString(),
+      });
+
+      const altData = await altRes.json();
+      if (altRes.ok && !altData.error_type && !altData.error) {
+        tokenRes = altRes;
+        tokenData = altData;
+      }
+    }
 
     if (!tokenRes.ok || tokenData.error_type || tokenData.error) {
       console.error('[Instagram Token Exchange Error]', tokenData);
