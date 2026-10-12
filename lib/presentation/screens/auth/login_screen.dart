@@ -5,9 +5,6 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:no5ocial/core/services/google_auth_service.dart';
 import 'package:no5ocial/core/utils/input_validator.dart';
 import 'package:no5ocial/l10n/app_localizations.dart';
-import 'package:no5ocial/presentation/screens/legal/disclaimer_screen.dart';
-import 'package:no5ocial/presentation/screens/legal/privacy_screen.dart';
-import 'package:no5ocial/presentation/screens/legal/terms_screen.dart';
 import 'package:no5ocial/presentation/state/app_state.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -409,35 +406,17 @@ class _LoginScreenState extends State<LoginScreen> {
                         children: [
                           _LegalLinkButton(
                             text: l10n?.termsOfService ?? 'Terms of Service',
-                            onTap: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => const TermsScreen(),
-                                ),
-                              );
-                            },
+                            onTap: () => Navigator.of(context).pushNamed('/legal/terms'),
                           ),
                           const Text('•', style: TextStyle(color: Color(0xFF4A5568), fontSize: 12)),
                           _LegalLinkButton(
                             text: l10n?.privacyPolicy ?? 'Privacy Policy',
-                            onTap: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => const PrivacyScreen(),
-                                ),
-                              );
-                            },
+                            onTap: () => Navigator.of(context).pushNamed('/legal/privacy'),
                           ),
                           const Text('•', style: TextStyle(color: Color(0xFF4A5568), fontSize: 12)),
                           _LegalLinkButton(
                             text: l10n?.disclaimer ?? 'Disclaimer',
-                            onTap: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => const DisclaimerScreen(),
-                                ),
-                              );
-                            },
+                            onTap: () => Navigator.of(context).pushNamed('/legal/disclaimer'),
                           ),
                         ],
                       ),

@@ -25,6 +25,7 @@ import 'package:no5ocial/presentation/screens/splash/splash_screen.dart';
 import 'package:no5ocial/presentation/screens/welcome/mobile_welcome_screen.dart';
 import 'package:no5ocial/core/config/env_config.dart';
 import 'package:no5ocial/core/errors/app_error_handler.dart';
+import 'package:no5ocial/core/utils/url_strategy_helper.dart';
 import 'package:no5ocial/presentation/state/app_state.dart';
 
 void main() async {
@@ -34,6 +35,9 @@ void main() async {
 /// Universal application bootstrapper supporting flavors (dev, prod)
 Future<void> bootstrap({AppFlavor flavor = AppFlavor.dev}) async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Configure clean HTML5 URL routing without hash (#) on web
+  configureAppUrlStrategy();
 
   // Initialize global error handler hooks (differentiating prod and dev presentation)
   AppErrorHandler.init();
@@ -172,22 +176,24 @@ class no5ocialApp extends StatelessWidget {
               );
             }
 
-            // Legal Pages
-            if (routeName == '/terms') {
+            final cleanRoute = routeName.replaceAll(RegExp(r'/+$'), '');
+
+            // Legal Pages (supports both /legal/terms and /terms)
+            if (cleanRoute == '/terms' || cleanRoute == '/legal/terms' || cleanRoute == '/legal') {
               return MaterialPageRoute(
-                settings: settings,
+                settings: const RouteSettings(name: '/legal/terms'),
                 builder: (_) => const TermsScreen(),
               );
             }
-            if (routeName == '/privacy') {
+            if (cleanRoute == '/privacy' || cleanRoute == '/legal/privacy') {
               return MaterialPageRoute(
-                settings: settings,
+                settings: const RouteSettings(name: '/legal/privacy'),
                 builder: (_) => const PrivacyScreen(),
               );
             }
-            if (routeName == '/disclaimer') {
+            if (cleanRoute == '/disclaimer' || cleanRoute == '/legal/disclaimer') {
               return MaterialPageRoute(
-                settings: settings,
+                settings: const RouteSettings(name: '/legal/disclaimer'),
                 builder: (_) => const DisclaimerScreen(),
               );
             }

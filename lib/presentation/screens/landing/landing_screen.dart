@@ -4,9 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart' show GoogleFonts;
 import 'package:no5ocial/core/services/google_auth_service.dart';
 import 'package:no5ocial/core/utils/input_validator.dart';
-import 'package:no5ocial/presentation/screens/legal/disclaimer_screen.dart';
-import 'package:no5ocial/presentation/screens/legal/privacy_screen.dart';
-import 'package:no5ocial/presentation/screens/legal/terms_screen.dart';
 import 'package:no5ocial/presentation/state/app_state.dart';
 
 class LandingScreen extends StatefulWidget {
@@ -529,11 +526,11 @@ class _LandingScreenState extends State<LandingScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          _buildMobileLegalLink('Terms', () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const TermsScreen()))),
+                          _buildMobileLegalLink('Terms', () => Navigator.of(context).pushNamed('/legal/terms')),
                           const Text(' • ', style: TextStyle(color: Color(0xFF475569), fontSize: 11)),
-                          _buildMobileLegalLink('Privacy', () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PrivacyScreen()))),
+                          _buildMobileLegalLink('Privacy', () => Navigator.of(context).pushNamed('/legal/privacy')),
                           const Text(' • ', style: TextStyle(color: Color(0xFF475569), fontSize: 11)),
-                          _buildMobileLegalLink('Disclaimer', () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const DisclaimerScreen()))),
+                          _buildMobileLegalLink('Disclaimer', () => Navigator.of(context).pushNamed('/legal/disclaimer')),
                         ],
                       ),
                     ],
@@ -1978,15 +1975,15 @@ class _LandingScreenState extends State<LandingScreen> {
                         const SizedBox(height: 16),
                         _FooterLink(
                           label: 'Terms of Service',
-                          onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const TermsScreen())),
+                          onTap: () => Navigator.of(context).pushNamed('/legal/terms'),
                         ),
                         _FooterLink(
                           label: 'Privacy Policy',
-                          onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PrivacyScreen())),
+                          onTap: () => Navigator.of(context).pushNamed('/legal/privacy'),
                         ),
                         _FooterLink(
                           label: 'Disclaimer',
-                          onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const DisclaimerScreen())),
+                          onTap: () => Navigator.of(context).pushNamed('/legal/disclaimer'),
                         ),
                       ],
                     ),

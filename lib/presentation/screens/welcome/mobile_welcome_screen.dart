@@ -2,9 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:no5ocial/core/services/google_auth_service.dart';
 import 'package:no5ocial/core/utils/input_validator.dart';
-import 'package:no5ocial/presentation/screens/legal/disclaimer_screen.dart';
-import 'package:no5ocial/presentation/screens/legal/privacy_screen.dart';
-import 'package:no5ocial/presentation/screens/legal/terms_screen.dart';
 import 'package:no5ocial/presentation/state/app_state.dart';
 
 /// Dedicated Native Mobile Welcome & Authentication Screen for Android & iOS.
@@ -413,11 +410,11 @@ class _MobileWelcomeScreenState extends State<MobileWelcomeScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          _buildLegalLink('Terms', () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const TermsScreen()))),
+                          _buildLegalLink('Terms', () => Navigator.of(context).pushNamed('/legal/terms')),
                           const Text(' • ', style: TextStyle(color: Color(0xFF475569), fontSize: 11)),
-                          _buildLegalLink('Privacy', () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PrivacyScreen()))),
+                          _buildLegalLink('Privacy', () => Navigator.of(context).pushNamed('/legal/privacy')),
                           const Text(' • ', style: TextStyle(color: Color(0xFF475569), fontSize: 11)),
-                          _buildLegalLink('Disclaimer', () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const DisclaimerScreen()))),
+                          _buildLegalLink('Disclaimer', () => Navigator.of(context).pushNamed('/legal/disclaimer')),
                         ],
                       ),
                     ],
