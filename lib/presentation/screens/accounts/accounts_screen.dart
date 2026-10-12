@@ -1146,6 +1146,24 @@ class _AccountsScreenState extends State<AccountsScreen> {
                   padding: const EdgeInsets.symmetric(vertical: 12),
                 ),
               ),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: () async {
+                  final brandId = widget.appState.brands.isNotEmpty
+                      ? widget.appState.brands.first.id
+                      : 'default';
+                  await YouTubeService.instance.launchOAuthConnection(
+                    brandId: brandId,
+                    returnUrl: '/accounts',
+                  );
+                },
+                icon: const Icon(Icons.open_in_browser, size: 18),
+                label: const Text('Sign in via Browser (Web OAuth)'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.accent,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
               const SizedBox(height: 12),
               const Row(
                 children: [
