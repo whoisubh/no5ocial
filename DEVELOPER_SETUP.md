@@ -63,15 +63,15 @@ META_REDIRECT_URI="https://api.yourdomain.com/auth/callback/meta"
 2. Application type: **Web application**.
 3. Name: `no5ocial YouTube Client`.
 4. Authorized redirect URIs:
-   - `https://api.yourdomain.com/auth/callback/google`
-   - `http://localhost:8080/auth/callback/google`
+   - `https://no5ocial.vercel.app/api/auth/callback/google`
+   - `http://localhost:3000/api/auth/callback/google`
 5. Copy the generated `Client ID` and `Client Secret`.
 
-### Step 4: Environment Variables (Server Only)
+### Step 4: Environment Variables (Vercel & Server Only)
 ```bash
-GOOGLE_CLIENT_ID="your_google_client_id.apps.googleusercontent.com"
-GOOGLE_CLIENT_SECRET="your_google_client_secret"
-GOOGLE_REDIRECT_URI="https://api.yourdomain.com/auth/callback/google"
+GOOGLE_CLIENT_ID="1030532523858-o2o0l8c04r7jqdqn8d36ulkafonfafui.apps.googleusercontent.com"
+GOOGLE_CLIENT_SECRET="your_google_client_secret_from_cloud_console"
+GOOGLE_REDIRECT_URI="https://no5ocial.vercel.app/api/auth/callback/google"
 ```
 
 ---

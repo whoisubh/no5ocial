@@ -10,6 +10,7 @@ import 'package:no5ocial/domain/models/social_account.dart';
 import 'package:no5ocial/domain/models/platform_target_config.dart';
 import 'package:no5ocial/presentation/state/app_state.dart';
 import 'package:no5ocial/presentation/widgets/platform_logo.dart';
+import 'package:no5ocial/core/services/youtube_service.dart';
 
 class EntityDialogs {
   static const _uuid = Uuid();
@@ -477,7 +478,27 @@ class EntityDialogs {
           child: ElevatedButton.icon(
             onPressed: isIntegrated
                 ? null
-                : () {
+                : () async {
+                    if (selectedPlatform == PlatformType.youtube) {
+                      try {
+                        await YouTubeService.instance.launchOAuthConnection(
+                          brandId: selectedBrandId,
+                          returnUrl: '/accounts',
+                        );
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Opening Google OAuth to verify YouTube Channel permissions...',
+                              ),
+                              backgroundColor: AppColors.accent,
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        debugPrint('OAuth launch error: $e');
+                      }
+                    }
                     setDialogState(() {
                       isIntegrated = true;
                       externalAccountId = 'ext_${selectedPlatform.name}_${_uuid.v4().substring(0, 8)}';

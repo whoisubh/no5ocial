@@ -28,7 +28,7 @@
       "destination": "/legal/disclaimer/index.html"
     },
     {
-      "source": "/((?!.*\\.[a-zA-Z0-9]+$).*)",
+      "source": "/((?!api/|.*\\.[a-zA-Z0-9]+$).*)",
       "destination": "/index.html"
     }
   ]

@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:url_launcher/url_launcher.dart';
 import 'package:no5ocial/core/services/google_auth_service.dart';
 
 /// Real YouTube Channel Metadata retrieved from the official YouTube Data API v3
@@ -19,6 +20,17 @@ class YouTubeChannelInfo {
     this.subscriberCount,
     this.videoCount,
   });
+
+  factory YouTubeChannelInfo.fromJson(Map<String, dynamic> json) {
+    return YouTubeChannelInfo(
+      id: json['id'] as String? ?? '',
+      title: json['title'] as String? ?? 'YouTube Channel',
+      handle: json['handle'] as String? ?? '@channel',
+      avatarUrl: json['avatarUrl'] as String?,
+      subscriberCount: json['subscriberCount'] as int?,
+      videoCount: json['videoCount'] as int?,
+    );
+  }
 }
 
 /// Official YouTube Data API v3 Integration Service
@@ -28,6 +40,20 @@ class YouTubeService {
 
   static const String youtubeReadOnlyScope =
       'https://www.googleapis.com/auth/youtube.readonly';
+  static const String youtubeUploadScope =
+      'https://www.googleapis.com/auth/youtube.upload';
+
+  /// Generates the server-side OAuth initialization URL for YouTube linking
+  String getOAuthStartUrl({required String brandId, String returnUrl = '/accounts'}) {
+    return '/api/auth/google/start?brandId=${Uri.encodeComponent(brandId)}&returnUrl=${Uri.encodeComponent(returnUrl)}';
+  }
+
+  /// Launches the official server-side OAuth flow via Vercel backend
+  Future<bool> launchOAuthConnection({required String brandId, String returnUrl = '/accounts'}) async {
+    final startPath = getOAuthStartUrl(brandId: brandId, returnUrl: returnUrl);
+    final uri = Uri.parse(startPath);
+    return await launchUrl(uri, mode: LaunchMode.platformDefault);
+  }
 
   /// Fetches the authenticated user's YouTube channel via the official YouTube Data API v3.
   Future<YouTubeChannelInfo> fetchMyChannel({String? accessToken}) async {
