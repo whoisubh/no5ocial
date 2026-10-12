@@ -105,41 +105,20 @@ class LegalPageLayout extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 16),
-                      // Brand
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 28,
-                            height: 28,
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFF3865F6), Color(0xFF6366F1)],
-                              ),
-                              borderRadius: BorderRadius.circular(7),
-                            ),
-                            child: const Center(
-                              child: Text(
-                                'N',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w900,
-                                  fontSize: 15,
-                                ),
-                              ),
-                            ),
+                      // Official Brand Logo
+                      InkWell(
+                        onTap: () => _handleBack(context),
+                        borderRadius: BorderRadius.circular(6),
+                        child: Image.asset(
+                          isDark ? 'assets/logo/no5ocial_white.png' : 'assets/logo/no5ocial.png',
+                          height: 26,
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, _, _) => Image.asset(
+                            'assets/logo/no5ocial_N.png',
+                            height: 26,
+                            fit: BoxFit.contain,
                           ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'no5ocial',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontWeight: FontWeight.w800,
-                              fontSize: 17,
-                              letterSpacing: -0.4,
-                              color: headingColor,
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
                       const Spacer(),
                       // Legal Navigation Tabs (Responsive)
