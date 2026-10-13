@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:no5ocial/core/services/google_auth_service.dart';
+import 'package:no5ocial/core/services/session_service.dart';
 import 'package:no5ocial/core/utils/input_validator.dart';
 import 'package:no5ocial/presentation/state/app_state.dart';
 
@@ -45,8 +46,21 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       description: _companyDescCtrl.text.trim().isEmpty ? null : _companyDescCtrl.text.trim(),
     );
 
+    widget.appState.hasCompletedOnboarding = true;
+    await SessionService.instance.setCompletedOnboarding(true);
+    await SessionService.instance.saveBrandsCache(widget.appState.brands);
+
     widget.appState.shouldShowWelcomeDialog = true;
 
+    if (mounted) {
+      widget.onComplete();
+    }
+  }
+
+  Future<void> _skipToDashboard() async {
+    await widget.appState.ensureDefaultBrandExists();
+    widget.appState.hasCompletedOnboarding = true;
+    await SessionService.instance.setCompletedOnboarding(true);
     if (mounted) {
       widget.onComplete();
     }
@@ -272,12 +286,26 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             child: ElevatedButton.icon(
               onPressed: _submitCompany,
               icon: const Icon(Icons.arrow_forward, size: 18),
-              label: const Text('Create Account'),
+              label: const Text('Complete Setup'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF3865F6),
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Center(
+            child: TextButton(
+              onPressed: _skipToDashboard,
+              child: Text(
+                'Skip for now & use default workspace',
+                style: TextStyle(
+                  color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ),
           ),

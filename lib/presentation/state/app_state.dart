@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 
 import 'package:no5ocial/core/services/google_auth_service.dart';
+import 'package:no5ocial/core/services/passkey_service.dart';
+import 'package:no5ocial/core/services/session_service.dart';
 import 'package:no5ocial/core/utils/input_validator.dart';
 import 'package:no5ocial/core/utils/string_sanitizer.dart';
 import 'package:no5ocial/data/database/app_database.dart';
@@ -87,14 +89,22 @@ class AppState extends ChangeNotifier {
   /// Indicates if the workspace welcome popup should be shown on the next dashboard render.
   bool shouldShowWelcomeDialog = false;
 
-  // Local authentication state (Stored in local SQLite database)
+  // Local authentication state (Stored in persistent SessionService & local SQLite)
   bool isLoggedIn = false;
+  bool isSessionExpired = false;
+  String? maskedEmail;
   String? localUserName;
   String? localUserEmail;
   String? localUserPhotoUrl;
   String? localUserId;
   String? localUserProvider;
   Map<String, dynamic>? localUserData;
+
+  // Biometric & Security Settings
+  bool isBiometricLockEnabled = false;
+  int lockTimeoutSeconds = 0; // 0 = Immediately, 120 = 2 minutes
+  int registeredPasskeysCount = 0;
+  bool hasCompletedOnboarding = false;
 
   Future<void> signInLocally({
     required String name,
@@ -123,13 +133,31 @@ class AppState extends ChangeNotifier {
         : 'local_${DateTime.now().millisecondsSinceEpoch}';
 
     isLoggedIn = true;
+    isSessionExpired = false;
+    hasCompletedOnboarding = true;
     localUserName = safeName;
     localUserEmail = safeEmail;
     localUserPhotoUrl = photoUrl;
     localUserId = safeId;
     localUserProvider = provider;
     localUserData = rawData;
+    maskedEmail = SessionService.instance.getMaskedEmail(safeEmail);
     notifyListeners();
+
+    try {
+      await SessionService.instance.saveSession(
+        id: safeId,
+        name: safeName,
+        email: safeEmail,
+        photoUrl: photoUrl,
+        provider: provider,
+        rawData: rawData,
+      );
+      await SessionService.instance.setCompletedOnboarding(true);
+      await ensureDefaultBrandExists();
+    } catch (e) {
+      debugPrint('Error saving session to SessionService: $e');
+    }
 
     try {
       await AppDatabase.instance.saveUserProfile(
@@ -153,13 +181,21 @@ class AppState extends ChangeNotifier {
     }
 
     isLoggedIn = false;
+    isSessionExpired = false;
     localUserName = null;
     localUserEmail = null;
     localUserPhotoUrl = null;
     localUserId = null;
     localUserProvider = null;
     localUserData = null;
+    maskedEmail = null;
     notifyListeners();
+
+    try {
+      await SessionService.instance.clearSession();
+    } catch (e) {
+      debugPrint('Error clearing session from SessionService: $e');
+    }
 
     try {
       await AppDatabase.instance.clearUserProfile();
@@ -170,12 +206,50 @@ class AppState extends ChangeNotifier {
 
   Future<void> loadSavedUserProfile() async {
     try {
+      // 1. First attempt to load from persistent SessionService (localStorage / XML prefs)
+      final session = await SessionService.instance.getSession();
+      if (session != null) {
+        final expired = await SessionService.instance.isSessionExpired();
+        final email = session['email'] as String?;
+        maskedEmail = SessionService.instance.getMaskedEmail(email);
+
+        if (expired) {
+          isLoggedIn = true; // Retain identity for the expiration notice
+          isSessionExpired = true;
+        } else {
+          isLoggedIn = true;
+          isSessionExpired = false;
+        }
+
+        localUserId = session['id'] as String?;
+        localUserName = session['name'] as String?;
+        localUserEmail = email;
+        localUserPhotoUrl = session['photo_url'] as String?;
+        localUserProvider = session['provider'] as String?;
+        localUserData = session['raw_data'] as Map<String, dynamic>?;
+
+        await loadSecuritySettings();
+        hasCompletedOnboarding = await SessionService.instance.hasCompletedOnboarding();
+        if (brands.isEmpty) {
+          final cachedBrands = await SessionService.instance.getBrandsCache();
+          for (final b in cachedBrands) {
+            brandRepository.saveBrand(b);
+          }
+        }
+        if (isLoggedIn && brands.isEmpty) {
+          await ensureDefaultBrandExists();
+        }
+        notifyListeners();
+        return;
+      }
+
+      // 2. Fallback to SQLite (and migrate to SessionService if exists)
       final profile = await AppDatabase.instance.getUserProfile();
       if (profile != null) {
-        isLoggedIn = true;
+        final email = profile['email'] as String?;
         localUserId = profile['id'] as String?;
         localUserName = profile['name'] as String?;
-        localUserEmail = profile['email'] as String?;
+        localUserEmail = email;
         localUserPhotoUrl = profile['photo_url'] as String?;
         localUserProvider = profile['provider'] as String?;
         if (profile['raw_data'] != null) {
@@ -186,11 +260,105 @@ class AppState extends ChangeNotifier {
             }
           } catch (_) {}
         }
+
+        isLoggedIn = true;
+        isSessionExpired = false;
+        maskedEmail = SessionService.instance.getMaskedEmail(email);
+
+        if (localUserId != null && email != null) {
+          await SessionService.instance.saveSession(
+            id: localUserId!,
+            name: localUserName ?? '',
+            email: email,
+            photoUrl: localUserPhotoUrl,
+            provider: localUserProvider ?? 'google',
+            rawData: localUserData,
+          );
+        }
+
+        await loadSecuritySettings();
+        hasCompletedOnboarding = await SessionService.instance.hasCompletedOnboarding();
+        if (brands.isEmpty) {
+          final cachedBrands = await SessionService.instance.getBrandsCache();
+          for (final b in cachedBrands) {
+            brandRepository.saveBrand(b);
+          }
+        }
+        if (isLoggedIn && brands.isEmpty) {
+          await ensureDefaultBrandExists();
+        }
         notifyListeners();
       }
     } catch (e) {
-      debugPrint('Error loading user profile from SQLite: $e');
+      debugPrint('Error loading user profile: $e');
     }
+  }
+
+  /// Automatically provision or restore a primary workspace brand for authenticated users
+  Future<void> ensureDefaultBrandExists() async {
+    if (brands.isNotEmpty) {
+      hasCompletedOnboarding = true;
+      await SessionService.instance.saveBrandsCache(brands);
+      await SessionService.instance.setCompletedOnboarding(true);
+      return;
+    }
+
+    final cached = await SessionService.instance.getBrandsCache();
+    if (cached.isNotEmpty) {
+      for (final b in cached) {
+        brandRepository.saveBrand(b);
+      }
+      hasCompletedOnboarding = true;
+      await SessionService.instance.setCompletedOnboarding(true);
+      notifyListeners();
+      return;
+    }
+
+    if (isLoggedIn) {
+      final rawName = localUserName?.trim();
+      final safeName = (rawName != null && rawName.isNotEmpty) ? rawName : 'My';
+      final brandName = safeName == 'My' ? 'My Workspace' : '$safeName\'s Workspace';
+      final brand = createBrand(
+        name: brandName,
+        description: 'Primary workspace for ${localUserEmail ?? safeName}',
+      );
+      hasCompletedOnboarding = true;
+      await SessionService.instance.saveBrandsCache([brand]);
+      await SessionService.instance.setCompletedOnboarding(true);
+      notifyListeners();
+    }
+  }
+
+  Future<void> loadSecuritySettings() async {
+    try {
+      isBiometricLockEnabled = await SessionService.instance.isBiometricLockEnabled();
+      lockTimeoutSeconds = await SessionService.instance.getLockTimeoutSeconds();
+      final passkeys = await PasskeyService.instance.getRegisteredPasskeys();
+      registeredPasskeysCount = passkeys.length;
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error loading security settings: $e');
+    }
+  }
+
+  Future<void> setBiometricLockEnabled(bool enabled) async {
+    isBiometricLockEnabled = enabled;
+    await SessionService.instance.setBiometricLockEnabled(enabled);
+    notifyListeners();
+  }
+
+  Future<void> setLockTimeoutSeconds(int seconds) async {
+    lockTimeoutSeconds = seconds;
+    await SessionService.instance.setLockTimeoutSeconds(seconds);
+    notifyListeners();
+  }
+
+  Future<void> refreshPasskeysCount() async {
+    try {
+      final passkeys = await PasskeyService.instance.getRegisteredPasskeys();
+      registeredPasskeysCount = passkeys.length;
+      notifyListeners();
+    } catch (_) {}
   }
 
   AppState({
@@ -767,6 +935,7 @@ class AppState extends ChangeNotifier {
       createdAtUtc: DateTime.now().toUtc(),
     );
     brandRepository.saveBrand(brand);
+    SessionService.instance.saveBrandsCache(brands);
     _recordAudit(
       eventType: 'BRAND_CREATED',
       entityType: 'Brand',
@@ -779,6 +948,7 @@ class AppState extends ChangeNotifier {
 
   void updateBrand(Brand brand) {
     brandRepository.saveBrand(brand);
+    SessionService.instance.saveBrandsCache(brands);
     _recordAudit(
       eventType: 'BRAND_UPDATED',
       entityType: 'Brand',
@@ -791,6 +961,7 @@ class AppState extends ChangeNotifier {
   void deleteBrand(String brandId) {
     final b = brandRepository.getBrandById(brandId);
     brandRepository.deleteBrand(brandId);
+    SessionService.instance.saveBrandsCache(brands);
     _recordAudit(
       eventType: 'BRAND_DELETED',
       entityType: 'Brand',
@@ -1131,6 +1302,9 @@ class AppState extends ChangeNotifier {
     if (jobRepository is SqliteJobRepository) {
       (jobRepository as SqliteJobRepository).clearCache();
     }
+    hasCompletedOnboarding = false;
+    await SessionService.instance.setCompletedOnboarding(false);
+    await SessionService.instance.saveBrandsCache([]);
     selectedBrandFilterId = null;
     selectedStatusFilter = null;
     searchQuery = '';

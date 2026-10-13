@@ -9,6 +9,7 @@ import 'package:no5ocial/presentation/screens/landing/landing_screen.dart';
 import 'package:no5ocial/presentation/screens/onboarding/onboarding_screen.dart';
 import 'package:no5ocial/presentation/screens/welcome/mobile_welcome_screen.dart';
 import 'package:no5ocial/presentation/state/app_state.dart';
+import 'package:no5ocial/presentation/widgets/session_expired_sheet.dart';
 
 /// Premium animated Splash Screen UI for no5ocial.
 /// Smoothly initializes the application, verifies local session state,
@@ -93,7 +94,33 @@ class _SplashScreenState extends State<SplashScreen>
     final appState = widget.appState;
 
     if (appState.isLoggedIn) {
-      if (appState.brands.isEmpty) {
+      if (appState.isSessionExpired) {
+        Navigator.of(context).pushAndRemoveUntil(
+          PageRouteBuilder(
+            pageBuilder: (_, _, _) => MainScaffold(
+              appState: appState,
+              initialIndex: 0,
+            ),
+            transitionsBuilder: _fadeTransition,
+          ),
+          (route) => false,
+        );
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          SessionExpiredSheet.show(
+            context,
+            maskedEmail: appState.maskedEmail ?? 'your account',
+            onConfirmLogout: () async {
+              await appState.signOut();
+              if (mounted) {
+                Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+              }
+            },
+          );
+        });
+        return;
+      }
+
+      if (appState.brands.isEmpty && !appState.hasCompletedOnboarding) {
         Navigator.of(context).pushAndRemoveUntil(
           PageRouteBuilder(
             pageBuilder: (_, _, _) => OnboardingScreen(
@@ -107,6 +134,9 @@ class _SplashScreenState extends State<SplashScreen>
           (route) => false,
         );
       } else {
+        if (appState.brands.isEmpty) {
+          appState.ensureDefaultBrandExists();
+        }
         Navigator.of(context).pushAndRemoveUntil(
           PageRouteBuilder(
             pageBuilder: (_, _, _) => MainScaffold(

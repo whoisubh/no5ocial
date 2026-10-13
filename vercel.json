@@ -28,6 +28,10 @@
       "destination": "/legal/disclaimer/index.html"
     },
     {
+      "source": "/.well-known/assetlinks.json",
+      "destination": "/api/assetlinks"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index"
     }

@@ -26,9 +26,12 @@ import 'package:no5ocial/presentation/screens/splash/splash_screen.dart';
 import 'package:no5ocial/presentation/screens/welcome/mobile_welcome_screen.dart';
 import 'package:no5ocial/core/config/env_config.dart';
 import 'package:no5ocial/core/errors/app_error_handler.dart';
+import 'package:no5ocial/core/services/biometric_lock_service.dart';
 import 'package:no5ocial/core/services/oauth_callback_service.dart';
 import 'package:no5ocial/core/utils/url_strategy_helper.dart';
 import 'package:no5ocial/presentation/state/app_state.dart';
+import 'package:no5ocial/presentation/widgets/biometric_lock_overlay.dart';
+import 'package:no5ocial/presentation/widgets/session_expired_sheet.dart';
 
 void main() async {
   await bootstrap(flavor: AppFlavor.dev);
@@ -101,19 +104,76 @@ Future<void> bootstrap({AppFlavor flavor = AppFlavor.dev}) async {
   runApp(no5ocialApp(appState: appState));
 }
 
-class no5ocialApp extends StatelessWidget {
+class no5ocialApp extends StatefulWidget {
   static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
   final AppState appState;
 
   const no5ocialApp({super.key, required this.appState});
 
   @override
+  State<no5ocialApp> createState() => _no5ocialAppState();
+}
+
+class _no5ocialAppState extends State<no5ocialApp> with WidgetsBindingObserver {
+  bool _hasCheckedSessionOnStartup = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkSessionAndSecurity();
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+      BiometricLockService.instance.onAppPaused();
+    } else if (state == AppLifecycleState.resumed) {
+      BiometricLockService.instance.onAppResumed(
+        isUserLoggedIn: widget.appState.isLoggedIn,
+      );
+    }
+  }
+
+  void _checkSessionAndSecurity() {
+    if (_hasCheckedSessionOnStartup) return;
+    _hasCheckedSessionOnStartup = true;
+
+    if (widget.appState.isSessionExpired) {
+      final navContext = no5ocialApp.navigatorKey.currentContext;
+      if (navContext != null) {
+        SessionExpiredSheet.show(
+          navContext,
+          maskedEmail: widget.appState.maskedEmail ?? 'your account',
+          onConfirmLogout: () async {
+            await widget.appState.signOut();
+            no5ocialApp.navigatorKey.currentState?.pushNamedAndRemoveUntil('/login', (route) => false);
+          },
+        );
+      }
+    } else if (widget.appState.isLoggedIn && !kIsWeb) {
+      BiometricLockService.instance.onAppResumed(
+        isUserLoggedIn: true,
+      );
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: appState,
+      listenable: widget.appState,
       builder: (context, _) {
+        final appState = widget.appState;
         return MaterialApp(
-          navigatorKey: navigatorKey,
+          navigatorKey: no5ocialApp.navigatorKey,
           title: 'no5ocial — Social Publishing & Scheduling Workspace',
           debugShowCheckedModeBanner: false,
           theme: AppTheme.lightTheme,
@@ -122,6 +182,11 @@ class no5ocialApp extends StatelessWidget {
           locale: appState.currentLocale,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
+          builder: (context, child) {
+            return BiometricLockOverlay(
+              child: child ?? const SizedBox.shrink(),
+            );
+          },
           onGenerateRoute: (settings) {
             String routeName = settings.name ?? '/';
 
@@ -161,6 +226,16 @@ class no5ocialApp extends StatelessWidget {
             // 1. Root & Public Landing Page
             if (normalized == '/' || normalized == '/landing') {
               if (kIsWeb) {
+                // If user already has an active valid session, open dashboard directly!
+                if (normalized == '/' && appState.isLoggedIn && !appState.isSessionExpired) {
+                  return MaterialPageRoute(
+                    settings: const RouteSettings(name: '/dashboard'),
+                    builder: (_) => MainScaffold(
+                      appState: appState,
+                      initialIndex: 0,
+                    ),
+                  );
+                }
                 return MaterialPageRoute(
                   settings: const RouteSettings(name: '/'),
                   builder: (_) => LandingScreen(appState: appState),
@@ -182,6 +257,15 @@ class no5ocialApp extends StatelessWidget {
 
             // 3. Explicit Login Screen
             if (normalized == '/login') {
+              if (appState.isLoggedIn && !appState.isSessionExpired) {
+                return MaterialPageRoute(
+                  settings: const RouteSettings(name: '/dashboard'),
+                  builder: (_) => MainScaffold(
+                    appState: appState,
+                    initialIndex: 0,
+                  ),
+                );
+              }
               return MaterialPageRoute(
                 settings: const RouteSettings(name: '/login'),
                 builder: (_) => LoginScreen(appState: appState),
@@ -190,6 +274,15 @@ class no5ocialApp extends StatelessWidget {
 
             // 4. Mobile Welcome Screen
             if (normalized == '/welcome') {
+              if (appState.isLoggedIn && !appState.isSessionExpired) {
+                return MaterialPageRoute(
+                  settings: const RouteSettings(name: '/dashboard'),
+                  builder: (_) => MainScaffold(
+                    appState: appState,
+                    initialIndex: 0,
+                  ),
+                );
+              }
               return MaterialPageRoute(
                 settings: const RouteSettings(name: '/welcome'),
                 builder: (_) => MobileWelcomeScreen(appState: appState),
@@ -208,7 +301,7 @@ class no5ocialApp extends StatelessWidget {
                 );
               }
 
-              if (appState.brands.isEmpty) {
+              if (appState.brands.isEmpty && !appState.hasCompletedOnboarding) {
                 return MaterialPageRoute(
                   settings: const RouteSettings(name: '/onboarding'),
                   builder: (ctx) => OnboardingScreen(
@@ -218,6 +311,10 @@ class no5ocialApp extends StatelessWidget {
                     },
                   ),
                 );
+              }
+
+              if (appState.brands.isEmpty) {
+                appState.ensureDefaultBrandExists();
               }
 
               int tabIndex = 0;
@@ -261,6 +358,15 @@ class no5ocialApp extends StatelessWidget {
                   builder: (_) => LoginScreen(appState: appState),
                 );
               }
+              if (appState.hasCompletedOnboarding && appState.brands.isNotEmpty) {
+                return MaterialPageRoute(
+                  settings: const RouteSettings(name: '/dashboard'),
+                  builder: (_) => MainScaffold(
+                    appState: appState,
+                    initialIndex: 0,
+                  ),
+                );
+              }
               return MaterialPageRoute(
                 settings: const RouteSettings(name: '/onboarding'),
                 builder: (ctx) => OnboardingScreen(
@@ -274,6 +380,15 @@ class no5ocialApp extends StatelessWidget {
 
             // 7. Unknown / Fallback Route (Public landing on web, splash on native)
             if (kIsWeb) {
+              if (appState.isLoggedIn && !appState.isSessionExpired) {
+                return MaterialPageRoute(
+                  settings: const RouteSettings(name: '/dashboard'),
+                  builder: (_) => MainScaffold(
+                    appState: appState,
+                    initialIndex: 0,
+                  ),
+                );
+              }
               return MaterialPageRoute(
                 settings: const RouteSettings(name: '/'),
                 builder: (_) => LandingScreen(appState: appState),

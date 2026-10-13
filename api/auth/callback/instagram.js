@@ -141,19 +141,27 @@ module.exports = async function handler(req, res) {
       }
     }
 
+    const isSecretFromEnv = Boolean(process.env.INSTAGRAM_APP_SECRET || process.env.META_APP_SECRET);
     if (!tokenRes.ok || tokenData.error_type || tokenData.error) {
       console.error('[Instagram Token Exchange Error]', tokenData);
       return res.status(400).send(renderHtml({
         success: false,
         title: 'Instagram Token Exchange Failed',
-        message: tokenData.error_message || tokenData.error?.message || 'Error validating verification code. The authorization code may have expired or redirect_uri must match.',
+        message: tokenData.error_message || tokenData.error?.message || 'Error validating verification code. The authorization code may have expired, redirect_uri must match, or the App Secret is invalid.',
         actionText: 'Authorize Instagram Again',
         actionUrl: `/api/auth/instagram/start?brandId=${encodeURIComponent(brandId)}&returnUrl=/accounts`,
         debugDetails: JSON.stringify({
           redirect_uri_sent: redirectUri,
           client_id: appId,
+          secret_source: isSecretFromEnv ? 'configured_in_vercel_environment' : 'fallback_default_secret (may be invalid/expired on Meta)',
           api_instagram_response: tokenData,
           graph_facebook_response: fbTokenData,
+          resolution_steps: [
+            '1. Verify App Secret: Go to https://developers.facebook.com/apps/1406614248351632/settings/basic/ and click Show on App Secret.',
+            '2. Update Vercel Environment Variables: Add INSTAGRAM_APP_SECRET in Vercel Project Settings > Environment Variables.',
+            '3. Check Valid OAuth Redirect URIs in Meta Dashboard under Instagram > Settings: ensure "https://no5ocial.vercel.app/api/auth/callback/instagram" is added byte-for-byte.',
+            '4. Fresh Code Required: Never refresh the callback URL. Authorization codes are strictly single-use and expire in 5 minutes.',
+          ],
         }, null, 2),
       }));
     }

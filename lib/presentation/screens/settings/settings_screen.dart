@@ -1,10 +1,13 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:no5ocial/core/extensions/l10n_extension.dart';
+import 'package:no5ocial/core/services/biometric_lock_service.dart';
 import 'package:no5ocial/core/theme/app_colors.dart';
 import 'package:no5ocial/core/theme/app_typography.dart';
 import 'package:no5ocial/core/utils/date_formatter.dart';
 import 'package:no5ocial/presentation/state/app_state.dart';
 import 'package:no5ocial/presentation/widgets/app_sheets.dart';
+import 'package:no5ocial/presentation/widgets/passkey_management_sheet.dart';
 
 class SettingsScreen extends StatelessWidget {
   final AppState appState;
@@ -471,6 +474,264 @@ class SettingsScreen extends StatelessWidget {
                     ),
                   );
                 },
+              ),
+              const SizedBox(height: 16),
+
+              _buildSectionTitle('Passkeys & Biometric Security'),
+              // Passkey Management Tile
+              Material(
+                color: AppColors.surface,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  side: const BorderSide(color: AppColors.border),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  onTap: () {
+                    PasskeyManagementSheet.show(context, appState: appState)
+                        .then((_) => appState.refreshPasskeysCount());
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.vpn_key_rounded,
+                          color: AppColors.accent,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Passkeys & Security Keys',
+                                style: AppTypography.titleMedium,
+                              ),
+                              Text(
+                                '${appState.registeredPasskeysCount} passkey${appState.registeredPasskeysCount == 1 ? '' : 's'} registered • Passwordless FIDO2',
+                                style: AppTypography.bodySecondary.copyWith(
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: AppColors.accentLight,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Text(
+                            'Manage',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.accent,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+
+              // Biometric & Screen Lock Tile
+              Material(
+                color: AppColors.surface,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  side: const BorderSide(color: AppColors.border),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: Column(
+                  children: [
+                    SwitchListTile(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      secondary: const Icon(
+                        Icons.fingerprint,
+                        color: AppColors.accent,
+                        size: 20,
+                      ),
+                      title: const Text(
+                        'Biometric / Screen Lock',
+                        style: AppTypography.titleMedium,
+                      ),
+                      subtitle: Text(
+                        kIsWeb
+                            ? 'Screen lock handled by device passkeys on Web'
+                            : 'Require fingerprint, face, or PIN to unlock workspace on open',
+                        style: AppTypography.bodySecondary.copyWith(fontSize: 12),
+                      ),
+                      value: appState.isBiometricLockEnabled,
+                      activeThumbColor: AppColors.accent,
+                      onChanged: kIsWeb
+                          ? null
+                          : (enabled) async {
+                              if (enabled) {
+                                final isSupported = await BiometricLockService.instance.canCheckBiometrics();
+                                if (!isSupported) {
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Biometric or screen lock is not set up on this device.'),
+                                        backgroundColor: AppColors.warning,
+                                      ),
+                                    );
+                                  }
+                                  return;
+                                }
+
+                                final authenticated = await BiometricLockService.instance.authenticate(
+                                  localizedReason: 'Verify biometrics to enable screen lock for no5ocial',
+                                );
+                                if (authenticated) {
+                                  await appState.setBiometricLockEnabled(true);
+                                } else {
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Biometric verification cancelled or failed.'),
+                                        backgroundColor: AppColors.error,
+                                      ),
+                                    );
+                                  }
+                                }
+                              } else {
+                                await appState.setBiometricLockEnabled(false);
+                              }
+                            },
+                    ),
+
+                    if (appState.isBiometricLockEnabled && !kIsWeb) ...[
+                      const Divider(height: 1),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Row(
+                              children: [
+                                Icon(Icons.timer_outlined, size: 16, color: AppColors.textSecondary),
+                                SizedBox(width: 6),
+                                Text(
+                                  'Lock Inactivity Timeout',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.textPrimary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: InkWell(
+                                    onTap: () => appState.setLockTimeoutSeconds(0),
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                                      decoration: BoxDecoration(
+                                        color: appState.lockTimeoutSeconds == 0
+                                            ? AppColors.accentLight
+                                            : AppColors.surfaceSecondary,
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(
+                                          color: appState.lockTimeoutSeconds == 0
+                                              ? AppColors.accent
+                                              : AppColors.border,
+                                          width: appState.lockTimeoutSeconds == 0 ? 1.5 : 1,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Icon(
+                                            appState.lockTimeoutSeconds == 0
+                                                ? Icons.radio_button_checked
+                                                : Icons.radio_button_off,
+                                            size: 16,
+                                            color: appState.lockTimeoutSeconds == 0
+                                                ? AppColors.accent
+                                                : AppColors.textMuted,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            'Lock Immediately',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600,
+                                              color: appState.lockTimeoutSeconds == 0
+                                                  ? AppColors.accent
+                                                  : AppColors.textPrimary,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: InkWell(
+                                    onTap: () => appState.setLockTimeoutSeconds(120),
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                                      decoration: BoxDecoration(
+                                        color: appState.lockTimeoutSeconds == 120
+                                            ? AppColors.accentLight
+                                            : AppColors.surfaceSecondary,
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(
+                                          color: appState.lockTimeoutSeconds == 120
+                                              ? AppColors.accent
+                                              : AppColors.border,
+                                          width: appState.lockTimeoutSeconds == 120 ? 1.5 : 1,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Icon(
+                                            appState.lockTimeoutSeconds == 120
+                                                ? Icons.radio_button_checked
+                                                : Icons.radio_button_off,
+                                            size: 16,
+                                            color: appState.lockTimeoutSeconds == 120
+                                                ? AppColors.accent
+                                                : AppColors.textMuted,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            'After 2 minutes',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600,
+                                              color: appState.lockTimeoutSeconds == 120
+                                                  ? AppColors.accent
+                                                  : AppColors.textPrimary,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
               ),
               const SizedBox(height: 16),
 

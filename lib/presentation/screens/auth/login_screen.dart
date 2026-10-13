@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:no5ocial/core/services/google_auth_service.dart';
+import 'package:no5ocial/core/services/passkey_service.dart';
+import 'package:no5ocial/core/services/session_service.dart';
 import 'package:no5ocial/core/utils/input_validator.dart';
 import 'package:no5ocial/l10n/app_localizations.dart';
 import 'package:no5ocial/presentation/state/app_state.dart';
@@ -19,6 +21,63 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
   DateTime? _lastLoginAttempt;
+  bool _hasPasskeys = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkPasskeys();
+  }
+
+  Future<void> _checkPasskeys() async {
+    try {
+      final list = await PasskeyService.instance.getRegisteredPasskeys();
+      if (mounted && list.isNotEmpty) {
+        setState(() => _hasPasskeys = true);
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _handlePasskeyLogin() async {
+    if (_isLoading) return;
+    setState(() => _isLoading = true);
+
+    try {
+      final verified = await PasskeyService.instance.authenticatePasskey();
+      if (verified) {
+        final session = await SessionService.instance.getSession();
+        if (session != null) {
+          await widget.appState.signInLocally(
+            name: session['name'] ?? 'Passkey User',
+            email: session['email'] ?? '',
+            photoUrl: session['photo_url'],
+            id: session['id'],
+            provider: 'passkey',
+            rawData: session['raw_data'],
+          );
+        } else {
+          await widget.appState.signInLocally(
+            name: 'Passkey User',
+            email: widget.appState.localUserEmail ?? 'user@no5ocial.workspace',
+            provider: 'passkey',
+          );
+        }
+        if (!mounted) return;
+        Navigator.of(context).pushNamedAndRemoveUntil('/dashboard', (route) => false);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Passkey sign-in cancelled or failed: ${e.toString().replaceAll('Exception:', '').trim()}'),
+            backgroundColor: const Color(0xFFEF4444),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
   /// Trigger real Google Identity Services Sign-In via official google_sign_in SDK
   Future<void> _handleGoogleLogin() async {
@@ -352,6 +411,42 @@ class _LoginScreenState extends State<LoginScreen> {
                         isLoading: _isLoading,
                         text: l10n?.loginWithGoogle ?? 'Continue with Google',
                       ),
+
+                      if (_hasPasskeys) ...[
+                        const SizedBox(height: 12),
+                        const Row(
+                          children: [
+                            Expanded(child: Divider(color: Color(0xFF222C40))),
+                            Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 10),
+                              child: Text('or', style: TextStyle(color: Color(0xFF64748B), fontSize: 11)),
+                            ),
+                            Expanded(child: Divider(color: Color(0xFF222C40))),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          height: 42,
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: _isLoading ? null : _handlePasskeyLogin,
+                            icon: const Icon(Icons.vpn_key_rounded, size: 18, color: Color(0xFF60A5FA)),
+                            label: const Text(
+                              'Sign in with Passkey',
+                              style: TextStyle(
+                                color: Color(0xFFE2E8F0),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: Color(0xFF3B82F6)),
+                              backgroundColor: const Color(0xFF1E293B),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                            ),
+                          ),
+                        ),
+                      ],
 
                       const SizedBox(height: 16),
 
