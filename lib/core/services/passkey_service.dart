@@ -14,6 +14,8 @@ import 'package:no5ocial/domain/models/passkey_credential.dart';
 /// - WebAuthn API on Web
 class PasskeyService {
   static final PasskeyService instance = PasskeyService._internal();
+  PasskeyService._internal();
+
   PasskeyAuthenticator? _authenticatorInstance;
   bool _authenticatorInitAttempted = false;
 
