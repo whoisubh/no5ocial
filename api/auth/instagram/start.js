@@ -11,7 +11,7 @@ module.exports = async function handler(req, res) {
       process.env.INSTAGRAM_APP_ID ||
       process.env.META_APP_ID ||
       process.env.FACEBOOK_APP_ID ||
-      '1406614248351632';
+      '246027844895445';
 
     let host = req.headers['x-forwarded-host'] || req.headers.host || 'no5ocial.vercel.app';
     if (host.includes(',')) {
