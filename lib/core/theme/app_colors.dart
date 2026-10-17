@@ -52,10 +52,6 @@ abstract final class AppColors {
   static const Color xBg = Color(0xFFF2F4F6);
   static const Color facebook = Color(0xFF1877F2);
   static const Color facebookBg = Color(0xFFEFF6FF);
-  static const Color tiktok = Color(0xFF010101);
-  static const Color tiktokBg = Color(0xFFF1F5F9);
-  static const Color pinterest = Color(0xFFE60023);
-  static const Color pinterestBg = Color(0xFFFEF2F2);
   static const Color threads = Color(0xFF101010);
   static const Color threadsBg = Color(0xFFF1F5F9);
 

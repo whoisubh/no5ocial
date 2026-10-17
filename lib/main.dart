@@ -14,6 +14,8 @@ import 'package:no5ocial/domain/adapters/composite_publishing_adapter.dart';
 import 'package:no5ocial/domain/adapters/fake_publishing_adapter.dart';
 import 'package:no5ocial/domain/adapters/instagram_publishing_adapter.dart';
 import 'package:no5ocial/domain/adapters/linkedin_publishing_adapter.dart';
+import 'package:no5ocial/domain/adapters/threads_publishing_adapter.dart';
+import 'package:no5ocial/domain/adapters/x_publishing_adapter.dart';
 import 'package:no5ocial/domain/enums/platform_type.dart';
 import 'package:no5ocial/l10n/app_localizations.dart';
 import 'package:no5ocial/presentation/navigation/main_scaffold.dart';
@@ -76,11 +78,13 @@ Future<void> bootstrap({AppFlavor flavor = AppFlavor.dev}) async {
   final groupRepo = SqliteGroupRepository();
   await groupRepo.init();
 
-  // Platform publishing adapters with official Instagram & LinkedIn REST API integration
+  // Platform publishing adapters with official Instagram, LinkedIn, X & Threads REST API integration
   final publishingAdapter = CompositePublishingAdapter(
     platformAdapters: {
       PlatformType.instagram: InstagramPublishingAdapter(),
       PlatformType.linkedin: LinkedInPublishingAdapter(),
+      PlatformType.x: XPublishingAdapter(),
+      PlatformType.threads: ThreadsPublishingAdapter(),
     },
     fallbackAdapter: const FakePublishingAdapter(),
   );

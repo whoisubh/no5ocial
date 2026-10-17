@@ -28,10 +28,6 @@ class PlatformLogo extends StatelessWidget {
         return FontAwesomeIcons.xTwitter;
       case PlatformType.facebook:
         return FontAwesomeIcons.facebook;
-      case PlatformType.tiktok:
-        return FontAwesomeIcons.tiktok;
-      case PlatformType.pinterest:
-        return FontAwesomeIcons.pinterest;
       case PlatformType.threads:
         return FontAwesomeIcons.threads;
     }
@@ -49,10 +45,6 @@ class PlatformLogo extends StatelessWidget {
         return AppColors.x;
       case PlatformType.facebook:
         return AppColors.facebook;
-      case PlatformType.tiktok:
-        return AppColors.tiktok;
-      case PlatformType.pinterest:
-        return AppColors.pinterest;
       case PlatformType.threads:
         return AppColors.threads;
     }

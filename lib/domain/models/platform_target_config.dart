@@ -213,40 +213,6 @@ class PlatformConfigRegistry {
       policyNotice: 'Extended character limit and 1080p long-form video uploads supported.',
     ),
 
-    // --- TikTok ---
-    PlatformSubtype(
-      id: 'tiktok_creator',
-      platform: PlatformType.tiktok,
-      name: 'Creator Account',
-      description: 'Direct video and photo carousel publishing for creators.',
-      scopes: ['video.publish', 'video.upload'],
-      linkingConditions: [
-        'Requires TikTok Content Posting API authorization.',
-        'Privacy level (Public / Friends / Private) must be confirmed prior to posting.',
-      ],
-      supportedFormats: ['video', 'carousel'],
-      defaultFormats: ['video', 'carousel'],
-      isManualOnly: false,
-      requiresAdminRole: false,
-      policyNotice: 'Video strictly required (or TikTok photo mode). Text-only posts are not supported.',
-    ),
-    PlatformSubtype(
-      id: 'tiktok_business',
-      platform: PlatformType.tiktok,
-      name: 'Business Account',
-      description: 'Commercial brand publishing subject to TikTok Commercial Music rules.',
-      scopes: ['video.publish', 'video.upload', 'business.account.info'],
-      linkingConditions: [
-        'Must be registered as a TikTok Business Account.',
-        'Commercial sounds / music library policy strictly enforced.',
-      ],
-      supportedFormats: ['video'],
-      defaultFormats: ['video'],
-      isManualOnly: false,
-      requiresAdminRole: false,
-      policyNotice: 'Only royalty-free / commercial licensed audio can be used for commercial business posts.',
-    ),
-
     // --- Threads ---
     PlatformSubtype(
       id: 'threads_profile',
@@ -263,24 +229,6 @@ class PlatformConfigRegistry {
       isManualOnly: false,
       requiresAdminRole: false,
       policyNotice: 'Supports up to 500 characters, up to 10 images, and videos up to 5 minutes.',
-    ),
-
-    // --- Pinterest ---
-    PlatformSubtype(
-      id: 'pinterest_business',
-      platform: PlatformType.pinterest,
-      name: 'Business Account / Board',
-      description: 'Publish image and video Pins with title, description, and target board.',
-      scopes: ['pins:write', 'boards:read'],
-      linkingConditions: [
-        'Requires Pinterest API v5 OAuth.',
-        'Target Board ID and destination link required for published pins.',
-      ],
-      supportedFormats: ['image', 'video'],
-      defaultFormats: ['image', 'video'],
-      isManualOnly: false,
-      requiresAdminRole: false,
-      policyNotice: 'Media required. Text-only pins are not supported. Max title 100 chars, description 500 chars.',
     ),
   ];
 

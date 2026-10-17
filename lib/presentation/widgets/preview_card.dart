@@ -72,8 +72,6 @@ class PreviewCard extends StatelessWidget {
               PlatformType.youtube => _buildYouTubePreview(),
               PlatformType.linkedin => _buildLinkedInPreview(),
               PlatformType.facebook => _buildFacebookPreview(),
-              PlatformType.tiktok => _buildTikTokPreview(),
-              PlatformType.pinterest => _buildPinterestPreview(),
               PlatformType.threads => _buildThreadsPreview(),
             },
           ),
@@ -328,85 +326,6 @@ class PreviewCard extends StatelessWidget {
           const SizedBox(height: 10),
           _buildMediaPlaceholder(mediaAssets.first, aspectRatio: 16 / 9),
         ],
-      ],
-    );
-  }
-
-  Widget _buildTikTokPreview() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.black,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const CircleAvatar(
-                radius: 14,
-                backgroundColor: Colors.white24,
-                child: Icon(Icons.music_note, color: Colors.white, size: 14),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                account.handle,
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            caption.isEmpty ? '#foryou #fyp' : caption,
-            style: const TextStyle(color: Colors.white, fontSize: 12),
-          ),
-          const SizedBox(height: 10),
-          if (mediaAssets.isNotEmpty)
-            _buildMediaPlaceholder(mediaAssets.first, aspectRatio: 9 / 16)
-          else
-            Container(
-              height: 140,
-              decoration: BoxDecoration(
-                color: Colors.white12,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Center(
-                child: Icon(Icons.videocam, color: Colors.white60, size: 36),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPinterestPreview() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (mediaAssets.isNotEmpty)
-          _buildMediaPlaceholder(mediaAssets.first, aspectRatio: 2 / 3)
-        else
-          Container(
-            height: 160,
-            decoration: BoxDecoration(
-              color: AppColors.surfaceMuted,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Center(
-              child: Icon(Icons.push_pin, color: AppColors.pinterest, size: 36),
-            ),
-          ),
-        const SizedBox(height: 8),
-        Text(
-          postTitle.isNotEmpty ? postTitle : 'Pin Idea',
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          caption.isEmpty ? 'Description and destination pin idea.' : caption,
-          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-        ),
       ],
     );
   }

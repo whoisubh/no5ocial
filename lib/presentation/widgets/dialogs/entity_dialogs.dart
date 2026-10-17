@@ -13,6 +13,7 @@ import 'package:no5ocial/core/services/youtube_service.dart';
 import 'package:no5ocial/core/services/instagram_service.dart';
 import 'package:no5ocial/core/services/linkedin_service.dart';
 import 'package:no5ocial/core/services/x_service.dart';
+import 'package:no5ocial/core/services/threads_service.dart';
 import 'package:no5ocial/core/errors/app_error_handler.dart';
 
 class EntityDialogs {
@@ -361,6 +362,7 @@ class EntityDialogs {
     String? externalAccountId;
     String? apiVerifiedTitle;
     String? apiVerifiedHandle;
+    String? verifiedToken;
     String selectedGroupValue = 'standalone';
 
     _showAdaptiveModal(
@@ -477,12 +479,13 @@ class EntityDialogs {
                       platform: selectedPlatform,
                       subtype: selectedSubtype,
                       brandId: selectedBrandId,
-                      onSuccess: (name, handle, id) {
+                      onSuccess: (name, handle, id, [token]) {
                         setDialogState(() {
                           isIntegrated = true;
                           externalAccountId = id;
                           apiVerifiedTitle = name;
                           apiVerifiedHandle = handle;
+                          verifiedToken = token;
                         });
                       },
                     );
@@ -799,6 +802,11 @@ class EntityDialogs {
                     if (selectedPlatform == PlatformType.youtube) 'privacy:$selectedPrivacy',
                   ];
 
+                  final accountScopes = List<String>.from(selectedSubtype.scopes);
+                  if (verifiedToken != null && verifiedToken!.isNotEmpty) {
+                    accountScopes.add('token:$verifiedToken');
+                  }
+
                   final newAccount = appState.connectAccount(
                     brandId: selectedBrandId,
                     platform: selectedPlatform,
@@ -815,7 +823,7 @@ class EntityDialogs {
                             : '$displayName Group')
                         : null,
                     capabilities: finalCapabilities,
-                    scopes: selectedSubtype.scopes,
+                    scopes: accountScopes,
                   );
 
                   Navigator.of(ctx).pop();
@@ -1046,7 +1054,7 @@ class EntityDialogs {
     required PlatformType platform,
     required PlatformSubtype subtype,
     required String brandId,
-    required void Function(String name, String handle, String id) onSuccess,
+    required void Function(String name, String handle, String id, [String? token]) onSuccess,
   }) async {
     final tokenCtrl = TextEditingController();
     bool isSubmitting = false;
@@ -1090,6 +1098,11 @@ class EntityDialogs {
             tokenLabel = 'X / Twitter API v2 Bearer Token';
             tokenHint = 'Paste OAuth 2.0 User Access Token';
             apiDescription = 'Uses Twitter API v2 (GET /2/users/me) to verify handle.';
+            break;
+          case PlatformType.threads:
+            tokenLabel = 'Threads API Bearer Token';
+            tokenHint = 'Paste Threads API Access Token';
+            apiDescription = 'Uses Meta Threads Graph API (GET /v1.0/me?fields=id,username) to publish threads and media.';
             break;
           default:
             apiDescription = 'Official API verification for ${platform.displayName}.';
@@ -1285,6 +1298,114 @@ class EntityDialogs {
                 ],
               ),
               const SizedBox(height: 12),
+            ] else if (platform == PlatformType.x) ...[
+              ElevatedButton.icon(
+                onPressed: isSubmitting
+                    ? null
+                    : () async {
+                        setAuthState(() => isSubmitting = true);
+                        try {
+                          final isPremium = subtype.id == 'x_premium';
+                          final launched = await XService.instance.launchOAuthConnection(
+                            brandId: brandId,
+                            accountType: isPremium ? 'premium' : 'standard',
+                            returnUrl: '/accounts',
+                          );
+                          if (!launched && authCtx.mounted) {
+                            ScaffoldMessenger.of(authCtx).showSnackBar(
+                              const SnackBar(
+                                content: Text('Could not open browser for X (Twitter) OAuth.'),
+                                backgroundColor: AppColors.error,
+                              ),
+                            );
+                          } else if (authCtx.mounted) {
+                            ScaffoldMessenger.of(authCtx).showSnackBar(
+                              SnackBar(
+                                content: Text('Opening X OAuth in browser to authorize ${isPremium ? "Premium Profile" : "Standard Profile"}...'),
+                                backgroundColor: AppColors.x,
+                              ),
+                            );
+                          }
+                        } catch (e, st) {
+                          if (authCtx.mounted) AppErrorHandler.showError(authCtx, e, stackTrace: st);
+                        } finally {
+                          if (authCtx.mounted) setAuthState(() => isSubmitting = false);
+                        }
+                      },
+                icon: const Icon(Icons.open_in_browser, size: 18),
+                label: Text(subtype.id == 'x_premium'
+                    ? 'Sign in with X (Premium / Verified)'
+                    : 'Sign in with X (Twitter OAuth 2.0)'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.x,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Row(
+                children: [
+                  Expanded(child: Divider()),
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 8),
+                    child: Text('OR USE API V2 BEARER TOKEN', style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+                  ),
+                  Expanded(child: Divider()),
+                ],
+              ),
+              const SizedBox(height: 12),
+            ] else if (platform == PlatformType.threads) ...[
+              ElevatedButton.icon(
+                onPressed: isSubmitting
+                    ? null
+                    : () async {
+                        setAuthState(() => isSubmitting = true);
+                        try {
+                          final launched = await ThreadsService.instance.launchOAuthConnection(
+                            brandId: brandId,
+                            returnUrl: '/accounts',
+                          );
+                          if (!launched && authCtx.mounted) {
+                            ScaffoldMessenger.of(authCtx).showSnackBar(
+                              const SnackBar(
+                                content: Text('Could not open browser for Threads OAuth.'),
+                                backgroundColor: AppColors.error,
+                              ),
+                            );
+                          } else if (authCtx.mounted) {
+                            ScaffoldMessenger.of(authCtx).showSnackBar(
+                              const SnackBar(
+                                content: Text('Opening Threads OAuth in browser...'),
+                                backgroundColor: AppColors.threads,
+                              ),
+                            );
+                          }
+                        } catch (e, st) {
+                          if (authCtx.mounted) AppErrorHandler.showError(authCtx, e, stackTrace: st);
+                        } finally {
+                          if (authCtx.mounted) setAuthState(() => isSubmitting = false);
+                        }
+                      },
+                icon: const Icon(Icons.open_in_browser, size: 18),
+                label: const Text('Sign in with Threads (Meta OAuth)'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.threads,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Row(
+                children: [
+                  Expanded(child: Divider()),
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 8),
+                    child: Text('OR USE THREADS ACCESS TOKEN', style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+                  ),
+                  Expanded(child: Divider()),
+                ],
+              ),
+              const SizedBox(height: 12),
             ],
 
             TextField(
@@ -1340,11 +1461,17 @@ class EntityDialogs {
                         handle = info.handle;
                         id = info.id;
                         break;
+                      case PlatformType.threads:
+                        final info = await ThreadsService.instance.fetchProfile(accessToken: token);
+                        name = info.name;
+                        handle = info.handle;
+                        id = info.id;
+                        break;
                       default:
                         throw Exception('API token verification not supported for ${platform.displayName}.');
                     }
 
-                    onSuccess(name, handle, id);
+                    onSuccess(name, handle, id, token);
                     if (authCtx.mounted) Navigator.of(authCtx).pop();
                   } catch (e, st) {
                     if (authCtx.mounted) AppErrorHandler.showError(authCtx, e, stackTrace: st);

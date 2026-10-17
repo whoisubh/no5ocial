@@ -1,5 +1,7 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
+import 'package:url_launcher/url_launcher.dart';
 
 /// Real X (Twitter) Profile Metadata retrieved via Twitter API v2
 class XProfileInfo {
@@ -25,6 +27,8 @@ class XService {
       'https://twitter.com/i/oauth2/authorize';
   static const String meEndpoint =
       'https://api.twitter.com/2/users/me?user.fields=profile_image_url,username,name';
+  static const String tweetsEndpoint =
+      'https://api.twitter.com/2/tweets';
 
   static const List<String> defaultScopes = [
     'users.read',
@@ -97,5 +101,72 @@ class XService {
       handle: username.startsWith('@') ? username : '@$username',
       avatarUrl: avatar,
     );
+  }
+
+  /// Generates the server-side OAuth initialization URL for X (Twitter) linking
+  String getOAuthStartUrl({
+    required String brandId,
+    String accountType = 'standard',
+    String returnUrl = '/accounts',
+  }) {
+    const baseUrl = kIsWeb ? '' : 'https://no5ocial.vercel.app';
+    return '$baseUrl/api/auth/x/start?brandId=${Uri.encodeComponent(brandId)}&accountType=${Uri.encodeComponent(accountType)}&returnUrl=${Uri.encodeComponent(returnUrl)}';
+  }
+
+  /// Launches the official server-side OAuth flow via Vercel backend
+  Future<bool> launchOAuthConnection({
+    required String brandId,
+    String accountType = 'standard',
+    String returnUrl = '/accounts',
+  }) async {
+    final startPath = getOAuthStartUrl(
+      brandId: brandId,
+      accountType: accountType,
+      returnUrl: returnUrl,
+    );
+    final uri = Uri.parse(startPath);
+    return await launchUrl(
+      uri,
+      mode: LaunchMode.externalApplication,
+    );
+  }
+
+  /// Publishes a tweet via Twitter API v2:
+  /// POST https://api.twitter.com/2/tweets
+  Future<Map<String, dynamic>> postTweet({
+    required String accessToken,
+    required String text,
+    List<String>? mediaIds,
+  }) async {
+    final body = <String, dynamic>{'text': text};
+    if (mediaIds != null && mediaIds.isNotEmpty) {
+      body['media'] = {'media_ids': mediaIds};
+    }
+
+    final response = await http.post(
+      Uri.parse(tweetsEndpoint),
+      headers: {
+        'Authorization': 'Bearer ${accessToken.trim()}',
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: jsonEncode(body),
+    );
+
+    if (response.statusCode == 401) {
+      throw Exception('X / Twitter access token is unauthorized or expired (401).');
+    }
+    if (response.statusCode == 403) {
+      throw Exception('X API permission denied (403). Ensure "tweet.write" scope is authorized on developer portal.');
+    }
+    if (response.statusCode == 429) {
+      throw Exception('X API rate limit reached (429). Please retry later.');
+    }
+    if (response.statusCode != 201 && response.statusCode != 200) {
+      throw Exception('X API error (HTTP ${response.statusCode}): ${response.body}');
+    }
+
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    return (data['data'] as Map<String, dynamic>?) ?? data;
   }
 }

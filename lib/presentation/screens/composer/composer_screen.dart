@@ -68,16 +68,7 @@ class _ComposerScreenState extends State<ComposerScreen>
   // LinkedIn
   final _liCommentaryController = TextEditingController();
 
-  // TikTok
-  final _ttCaptionController = TextEditingController();
-  bool _ttAllowComments = true;
-  bool _ttAllowDuet = true;
-  bool _ttAllowStitch = true;
 
-  // Pinterest
-  final _pinTitleController = TextEditingController();
-  final _pinDescriptionController = TextEditingController();
-  final _pinUrlController = TextEditingController();
 
   // Facebook
   final _fbTextController = TextEditingController();
@@ -161,10 +152,6 @@ class _ComposerScreenState extends State<ComposerScreen>
     _igCaptionController.text = caption;
     _xTextController.text = caption;
     _liCommentaryController.text = caption;
-    _ttCaptionController.text = caption;
-
-    _pinTitleController.text = title;
-    _pinDescriptionController.text = caption;
 
     _fbTextController.text = caption;
     _threadsTextController.text = caption;
@@ -189,8 +176,6 @@ class _ComposerScreenState extends State<ComposerScreen>
       syncOne(_igCaptionController);
       syncOne(_xTextController);
       syncOne(_liCommentaryController);
-      syncOne(_ttCaptionController);
-      syncOne(_pinDescriptionController);
       syncOne(_fbTextController);
       syncOne(_threadsTextController);
     } finally {
@@ -212,7 +197,6 @@ class _ComposerScreenState extends State<ComposerScreen>
         }
       }
       syncOne(_ytTitleController);
-      syncOne(_pinTitleController);
     } finally {
       _isSyncing = false;
     }
@@ -247,11 +231,7 @@ class _ComposerScreenState extends State<ComposerScreen>
 
     _xTextController.dispose();
     _liCommentaryController.dispose();
-    _ttCaptionController.dispose();
 
-    _pinTitleController.dispose();
-    _pinDescriptionController.dispose();
-    _pinUrlController.dispose();
 
     _fbTextController.dispose();
     _threadsTextController.dispose();
@@ -420,14 +400,6 @@ class _ComposerScreenState extends State<ComposerScreen>
         return _liCommentaryController.text.isNotEmpty
             ? _liCommentaryController.text
             : _sharedCaptionController.text;
-      case PlatformType.tiktok:
-        return _ttCaptionController.text.isNotEmpty
-            ? _ttCaptionController.text
-            : _sharedCaptionController.text;
-      case PlatformType.pinterest:
-        return _pinDescriptionController.text.isNotEmpty
-            ? _pinDescriptionController.text
-            : _sharedCaptionController.text;
       case PlatformType.facebook:
         return _fbTextController.text.isNotEmpty
             ? _fbTextController.text
@@ -451,9 +423,7 @@ class _ComposerScreenState extends State<ComposerScreen>
 
     final effectiveTitle = account.platform == PlatformType.youtube && _ytTitleController.text.isNotEmpty
         ? _ytTitleController.text
-        : (account.platform == PlatformType.pinterest && _pinTitleController.text.isNotEmpty
-            ? _pinTitleController.text
-            : _titleController.text);
+        : _titleController.text;
 
     final post = ContentPost(
       id: widget.initialPost?.id ?? 'temp_post',
@@ -2134,10 +2104,6 @@ class _ComposerScreenState extends State<ComposerScreen>
         return _buildXTwitterForm();
       case PlatformType.linkedin:
         return _buildLinkedInForm();
-      case PlatformType.tiktok:
-        return _buildTikTokForm();
-      case PlatformType.pinterest:
-        return _buildPinterestForm();
       case PlatformType.facebook:
         return _buildFacebookForm();
       case PlatformType.threads:
@@ -2323,112 +2289,7 @@ class _ComposerScreenState extends State<ComposerScreen>
     );
   }
 
-  // 5. TikTok Form: Video Caption (max 4000) + Interactive Settings
-  Widget _buildTikTokForm() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildPlatformBadge(
-          platform: PlatformType.tiktok,
-          note: 'TikTok requires vertical 9:16 video upload and caption with relevant trending hashtags.',
-        ),
-        const SizedBox(height: 12),
-        TextField(
-          controller: _ttCaptionController,
-          maxLength: 4000,
-          maxLines: 4,
-          decoration: const InputDecoration(
-            labelText: 'TikTok Video Caption *',
-            hintText: 'Describe your clip, tag collaborators, add #fyp #trending...',
-            alignLabelWithHint: true,
-          ),
-          onChanged: (val) => _syncCaptionToOthers(_ttCaptionController, val),
-        ),
-        const SizedBox(height: 10),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: AppColors.surfaceSecondary,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: AppColors.border),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              Row(
-                children: [
-                  Checkbox(
-                    value: _ttAllowComments,
-                    onChanged: (v) => setState(() => _ttAllowComments = v ?? true),
-                  ),
-                  const Text('Comments', style: TextStyle(fontSize: 12)),
-                ],
-              ),
-              Row(
-                children: [
-                  Checkbox(
-                    value: _ttAllowDuet,
-                    onChanged: (v) => setState(() => _ttAllowDuet = v ?? true),
-                  ),
-                  const Text('Duet', style: TextStyle(fontSize: 12)),
-                ],
-              ),
-              Row(
-                children: [
-                  Checkbox(
-                    value: _ttAllowStitch,
-                    onChanged: (v) => setState(() => _ttAllowStitch = v ?? true),
-                  ),
-                  const Text('Stitch', style: TextStyle(fontSize: 12)),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
 
-  // 6. Pinterest Form: Pin Title (max 100), Description (max 500), Destination URL
-  Widget _buildPinterestForm() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildPlatformBadge(
-          platform: PlatformType.pinterest,
-          note: 'Pinterest Pins require an Image or Video, Title, and Destination Website URL.',
-        ),
-        const SizedBox(height: 12),
-        TextField(
-          controller: _pinTitleController,
-          maxLength: 100,
-          decoration: const InputDecoration(labelText: 'Pin Title *', hintText: 'Inspiring, searchable pin title'),
-          onChanged: (val) => _syncTitleToOthers(_pinTitleController, val),
-        ),
-        const SizedBox(height: 10),
-        TextField(
-          controller: _pinDescriptionController,
-          maxLength: 500,
-          maxLines: 3,
-          decoration: const InputDecoration(
-            labelText: 'Pin Description',
-            hintText: 'Tell pinners what your pin is about...',
-            alignLabelWithHint: true,
-          ),
-          onChanged: (val) => _syncCaptionToOthers(_pinDescriptionController, val),
-        ),
-        const SizedBox(height: 10),
-        TextField(
-          controller: _pinUrlController,
-          decoration: const InputDecoration(
-            labelText: 'Destination Link / URL *',
-            hintText: 'https://yourwebsite.com/product',
-            isDense: true,
-          ),
-        ),
-      ],
-    );
-  }
 
   // 7. Facebook Form: Post Status
   Widget _buildFacebookForm() {
@@ -2688,9 +2549,7 @@ class _ComposerScreenState extends State<ComposerScreen>
               caption: _getCaptionForAccount(activeAccount.id),
               postTitle: activeAccount.platform == PlatformType.youtube
                   ? _ytTitleController.text
-                  : (activeAccount.platform == PlatformType.pinterest
-                      ? _pinTitleController.text
-                      : _titleController.text),
+                  : _titleController.text,
               mediaAssets: _attachedMediaAssets,
             )
           else

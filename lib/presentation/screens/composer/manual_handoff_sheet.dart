@@ -155,21 +155,6 @@ class _ManualHandoffSheetState extends State<ManualHandoffSheet> {
           'Paste caption and attach media assets.',
           'Publish or schedule via Meta Business Suite.',
         ];
-      case PlatformType.tiktok:
-        return [
-          'Open TikTok Creator Portal or app for ${widget.account.handle}.',
-          'Upload vertical video asset.',
-          'Paste caption with trending hashtags.',
-          'Publish video and record link.',
-        ];
-      case PlatformType.pinterest:
-        return [
-          'Open Pinterest for account ${widget.account.displayName}.',
-          'Click Create Pin.',
-          'Upload pin image or video.',
-          'Paste Pin Title, Description, and Destination URL.',
-          'Select board and publish.',
-        ];
       case PlatformType.threads:
         return [
           'Open Threads app or web for ${widget.account.handle}.',

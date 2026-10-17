@@ -55,28 +55,6 @@ enum PlatformType {
     supportsCarousel: true,
     defaultRequiresMedia: false,
   ),
-  tiktok(
-    displayName: 'TikTok',
-    iconName: 'tiktok',
-    maxCaptionLength: 4000,
-    maxHashtags: 30,
-    supportsTextOnly: false,
-    supportsImage: true,
-    supportsVideo: true,
-    supportsCarousel: true,
-    defaultRequiresMedia: true,
-  ),
-  pinterest(
-    displayName: 'Pinterest',
-    iconName: 'pinterest',
-    maxCaptionLength: 500,
-    maxHashtags: 20,
-    supportsTextOnly: false,
-    supportsImage: true,
-    supportsVideo: true,
-    supportsCarousel: false,
-    defaultRequiresMedia: true,
-  ),
   threads(
     displayName: 'Threads',
     iconName: 'threads',
@@ -122,10 +100,7 @@ enum PlatformType {
       case PlatformType.x:
       case PlatformType.linkedin:
       case PlatformType.threads:
-      case PlatformType.pinterest:
         return 'Profile';
-      case PlatformType.tiktok:
-        return 'Account';
     }
   }
 

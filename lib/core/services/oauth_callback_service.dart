@@ -193,6 +193,43 @@ class OAuthCallbackService {
       } else if (platform == PlatformType.youtube) {
         capabilities = ['video', 'shorts', 'title', 'description', 'subtype:youtube_channel'];
         scopes = ['youtube.upload', 'youtube.readonly'];
+      } else if (platform == PlatformType.x) {
+        final isPremium = accountTypeParam == 'PREMIUM' || (params['subtype'] ?? '').contains('premium');
+        capabilities = isPremium
+            ? [
+                'text',
+                'image',
+                'video',
+                'character_limit_25000',
+                'subtype:x_premium',
+              ]
+            : [
+                'text',
+                'image',
+                'video',
+                'character_limit_280',
+                'subtype:x_profile',
+              ];
+        scopes = [
+          'tweet.read',
+          'tweet.write',
+          'users.read',
+          'offline.access',
+        ];
+      } else if (platform == PlatformType.threads) {
+        capabilities = [
+          'text',
+          'image',
+          'video',
+          'carousel',
+          'threads_publishing',
+          'character_limit_500',
+          'subtype:threads_profile',
+        ];
+        scopes = [
+          'threads_basic',
+          'threads_content_publish',
+        ];
       }
 
       if (accessToken != null && accessToken.isNotEmpty) {
