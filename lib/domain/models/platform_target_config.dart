@@ -124,22 +124,6 @@ class PlatformConfigRegistry {
       requiresAdminRole: true,
       policyNotice: 'Subject to Meta Group API permissions and group member settings.',
     ),
-    PlatformSubtype(
-      id: 'facebook_personal',
-      platform: PlatformType.facebook,
-      name: 'Personal Profile (Manual Handoff)',
-      description: 'Share updates to your personal Facebook profile timeline.',
-      scopes: ['manual_workflow'],
-      linkingConditions: [
-        'Meta API policy explicitly bans third-party automated direct posting to personal profiles.',
-        'Operates via no5ocial Manual Handoff workflow (copies text/media and opens Facebook).',
-      ],
-      supportedFormats: ['text', 'image', 'video'],
-      defaultFormats: ['text', 'image', 'video'],
-      isManualOnly: true,
-      requiresAdminRole: false,
-      policyNotice: 'Meta policy restriction: Automated API publishing is prohibited. Manual Handoff ensures full compliance without risk of account flag.',
-    ),
 
     // --- Instagram ---
     PlatformSubtype(
@@ -158,22 +142,6 @@ class PlatformConfigRegistry {
       isManualOnly: false,
       requiresAdminRole: false,
       policyNotice: 'Text-only posts are not supported by Instagram. High-res media required (max 2,200 chars, max 30 hashtags).',
-    ),
-    PlatformSubtype(
-      id: 'instagram_personal',
-      platform: PlatformType.instagram,
-      name: 'Personal Profile (Manual Handoff)',
-      description: 'Share to personal Instagram account using guided mobile workflow.',
-      scopes: ['manual_workflow'],
-      linkingConditions: [
-        'Instagram Content Publishing API does not support personal accounts.',
-        'Scheduled post sends a mobile reminder, copies caption to clipboard, downloads media, and opens Instagram.',
-      ],
-      supportedFormats: ['image', 'carousel', 'video', 'reels_shorts'],
-      defaultFormats: ['image', 'carousel', 'video', 'reels_shorts'],
-      isManualOnly: true,
-      requiresAdminRole: false,
-      policyNotice: 'Meta restriction: Personal profiles must use Manual Handoff workflow.',
     ),
 
     // --- YouTube ---
@@ -313,21 +281,6 @@ class PlatformConfigRegistry {
       isManualOnly: false,
       requiresAdminRole: false,
       policyNotice: 'Media required. Text-only pins are not supported. Max title 100 chars, description 500 chars.',
-    ),
-    PlatformSubtype(
-      id: 'pinterest_personal',
-      platform: PlatformType.pinterest,
-      name: 'Personal Account (Manual Handoff)',
-      description: 'Save pins to personal boards via guided mobile flow.',
-      scopes: ['manual_workflow'],
-      linkingConditions: [
-        'Direct automated pin creation requires Pinterest Business developer approval.',
-      ],
-      supportedFormats: ['image', 'video'],
-      defaultFormats: ['image', 'video'],
-      isManualOnly: true,
-      requiresAdminRole: false,
-      policyNotice: 'Manual Handoff workflow downloads media and opens the Pinterest app.',
     ),
   ];
 

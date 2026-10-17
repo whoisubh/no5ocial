@@ -356,7 +356,6 @@ class EntityDialogs {
     String selectedPrivacy = 'unlisted'; // For YouTube
     final nicknameCtrl = TextEditingController();
     final newGroupNameCtrl = TextEditingController();
-    final manualHandleCtrl = TextEditingController(text: '@');
 
     bool isIntegrated = false;
     String? externalAccountId;
@@ -444,23 +443,12 @@ class EntityDialogs {
                 Icon(
                   st.requiresAdminRole
                       ? Icons.business_outlined
-                      : (st.isManualOnly ? Icons.touch_app_outlined : Icons.account_circle_outlined),
+                      : Icons.account_circle_outlined,
                   size: 15,
                   color: AppColors.accent,
                 ),
                 const SizedBox(width: 6),
                 Text(st.name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-                if (st.isManualOnly) ...[
-                  const SizedBox(width: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                    decoration: BoxDecoration(
-                      color: AppColors.warning.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(3),
-                    ),
-                    child: const Text('Manual Flow', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: AppColors.warning)),
-                  ),
-                ],
               ],
             ),
           )).toList(),
@@ -523,10 +511,8 @@ class EntityDialogs {
               platformDropdown,
               const SizedBox(height: 10),
               subtypeDropdown,
-              if (!selectedSubtype.isManualOnly) ...[
-                const SizedBox(height: 10),
-                integrateButton,
-              ],
+              const SizedBox(height: 10),
+              integrateButton,
             ] else ...[
               Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
@@ -536,10 +522,8 @@ class EntityDialogs {
                   Expanded(flex: 3, child: platformDropdown),
                   const SizedBox(width: 8),
                   Expanded(flex: 4, child: subtypeDropdown),
-                  if (!selectedSubtype.isManualOnly) ...[
-                    const SizedBox(width: 8),
-                    integrateButton,
-                  ],
+                  const SizedBox(width: 8),
+                  integrateButton,
                 ],
               ),
             ],
@@ -683,16 +667,7 @@ class EntityDialogs {
               const SizedBox(height: 12),
             ],
 
-            if (selectedSubtype.isManualOnly) ...[
-              TextField(
-                controller: manualHandleCtrl,
-                decoration: InputDecoration(
-                  labelText: '${selectedSubtype.name} Handle *',
-                  hintText: 'e.g. @your_account',
-                  isDense: true,
-                ),
-              ),
-            ] else if (isIntegrated) ...[
+            if (isIntegrated) ...[
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
@@ -808,14 +783,11 @@ class EntityDialogs {
         ),
         const SizedBox(width: 8),
         ElevatedButton(
-          onPressed: (!isIntegrated && !selectedSubtype.isManualOnly)
+          onPressed: !isIntegrated
               ? null
               : () {
-                  final rawManualHandle = manualHandleCtrl.text.trim();
                   final handle = apiVerifiedHandle ??
-                      (rawManualHandle.isNotEmpty && rawManualHandle != '@'
-                          ? (rawManualHandle.startsWith('@') ? rawManualHandle : '@$rawManualHandle')
-                          : '@${(nicknameCtrl.text.trim().isNotEmpty ? nicknameCtrl.text.trim() : selectedSubtype.name).replaceAll(RegExp(r'\s+'), '').toLowerCase()}');
+                      '@${(nicknameCtrl.text.trim().isNotEmpty ? nicknameCtrl.text.trim() : selectedSubtype.name).replaceAll(RegExp(r'\s+'), '').toLowerCase()}';
 
                   final displayName = nicknameCtrl.text.trim().isNotEmpty
                       ? nicknameCtrl.text.trim()
@@ -832,8 +804,8 @@ class EntityDialogs {
                     platform: selectedPlatform,
                     displayName: displayName,
                     handle: handle,
-                    externalAccountId: externalAccountId ?? 'manual_${selectedSubtype.id}',
-                    isManualOnly: selectedSubtype.isManualOnly,
+                    externalAccountId: externalAccountId ?? 'ext_${selectedSubtype.id}',
+                    isManualOnly: false,
                     targetGroupId: selectedGroupValue != 'standalone' && selectedGroupValue != '__new__'
                         ? selectedGroupValue
                         : null,
@@ -843,7 +815,7 @@ class EntityDialogs {
                             : '$displayName Group')
                         : null,
                     capabilities: finalCapabilities,
-                    scopes: selectedSubtype.isManualOnly ? const ['manual_workflow'] : selectedSubtype.scopes,
+                    scopes: selectedSubtype.scopes,
                   );
 
                   Navigator.of(ctx).pop();

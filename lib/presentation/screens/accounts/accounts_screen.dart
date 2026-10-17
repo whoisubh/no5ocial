@@ -387,11 +387,9 @@ class _AccountsScreenState extends State<AccountsScreen> {
     PlatformSubtype selectedSubtype = PlatformConfigRegistry.getDefaultSubtype(selectedPlatform);
     List<String> selectedFormats = List<String>.from(selectedSubtype.defaultFormats);
     String selectedPrivacy = 'unlisted'; // For YouTube
-    bool isManualWorkflow = selectedSubtype.isManualOnly;
 
     final nicknameCtrl = TextEditingController();
     final newGroupNameCtrl = TextEditingController();
-    final manualHandleCtrl = TextEditingController(text: '@');
 
     bool isIntegrated = false;
     String? externalAccountId;
@@ -467,7 +465,6 @@ class _AccountsScreenState extends State<AccountsScreen> {
                     selectedPlatform = val;
                     selectedSubtype = PlatformConfigRegistry.getDefaultSubtype(val);
                     selectedFormats = List<String>.from(selectedSubtype.defaultFormats);
-                    isManualWorkflow = selectedSubtype.isManualOnly;
                     isIntegrated = false;
                     apiVerifiedTitle = null;
                     apiVerifiedHandle = null;
@@ -494,7 +491,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
                     Icon(
                       st.requiresAdminRole
                           ? Icons.business_outlined
-                          : (st.isManualOnly ? Icons.touch_app_outlined : Icons.account_circle_outlined),
+                          : Icons.account_circle_outlined,
                       size: 16,
                       color: AppColors.accent,
                     ),
@@ -503,17 +500,6 @@ class _AccountsScreenState extends State<AccountsScreen> {
                       st.name,
                       style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
                     ),
-                    if (st.isManualOnly) ...[
-                      const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: AppColors.warning.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: const Text('Manual Flow', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: AppColors.warning)),
-                      ),
-                    ],
                   ],
                 ),
               )).toList(),
@@ -522,7 +508,6 @@ class _AccountsScreenState extends State<AccountsScreen> {
                   setDialogState(() {
                     selectedSubtype = val;
                     selectedFormats = List<String>.from(val.defaultFormats);
-                    isManualWorkflow = val.isManualOnly;
                     isIntegrated = false;
                     apiVerifiedTitle = null;
                     apiVerifiedHandle = null;
@@ -707,123 +692,90 @@ class _AccountsScreenState extends State<AccountsScreen> {
               const SizedBox(height: 14),
             ],
 
-            // Workflow Mode & Authentication Section
-            if (selectedSubtype.isManualOnly) ...[
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: AppColors.warning.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
+            // Authentication Section
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () async {
+                  await _openPlatformAuthDialog(
+                    context: ctx,
+                    platform: selectedPlatform,
+                    subtype: selectedSubtype,
+                    onSuccess: (name, handle, id) {
+                      setDialogState(() {
+                        isIntegrated = true;
+                        apiVerifiedTitle = name;
+                        apiVerifiedHandle = handle;
+                        externalAccountId = id;
+                      });
+                    },
+                  );
+                },
+                icon: Icon(isIntegrated ? Icons.check_circle : Icons.link, size: 18),
+                label: Text(
+                  isIntegrated
+                      ? '${selectedSubtype.name} Verified'
+                      : 'Authenticate ${selectedSubtype.name}',
                 ),
-                child: const Row(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: isIntegrated ? AppColors.success : AppColors.accent,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+            ),
+
+            // Successful Integration Profile Card
+            if (isIntegrated) ...[
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: AppColors.success.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
+                ),
+                child: Row(
                   children: [
-                    Icon(Icons.touch_app, size: 16, color: AppColors.warning),
-                    SizedBox(width: 8),
+                    PlatformLogo(platform: selectedPlatform, size: 26),
+                    const SizedBox(width: 12),
                     Expanded(
-                      child: Text(
-                        'Meta policy forbids automated third-party posting to personal profiles. This destination uses guided Manual Handoff (one-tap copy & open).',
-                        style: TextStyle(fontSize: 11, color: AppColors.warning, height: 1.3),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            apiVerifiedTitle ?? selectedSubtype.name,
+                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                          ),
+                          Text(
+                            '${apiVerifiedHandle ?? ''} • ${selectedSubtype.name} (ID: ${externalAccountId ?? 'verified'})',
+                            style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppColors.success,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.check, size: 12, color: Colors.white),
+                          SizedBox(width: 4),
+                          Text(
+                            'Verified',
+                            style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: manualHandleCtrl,
-                decoration: InputDecoration(
-                  labelText: '${selectedSubtype.name} Handle / Username *',
-                  hintText: 'e.g. @your_account',
-                  prefixIcon: const Icon(Icons.alternate_email, size: 18),
-                ),
-              ),
-            ] else ...[
-              // Authenticate Button
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () async {
-                    await _openPlatformAuthDialog(
-                      context: ctx,
-                      platform: selectedPlatform,
-                      subtype: selectedSubtype,
-                      onSuccess: (name, handle, id) {
-                        setDialogState(() {
-                          isIntegrated = true;
-                          apiVerifiedTitle = name;
-                          apiVerifiedHandle = handle;
-                          externalAccountId = id;
-                        });
-                      },
-                    );
-                  },
-                  icon: Icon(isIntegrated ? Icons.check_circle : Icons.link, size: 18),
-                  label: Text(
-                    isIntegrated
-                        ? '${selectedSubtype.name} Verified'
-                        : 'Authenticate ${selectedSubtype.name}',
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: isIntegrated ? AppColors.success : AppColors.accent,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                ),
-              ),
-
-              // Successful Integration Profile Card
-              if (isIntegrated) ...[
-                const SizedBox(height: 14),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: AppColors.success.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
-                  ),
-                  child: Row(
-                    children: [
-                      PlatformLogo(platform: selectedPlatform, size: 26),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              apiVerifiedTitle ?? selectedSubtype.name,
-                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-                            ),
-                            Text(
-                              '${apiVerifiedHandle ?? ''} • ${selectedSubtype.name} (ID: ${externalAccountId ?? 'verified'})',
-                              style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: AppColors.success,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.check, size: 12, color: Colors.white),
-                            SizedBox(width: 4),
-                            Text(
-                              'Verified',
-                              style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
             ],
 
             const SizedBox(height: 14),
@@ -911,13 +863,10 @@ class _AccountsScreenState extends State<AccountsScreen> {
           child: const Text('Cancel'),
         ),
         ElevatedButton(
-          onPressed: (isIntegrated || selectedSubtype.isManualOnly)
+          onPressed: isIntegrated
               ? () {
-                  final rawManualHandle = manualHandleCtrl.text.trim();
                   final effectiveHandle = apiVerifiedHandle ??
-                      (rawManualHandle.isNotEmpty && rawManualHandle != '@'
-                          ? (rawManualHandle.startsWith('@') ? rawManualHandle : '@$rawManualHandle')
-                          : '@${(nicknameCtrl.text.trim().isNotEmpty ? nicknameCtrl.text.trim() : selectedSubtype.name).replaceAll(RegExp(r'\s+'), '').toLowerCase()}');
+                      '@${(nicknameCtrl.text.trim().isNotEmpty ? nicknameCtrl.text.trim() : selectedSubtype.name).replaceAll(RegExp(r'\s+'), '').toLowerCase()}';
 
                   final effectiveName = nicknameCtrl.text.trim().isNotEmpty
                       ? nicknameCtrl.text.trim()
@@ -945,12 +894,12 @@ class _AccountsScreenState extends State<AccountsScreen> {
                     platform: selectedPlatform,
                     displayName: effectiveName,
                     handle: effectiveHandle,
-                    externalAccountId: externalAccountId ?? 'manual_${selectedSubtype.id}',
-                    isManualOnly: isManualWorkflow,
+                    externalAccountId: externalAccountId ?? 'ext_${selectedSubtype.id}',
+                    isManualOnly: false,
                     targetGroupId: targetGroupId,
                     newGroupName: newGroupName,
                     capabilities: finalCapabilities,
-                    scopes: isManualWorkflow ? const ['manual_workflow'] : selectedSubtype.scopes,
+                    scopes: selectedSubtype.scopes,
                   );
 
                   Navigator.of(ctx).pop();
@@ -1106,8 +1055,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
               case PlatformType.pinterest:
               case PlatformType.threads:
                 throw Exception(
-                  '${platform.displayName} direct API automated verification is currently pending official provider app review. '
-                  'To comply with security and publishing policies, please use manual handoff publishing for ${platform.displayName}.',
+                  '${platform.displayName} direct API automated verification is currently pending official provider app review.',
                 );
             }
 

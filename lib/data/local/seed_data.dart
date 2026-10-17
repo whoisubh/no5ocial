@@ -165,8 +165,8 @@ abstract final class SeedData {
     displayName: 'Boofer',
     handle: '@boofer',
     connectionStatus: ConnectionStatus.connected,
-    isManualOnly: true, // Manual handoff by default to avoid paywalled X API
-    capabilities: const ['manual_handoff', 'text', 'media'],
+    isManualOnly: false,
+    capabilities: const ['text', 'media'],
     lastVerifiedAtUtc: DateTime.utc(2026, 10, 1, 10, 0),
   );
 
@@ -177,8 +177,8 @@ abstract final class SeedData {
     displayName: 'Shaadow',
     handle: '@shaadow',
     connectionStatus: ConnectionStatus.connected,
-    isManualOnly: true, // Manual handoff by default
-    capabilities: const ['manual_handoff', 'text', 'media'],
+    isManualOnly: false,
+    capabilities: const ['text', 'media'],
     lastVerifiedAtUtc: DateTime.utc(2026, 10, 1, 10, 0),
   );
 
