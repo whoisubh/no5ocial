@@ -32,7 +32,7 @@
       "destination": "/api/assetlinks"
     },
     {
-      "source": "/(.*)",
+      "source": "/((?!api/).*)",
       "destination": "/index"
     }
   ]
