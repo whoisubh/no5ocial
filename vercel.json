@@ -32,6 +32,18 @@
       "destination": "/api/assetlinks"
     },
     {
+      "source": "/api/auth/:platform/start",
+      "destination": "/api/auth/start?platform=:platform"
+    },
+    {
+      "source": "/api/auth/callback/:platform",
+      "destination": "/api/auth/callback?platform=:platform"
+    },
+    {
+      "source": "/api/youtube/:action",
+      "destination": "/api/youtube?action=:action"
+    },
+    {
       "source": "/((?!api/).*)",
       "destination": "/index"
     }

@@ -1,10 +1,10 @@
 const handlers = {
-  google: require('../../_handlers/start/google'),
-  instagram: require('../../_handlers/start/instagram'),
-  linkedin: require('../../_handlers/start/linkedin'),
-  threads: require('../../_handlers/start/threads'),
-  x: require('../../_handlers/start/x'),
-  twitter: require('../../_handlers/start/x'),
+  google: require('../_handlers/start/google'),
+  instagram: require('../_handlers/start/instagram'),
+  linkedin: require('../_handlers/start/linkedin'),
+  threads: require('../_handlers/start/threads'),
+  x: require('../_handlers/start/x'),
+  twitter: require('../_handlers/start/x'),
 };
 
 module.exports = async function handler(req, res) {

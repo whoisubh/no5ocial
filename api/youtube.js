@@ -1,7 +1,7 @@
 const handlers = {
-  channels: require('../_handlers/youtube/channels'),
-  status: require('../_handlers/youtube/status'),
-  upload: require('../_handlers/youtube/upload'),
+  channels: require('./_handlers/youtube/channels'),
+  status: require('./_handlers/youtube/status'),
+  upload: require('./_handlers/youtube/upload'),
 };
 
 module.exports = async function handler(req, res) {
