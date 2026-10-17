@@ -1944,12 +1944,15 @@ class _ComposerScreenState extends State<ComposerScreen>
                   children: [
                     const Icon(Icons.link, size: 14, color: AppColors.textSecondary),
                     const SizedBox(width: 6),
-                    const Text(
-                      'Standalone Channels (Direct under Company)',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.ink,
+                    const Expanded(
+                      child: Text(
+                        'Standalone Channels',
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.ink,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 6),
@@ -2036,33 +2039,81 @@ class _ComposerScreenState extends State<ComposerScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const Icon(Icons.edit_note_outlined, size: 18, color: AppColors.accent),
-              const SizedBox(width: 8),
-              Text(
-                'Post Content (${platform.displayName} Personalized)',
-                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.ink),
-              ),
-              const Spacer(),
-              // Toggle: Same caption everywhere
-              Row(
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isNarrow = constraints.maxWidth < 420;
+              if (isNarrow) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.edit_note_outlined, size: 18, color: AppColors.accent),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Post Content (${platform.displayName})',
+                            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.ink),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Sync across platforms', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                        Transform.scale(
+                          scale: 0.85,
+                          child: Switch(
+                            value: _sameCaptionEverywhere,
+                            activeTrackColor: AppColors.accent,
+                            onChanged: (val) {
+                              setState(() {
+                                _sameCaptionEverywhere = val;
+                                if (!val) _ensureOverrideControllers();
+                              });
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                );
+              }
+
+              return Row(
                 children: [
-                  const Text('Sync across platforms', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                  const SizedBox(width: 6),
-                  Switch(
-                    value: _sameCaptionEverywhere,
-                    activeTrackColor: AppColors.accent,
-                    onChanged: (val) {
-                      setState(() {
-                        _sameCaptionEverywhere = val;
-                        if (!val) _ensureOverrideControllers();
-                      });
-                    },
+                  const Icon(Icons.edit_note_outlined, size: 18, color: AppColors.accent),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Post Content (${platform.displayName} Personalized)',
+                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.ink),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text('Sync across platforms', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                      const SizedBox(width: 6),
+                      Switch(
+                        value: _sameCaptionEverywhere,
+                        activeTrackColor: AppColors.accent,
+                        onChanged: (val) {
+                          setState(() {
+                            _sameCaptionEverywhere = val;
+                            if (!val) _ensureOverrideControllers();
+                          });
+                        },
+                      ),
+                    ],
                   ),
                 ],
-              ),
-            ],
+              );
+            },
           ),
           const SizedBox(height: 12),
 
