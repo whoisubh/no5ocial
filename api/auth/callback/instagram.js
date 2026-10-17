@@ -82,7 +82,7 @@ module.exports = async function handler(req, res) {
       process.env.INSTAGRAM_APP_ID ||
       process.env.META_APP_ID ||
       process.env.FACEBOOK_APP_ID ||
-      '246027844895445'
+      '1406614248351632'
     ).trim();
 
     const appSecret = (
@@ -157,7 +157,7 @@ module.exports = async function handler(req, res) {
           api_instagram_response: tokenData,
           graph_facebook_response: fbTokenData,
           resolution_steps: [
-            '1. Verify App Secret: Go to https://developers.facebook.com/apps/246027844895445/settings/basic/ and click Show on App Secret.',
+            '1. Verify Instagram App Secret: Go to Meta Dashboard > Your App > Use Cases > Instagram > API setup with Instagram Login — the Instagram App Secret is shown there (it is DIFFERENT from the Facebook App Secret in Settings > Basic).',
             '2. Update Vercel Environment Variables: Add INSTAGRAM_APP_SECRET in Vercel Project Settings > Environment Variables.',
             '3. Check Valid OAuth Redirect URIs in Meta Dashboard under Instagram > Settings: ensure "https://no5ocial.vercel.app/api/auth/callback/instagram" is added byte-for-byte.',
             '4. Fresh Code Required: Never refresh the callback URL. Authorization codes are strictly single-use and expire in 5 minutes.',
