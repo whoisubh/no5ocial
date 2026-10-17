@@ -27,11 +27,19 @@
 - Never default a video to public without explicit configuration/confirmation.
 
 ## LinkedIn
-- Distinguish member profile posts from organization page posts.
-- Confirm access to Share on LinkedIn and any organization/community-management product and permissions needed.
-- Confirm the authenticated user has the required organization role.
-- Implement supported text/image/video/document formats only after validating current Posts API docs.
-- Treat company-page access as a separate capability from personal posting.
+- **Architecture**: Official versioned Posts API (`POST https://api.linkedin.com/rest/posts`) with protocol version `2.0.0` and LinkedIn-Version `202401`.
+- **Member Profile Publishing**:
+  - OAuth Scopes: `openid`, `profile`, `email`, `w_member_social`.
+  - Author URN: `urn:li:person:{person_id}` from `GET https://api.linkedin.com/v2/userinfo`.
+  - Capabilities: `['text', 'image', 'video', 'article', 'commentary', 'member_publishing']`.
+- **Organization (Company Page) Publishing**:
+  - OAuth Scopes: `openid`, `profile`, `email`, `w_member_social`, `w_organization_social`, `r_organization_social`, `r_organization_admin`, `rw_organization_admin`.
+  - Author URN: `urn:li:organization:{organization_id}` from `GET https://api.linkedin.com/rest/organizationAcls?q=roleAssignee`.
+  - Requires user to be `ADMINISTRATOR` or `CONTENT_ADMINISTRATOR` on the target organization.
+  - Capabilities: `['text', 'image', 'video', 'article', 'commentary', 'organization_publishing', 'analytics']`.
+- **Preflight constraints**: Maximum commentary length of 3,000 characters; author URN validation.
+- **Ambiguous Outcomes**: Queries `/rest/posts/{postId}` to reconcile timeouts without creating duplicates.
+
 
 ## X
 - Review the current official developer API pricing and write endpoint costs before coding.

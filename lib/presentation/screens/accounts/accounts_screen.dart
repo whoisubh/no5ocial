@@ -1257,6 +1257,67 @@ class _AccountsScreenState extends State<AccountsScreen> {
                 ],
               ),
               const SizedBox(height: 12),
+            ] else if (platform == PlatformType.linkedin) ...[
+              ElevatedButton.icon(
+                onPressed: isSubmitting
+                    ? null
+                    : () async {
+                        setAuthState(() => isSubmitting = true);
+                        try {
+                          final brandId = widget.appState.brands.isNotEmpty
+                              ? widget.appState.brands.first.id
+                              : 'default';
+                          final isPage = subtype.id == 'linkedin_page';
+                          final launched = await LinkedInService.instance.launchOAuthConnection(
+                            brandId: brandId,
+                            accountType: isPage ? 'page' : 'personal',
+                            returnUrl: '/accounts',
+                          );
+                          if (!launched && authCtx.mounted) {
+                            ScaffoldMessenger.of(authCtx).showSnackBar(
+                              const SnackBar(
+                                content: Text('Could not open web browser for LinkedIn OAuth.'),
+                                backgroundColor: AppColors.error,
+                              ),
+                            );
+                          } else if (authCtx.mounted) {
+                            ScaffoldMessenger.of(authCtx).showSnackBar(
+                              SnackBar(
+                                content: Text('Opening LinkedIn OAuth in browser to authorize ${isPage ? "Company Page" : "Personal Profile"}...'),
+                                backgroundColor: AppColors.linkedin,
+                              ),
+                            );
+                          }
+                        } catch (e, st) {
+                          if (authCtx.mounted) {
+                            AppErrorHandler.showError(authCtx, e, stackTrace: st);
+                          }
+                        } finally {
+                          if (authCtx.mounted) setAuthState(() => isSubmitting = false);
+                        }
+                      },
+                icon: const Icon(Icons.open_in_browser, size: 18),
+                label: Text(subtype.id == 'linkedin_page'
+                    ? 'Sign in with LinkedIn (Company Page)'
+                    : 'Sign in with LinkedIn (Member Profile)'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.linkedin,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Row(
+                children: [
+                  Expanded(child: Divider()),
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 8),
+                    child: Text('OR USE REST API ACCESS TOKEN', style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+                  ),
+                  Expanded(child: Divider()),
+                ],
+              ),
+              const SizedBox(height: 12),
             ],
 
             TextField(

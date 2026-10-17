@@ -1,7 +1,9 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:url_launcher/url_launcher.dart';
 
-/// Real LinkedIn Member Profile Metadata retrieved from the official LinkedIn API (OpenID Connect / v2)
+/// Real LinkedIn Member Profile Metadata retrieved from official LinkedIn OpenID Connect API
 class LinkedInProfileInfo {
   final String id;
   final String name;
@@ -18,7 +20,26 @@ class LinkedInProfileInfo {
   });
 }
 
-/// Official LinkedIn OAuth 2.0 & API Integration Service
+/// Real LinkedIn Company Page Metadata retrieved from official LinkedIn Organizations API
+class LinkedInOrganizationInfo {
+  final String urn;
+  final String id;
+  final String name;
+  final String handle;
+  final String? logoUrl;
+  final String? role;
+
+  const LinkedInOrganizationInfo({
+    required this.urn,
+    required this.id,
+    required this.name,
+    required this.handle,
+    this.logoUrl,
+    this.role,
+  });
+}
+
+/// Official LinkedIn OAuth 2.0 & REST API Integration Service
 class LinkedInService {
   static final LinkedInService instance = LinkedInService._internal();
   LinkedInService._internal();
@@ -29,21 +50,67 @@ class LinkedInService {
       'https://www.linkedin.com/oauth/v2/accessToken';
   static const String userinfoEndpoint =
       'https://api.linkedin.com/v2/userinfo';
+  static const String organizationAclsEndpoint =
+      'https://api.linkedin.com/rest/organizationAcls';
+  static const String legacyOrganizationAclsEndpoint =
+      'https://api.linkedin.com/v2/organizationalEntityAcls';
+  static const String postsEndpoint =
+      'https://api.linkedin.com/rest/posts';
 
   /// Standard LinkedIn OAuth 2.0 Scopes for OpenID Connect + Member Posting
-  static const List<String> defaultScopes = [
+  static const List<String> memberScopes = [
     'openid',
     'profile',
     'email',
     'w_member_social',
   ];
 
-  /// Builds the official authorization redirect URL for LinkedIn OAuth 2.0
+  /// Standard LinkedIn OAuth 2.0 Scopes for Company Page Posting
+  static const List<String> organizationScopes = [
+    'openid',
+    'profile',
+    'email',
+    'w_member_social',
+    'w_organization_social',
+    'r_organization_social',
+    'r_organization_admin',
+    'rw_organization_admin',
+  ];
+
+  /// Generates the server-side OAuth initialization URL for LinkedIn linking
+  String getOAuthStartUrl({
+    required String brandId,
+    String accountType = 'personal',
+    String returnUrl = '/accounts',
+  }) {
+    const baseUrl = kIsWeb ? '' : 'https://no5ocial.vercel.app';
+    return '$baseUrl/api/auth/linkedin/start?brandId=${Uri.encodeComponent(brandId)}&accountType=${Uri.encodeComponent(accountType)}&returnUrl=${Uri.encodeComponent(returnUrl)}';
+  }
+
+  /// Launches the official server-side OAuth flow via Vercel backend
+  Future<bool> launchOAuthConnection({
+    required String brandId,
+    String accountType = 'personal',
+    String returnUrl = '/accounts',
+  }) async {
+    final startPath = getOAuthStartUrl(
+      brandId: brandId,
+      accountType: accountType,
+      returnUrl: returnUrl,
+    );
+    final uri = Uri.parse(startPath);
+    return await launchUrl(
+      uri,
+      mode: LaunchMode.externalApplication,
+    );
+  }
+
+  /// Builds the direct authorization redirect URL for LinkedIn OAuth 2.0
   String buildAuthorizationUrl({
     required String clientId,
     required String redirectUri,
     required String state,
-    List<String> scopes = defaultScopes,
+    List<String> scopes = memberScopes,
   }) {
     final scopeParam = Uri.encodeComponent(scopes.join(' '));
     final encodedRedirect = Uri.encodeComponent(redirectUri);
@@ -137,11 +204,73 @@ class LinkedInService {
     final email = data['email'] as String?;
 
     return LinkedInProfileInfo(
-      id: sub,
+      id: sub.startsWith('urn:li:person:') ? sub : 'urn:li:person:$sub',
       name: displayName,
       handle: handle,
       avatarUrl: picture,
       email: email,
     );
+  }
+
+  /// Fetches organizations/company pages that the authenticated user administers
+  Future<List<LinkedInOrganizationInfo>> fetchAdministeredOrganizations({
+    required String accessToken,
+  }) async {
+    final cleanToken = accessToken.trim();
+    final organizations = <LinkedInOrganizationInfo>[];
+
+    // Try modern versioned endpoint
+    http.Response res = await http.get(
+      Uri.parse('$organizationAclsEndpoint?q=roleAssignee'),
+      headers: {
+        'Authorization': 'Bearer $cleanToken',
+        'X-Restli-Protocol-Version': '2.0.0',
+        'LinkedIn-Version': '202401',
+        'Accept': 'application/json',
+      },
+    );
+
+    // Fallback to legacy endpoint if required
+    if (res.statusCode != 200) {
+      res = await http.get(
+        Uri.parse('$legacyOrganizationAclsEndpoint?q=roleAssignee&state=APPROVED'),
+        headers: {
+          'Authorization': 'Bearer $cleanToken',
+          'X-Restli-Protocol-Version': '2.0.0',
+          'Accept': 'application/json',
+        },
+      );
+    }
+
+    if (res.statusCode != 200) {
+      debugPrint('Failed to query LinkedIn organizations (${res.statusCode}): ${res.body}');
+      return organizations;
+    }
+
+    try {
+      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      final elements = data['elements'] as List<dynamic>? ?? const [];
+
+      for (final item in elements) {
+        final orgUrn = item['organization'] as String? ?? item['organizationalTarget'] as String?;
+        final role = item['role'] as String?;
+        if (orgUrn != null) {
+          final numericId = orgUrn.split(':').last;
+          organizations.add(
+            LinkedInOrganizationInfo(
+              urn: orgUrn.startsWith('urn:li:organization:') ? orgUrn : 'urn:li:organization:$numericId',
+              id: numericId,
+              name: 'LinkedIn Company Page ($numericId)',
+              handle: '@org_$numericId',
+              role: role,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('Error parsing LinkedIn organization ACLs: $e');
+    }
+
+    return organizations;
   }
 }

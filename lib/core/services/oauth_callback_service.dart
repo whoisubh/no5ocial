@@ -96,24 +96,55 @@ class OAuthCallbackService {
         return;
       }
 
+      final accountTypeParam = (uri.queryParameters['accountType'] ?? '').toUpperCase();
+      final isLinkedInPage = platform == PlatformType.linkedin &&
+          (accountTypeParam == 'PAGE' || channelId.startsWith('urn:li:organization:'));
+
+      List<String> capabilities = const ['text', 'caption'];
+      List<String> scopes = const [];
+
+      if (platform == PlatformType.instagram) {
+        capabilities = const ['image', 'carousel', 'video', 'reels', 'caption', 'insights', 'comments'];
+        scopes = const [
+          'instagram_business_basic',
+          'instagram_business_content_publish',
+          'instagram_business_manage_insights',
+          'instagram_business_manage_comments',
+          'instagram_business_manage_messages',
+        ];
+      } else if (platform == PlatformType.linkedin) {
+        capabilities = isLinkedInPage
+            ? const ['text', 'image', 'video', 'article', 'commentary', 'analytics']
+            : const ['text', 'image', 'video', 'article', 'commentary'];
+        scopes = isLinkedInPage
+            ? const [
+                'openid',
+                'profile',
+                'email',
+                'w_member_social',
+                'w_organization_social',
+                'r_organization_social',
+                'r_organization_admin',
+              ]
+            : const [
+                'openid',
+                'profile',
+                'email',
+                'w_member_social',
+              ];
+      } else if (platform == PlatformType.youtube) {
+        capabilities = const ['video', 'shorts', 'title', 'description'];
+        scopes = const ['youtube.upload', 'youtube.readonly'];
+      }
+
       appState.connectAccount(
         brandId: targetBrandId,
         platform: platform,
         displayName: channelTitle,
         handle: channelHandle,
         externalAccountId: channelId,
-        capabilities: platform == PlatformType.instagram
-            ? const ['image', 'carousel', 'video', 'reels', 'caption', 'insights', 'comments']
-            : const ['video', 'shorts', 'title', 'description'],
-        scopes: platform == PlatformType.instagram
-            ? const [
-                'instagram_business_basic',
-                'instagram_business_content_publish',
-                'instagram_business_manage_insights',
-                'instagram_business_manage_comments',
-                'instagram_business_manage_messages',
-              ]
-            : const ['youtube.upload', 'youtube.readonly'],
+        capabilities: capabilities,
+        scopes: scopes,
       );
 
       final context = _navigatorKey?.currentContext;

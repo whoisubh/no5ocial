@@ -6,6 +6,7 @@ import '../models/publish_attempt.dart';
 import '../models/social_account.dart';
 import '../validators/preflight_validator.dart';
 import 'instagram_publishing_adapter.dart';
+import 'linkedin_publishing_adapter.dart';
 import 'publishing_adapter.dart';
 
 /// Routes publishing, preflight validation, and reconciliation to the appropriate
@@ -23,6 +24,7 @@ class CompositePublishingAdapter implements PublishingAdapter {
           PlatformType.instagram: InstagramPublishingAdapter(
             defaultAccessToken: instagramDefaultAccessToken,
           ),
+          PlatformType.linkedin: LinkedInPublishingAdapter(),
         };
 
   PublishingAdapter _adapterFor(SocialAccount account) {
