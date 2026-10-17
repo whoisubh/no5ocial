@@ -114,7 +114,7 @@ module.exports = async function handler(req, res) {
 
     // Scopes configuration:
     // Personal Profile: 'openid profile email w_member_social'
-    // Organization / Company Page: includes organization management & social sharing
+    // Organization / Company Page: Community Management API scopes (w_organization_social, r_organization_social)
     let scopesList = ['openid', 'profile', 'email', 'w_member_social'];
     if (accountType === 'page' || accountType === 'organization') {
       scopesList = [
@@ -124,8 +124,6 @@ module.exports = async function handler(req, res) {
         'w_member_social',
         'w_organization_social',
         'r_organization_social',
-        'r_organization_admin',
-        'rw_organization_admin',
       ];
     }
     const scopes = scopesList.join(' ');
