@@ -503,6 +503,8 @@ class EntityDialogs {
           ),
         );
 
+        final hasMultipleSubtypes = availableSubtypes.length > 1;
+
         return Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -512,8 +514,10 @@ class EntityDialogs {
               companyDropdown,
               const SizedBox(height: 10),
               platformDropdown,
-              const SizedBox(height: 10),
-              subtypeDropdown,
+              if (hasMultipleSubtypes) ...[
+                const SizedBox(height: 10),
+                subtypeDropdown,
+              ],
               const SizedBox(height: 10),
               integrateButton,
             ] else ...[
@@ -523,8 +527,10 @@ class EntityDialogs {
                   Expanded(flex: 3, child: companyDropdown),
                   const SizedBox(width: 8),
                   Expanded(flex: 3, child: platformDropdown),
-                  const SizedBox(width: 8),
-                  Expanded(flex: 4, child: subtypeDropdown),
+                  if (hasMultipleSubtypes) ...[
+                    const SizedBox(width: 8),
+                    Expanded(flex: 4, child: subtypeDropdown),
+                  ],
                   const SizedBox(width: 8),
                   integrateButton,
                 ],
@@ -650,25 +656,6 @@ class EntityDialogs {
             ),
             const SizedBox(height: 12),
 
-            // YouTube Privacy Selector
-            if (selectedPlatform == PlatformType.youtube) ...[
-              DropdownButtonFormField<String>(
-                initialValue: selectedPrivacy,
-                decoration: const InputDecoration(
-                  labelText: 'Default Video Privacy *',
-                  isDense: true,
-                ),
-                items: const [
-                  DropdownMenuItem(value: 'unlisted', child: Text('Unlisted (Recommended for Review)')),
-                  DropdownMenuItem(value: 'public', child: Text('Public (Instant Release)')),
-                  DropdownMenuItem(value: 'private', child: Text('Private (Hidden Draft)')),
-                ],
-                onChanged: (val) {
-                  if (val != null) setDialogState(() => selectedPrivacy = val);
-                },
-              ),
-              const SizedBox(height: 12),
-            ],
 
             if (isIntegrated) ...[
               Container(
