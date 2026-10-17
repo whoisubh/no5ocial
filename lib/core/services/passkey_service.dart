@@ -14,9 +14,21 @@ import 'package:no5ocial/domain/models/passkey_credential.dart';
 /// - WebAuthn API on Web
 class PasskeyService {
   static final PasskeyService instance = PasskeyService._internal();
-  PasskeyService._internal();
+  PasskeyAuthenticator? _authenticatorInstance;
+  bool _authenticatorInitAttempted = false;
 
-  final PasskeyAuthenticator _authenticator = PasskeyAuthenticator();
+  PasskeyAuthenticator? get _authenticator {
+    if (_authenticatorInstance != null) return _authenticatorInstance;
+    if (_authenticatorInitAttempted) return null;
+    _authenticatorInitAttempted = true;
+    try {
+      _authenticatorInstance = PasskeyAuthenticator();
+      return _authenticatorInstance;
+    } catch (e) {
+      debugPrint('PasskeyAuthenticator initialization warning: $e');
+      return null;
+    }
+  }
 
   /// Determine the relying party ID based on platform and active environment
   static String get relyingPartyId {
@@ -44,7 +56,9 @@ class PasskeyService {
   /// Check whether the current platform supports passkey authentication
   Future<bool> canAuthenticate() async {
     try {
-      final availability = _authenticator.getAvailability();
+      final auth = _authenticator;
+      if (auth == null) return false;
+      final availability = auth.getAvailability();
       if (kIsWeb) {
         final res = await availability.web();
         return res.hasPasskeySupport;
@@ -55,7 +69,7 @@ class PasskeyService {
       return true;
     } catch (e) {
       debugPrint('Passkey availability check: $e');
-      return true; // Fallback to allowing user attempt on modern systems
+      return false;
     }
   }
 
@@ -98,8 +112,13 @@ class PasskeyService {
       timeout: 60000, // 60 seconds
     );
 
+    final auth = _authenticator;
+    if (auth == null) {
+      throw UnsupportedError('Passkey authentication is not supported or initialized on this device.');
+    }
+
     try {
-      final RegisterResponseType response = await _authenticator.register(registerRequest);
+      final RegisterResponseType response = await auth.register(registerRequest);
 
       final credentialId = response.id.isNotEmpty
           ? response.id
@@ -141,8 +160,13 @@ class PasskeyService {
       timeout: 60000,
     );
 
+    final auth = _authenticator;
+    if (auth == null) {
+      throw UnsupportedError('Passkey authentication is not supported or initialized on this device.');
+    }
+
     try {
-      final AuthenticateResponseType response = await _authenticator.authenticate(authRequest);
+      final AuthenticateResponseType response = await auth.authenticate(authRequest);
       final verifiedId = response.id.isNotEmpty ? response.id : response.rawId;
 
       if (credentialId != null && credentialId.isNotEmpty) {
