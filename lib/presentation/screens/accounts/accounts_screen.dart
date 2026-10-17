@@ -17,6 +17,7 @@ import 'package:no5ocial/core/services/linkedin_service.dart';
 import 'package:no5ocial/core/services/x_service.dart';
 import 'package:no5ocial/core/services/youtube_service.dart';
 import 'package:no5ocial/core/errors/app_error_handler.dart';
+import 'package:no5ocial/core/services/oauth_callback_service.dart';
 import 'package:no5ocial/presentation/widgets/app_sheets.dart';
 import 'package:no5ocial/presentation/widgets/dialogs/entity_dialogs.dart';
 import 'package:no5ocial/presentation/widgets/entity_badges.dart';
@@ -36,6 +37,14 @@ class _AccountsScreenState extends State<AccountsScreen> {
   // 0: Social Channels, 1: Channel Groups, 2: Brand Portfolio
   int _activeTab = 0;
   String? _selectedBrandFilterId;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      OAuthCallbackService.instance.checkWebOAuthCallback();
+    });
+  }
 
   void _handleStatusToggle(BuildContext context, SocialAccount account) {
     final newStatus = account.connectionStatus == ConnectionStatus.connected

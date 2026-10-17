@@ -880,6 +880,17 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  void updateAccount(SocialAccount account) {
+    accountRepository.saveAccount(account);
+    _recordAudit(
+      eventType: 'ACCOUNT_UPDATED',
+      entityType: 'SocialAccount',
+      entityId: account.id,
+      description: 'Account ${account.handle} (${account.displayName}) updated.',
+    );
+    notifyListeners();
+  }
+
   // --- Brand / Company Management ---
   Brand createBrand({
     required String name,

@@ -11,6 +11,7 @@ import 'package:no5ocial/presentation/screens/settings/settings_screen.dart';
 import 'package:no5ocial/presentation/state/app_state.dart';
 import 'package:no5ocial/presentation/widgets/app_sheets.dart';
 import 'package:no5ocial/presentation/widgets/dialogs/entity_dialogs.dart';
+import 'package:no5ocial/core/services/oauth_callback_service.dart';
 
 class MainScaffold extends StatefulWidget {
   final AppState appState;
@@ -35,6 +36,9 @@ class _MainScaffoldState extends State<MainScaffold> {
     super.initState();
     _currentIndex = widget.initialIndex;
     _pageController = PageController(initialPage: _currentIndex);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      OAuthCallbackService.instance.checkWebOAuthCallback();
+    });
   }
 
   @override

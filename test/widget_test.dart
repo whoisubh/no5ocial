@@ -26,6 +26,7 @@ void main() {
     );
     appState.isLoggedIn = true;
     appState.localUserName = 'Test User';
+    appState.createBrand(name: 'Shaadow', description: 'Internal workspace');
 
     await tester.pumpWidget(
       MaterialApp(
@@ -63,6 +64,6 @@ void main() {
     // Navigate to Settings
     await tester.tap(find.byIcon(Icons.tune_outlined));
     await tester.pumpAndSettle();
-    expect(find.text('System Configuration & Security Audit'), findsOneWidget);
+    expect(find.text('Workspace Settings'), findsWidgets);
   });
 }

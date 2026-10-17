@@ -261,7 +261,7 @@ module.exports = async function handler(req, res) {
 function renderSuccessHtml({ channel, returnUrl }) {
   const safeJson = JSON.stringify(channel).replace(/</g, '\\u003c');
   const appDeepLink = `no5ocial://auth/callback?platform=instagram&channelId=${encodeURIComponent(channel.id)}&channelTitle=${encodeURIComponent(channel.title)}&channelHandle=${encodeURIComponent(channel.handle)}&brandId=${encodeURIComponent(channel.brandId || '')}&accessToken=${encodeURIComponent(channel.accessToken || '')}`;
-  const redirectTarget = `${returnUrl}${returnUrl.includes('?') ? '&' : '?'}connected=instagram&channelId=${encodeURIComponent(channel.id)}&channelTitle=${encodeURIComponent(channel.title)}&channelHandle=${encodeURIComponent(channel.handle)}`;
+  const redirectTarget = `${returnUrl}${returnUrl.includes('?') ? '&' : '?'}connected=instagram&channelId=${encodeURIComponent(channel.id)}&channelTitle=${encodeURIComponent(channel.title)}&channelHandle=${encodeURIComponent(channel.handle)}&brandId=${encodeURIComponent(channel.brandId || '')}&accessToken=${encodeURIComponent(channel.accessToken || '')}`;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -410,9 +410,9 @@ function renderSuccessHtml({ channel, returnUrl }) {
       </div>
     </div>
 
-    <a href="${appDeepLink}" id="returnAppBtn" class="btn-primary">Return to no5ocial App</a>
-    <a href="${redirectTarget}" id="webBtn" style="display:inline-block; margin-top:14px; color:#94A3B8; text-decoration:underline; font-size:13px; font-weight:500;">Open in Web Browser</a>
-    <p class="footer-note" style="margin-top:16px;">Tapping "Return to no5ocial App" will automatically sync this channel to your workspace.</p>
+    <a href="${redirectTarget}" id="webBtn" class="btn-primary">Return to Workspace</a>
+    <a href="${appDeepLink}" id="returnAppBtn" style="display:block; width:100%; background:#1E293B; color:#E2E8F0; text-decoration:none; font-weight:600; font-size:14px; padding:12px; border-radius:12px; margin-top:10px; transition:all 0.2s ease; cursor:pointer; border:1px solid #334155;">Open in no5ocial Mobile App</a>
+    <p class="footer-note" style="margin-top:16px;">Returning to workspace will immediately sync and display this channel.</p>
   </div>
 
   <script>
@@ -424,10 +424,16 @@ function renderSuccessHtml({ channel, returnUrl }) {
       }
     } catch (e) {}
 
-    // Automatically trigger app deep link on launch
-    try {
-      window.location.href = "${appDeepLink}";
-    } catch (e) {}
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    if (isMobile) {
+      try {
+        window.location.href = "${appDeepLink}";
+      } catch (e) {}
+    } else {
+      setTimeout(function() {
+        window.location.href = "${redirectTarget}";
+      }, 1200);
+    }
   </script>
 </body>
 </html>`;
