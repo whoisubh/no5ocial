@@ -31,7 +31,7 @@ module.exports = async function handler(req, res) {
     const secret = (
       process.env.INSTAGRAM_APP_SECRET ||
       process.env.META_APP_SECRET ||
-      'c63a288357ba3ccd013fb1ae53bf6e40'
+      'a6db8aa7b936be95e91015594fc402e5'
     ).trim().replace(/^["']|["']$/g, '');
 
     const statePayload = JSON.stringify({
