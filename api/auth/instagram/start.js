@@ -6,12 +6,13 @@ module.exports = async function handler(req, res) {
     const brandId = req.query.brandId || '';
     const returnUrl = req.query.returnUrl || '/accounts';
 
-    // Instagram App ID configured in Vercel environment variables or Meta App Portal
-    const instagramAppId =
+    // Instagram credentials strictly loaded from environment variables
+    const instagramAppId = (
       process.env.INSTAGRAM_APP_ID ||
       process.env.META_APP_ID ||
       process.env.FACEBOOK_APP_ID ||
-      '1406614248351632';
+      ''
+    ).trim();
 
     let host = req.headers['x-forwarded-host'] || req.headers.host || 'no5ocial.vercel.app';
     if (host.includes(',')) {
@@ -27,11 +28,11 @@ module.exports = async function handler(req, res) {
         : 'https://no5ocial.vercel.app/api/auth/callback/instagram')
     ).trim().replace(/\/+$/, '');
 
-    // Secure signed state parameter to protect against CSRF attacks
+    // Secure secret from environment
     const secret = (
       process.env.INSTAGRAM_APP_SECRET ||
       process.env.META_APP_SECRET ||
-      'a6db8aa7b936be95e91015594fc402e5'
+      ''
     ).trim().replace(/^["']|["']$/g, '');
 
     const statePayload = JSON.stringify({
@@ -51,11 +52,15 @@ module.exports = async function handler(req, res) {
       JSON.stringify({ payload: statePayload, sig: signature })
     ).toString('base64url');
 
-    if (!instagramAppId) {
+    if (!instagramAppId || !secret) {
+      const missingVars = [];
+      if (!instagramAppId) missingVars.push('INSTAGRAM_APP_ID');
+      if (!secret) missingVars.push('INSTAGRAM_APP_SECRET');
+
       if (req.query.json === 'true') {
-        return res.status(400).json({
-          error: 'INSTAGRAM_APP_ID is not configured in Vercel environment variables.',
-          guidance: 'Create a Meta App on developers.facebook.com with Instagram API with Instagram Login, then set INSTAGRAM_APP_ID and INSTAGRAM_APP_SECRET.',
+        return res.status(500).json({
+          error: `Missing required environment variables: ${missingVars.join(', ')}`,
+          guidance: 'Configure INSTAGRAM_APP_ID and INSTAGRAM_APP_SECRET in your Vercel Project Settings.',
         });
       }
 
@@ -93,8 +98,8 @@ module.exports = async function handler(req, res) {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      background: rgba(225, 48, 108, 0.15);
-      color: #E1306C;
+      background: rgba(239, 68, 68, 0.15);
+      color: #EF4444;
       font-weight: 600;
       font-size: 13px;
       padding: 4px 12px;
@@ -116,9 +121,9 @@ module.exports = async function handler(req, res) {
 </head>
 <body>
   <div class="card">
-    <div class="badge">📸 Meta / Instagram API Setup</div>
-    <h1>INSTAGRAM_APP_ID Missing</h1>
-    <p>Please configure your <code>INSTAGRAM_APP_ID</code> and <code>INSTAGRAM_APP_SECRET</code> in your Vercel Project Settings (Environment Variables) to enable direct Instagram OAuth login.</p>
+    <div class="badge">Configuration Missing</div>
+    <h1>Missing Environment Variables</h1>
+    <p>Please configure <code>${missingVars.join('</code> and <code>')}</code> in Vercel Project Settings > Environment Variables.</p>
     <a href="${returnUrl}" class="btn">Return to Workspace</a>
   </div>
 </body>

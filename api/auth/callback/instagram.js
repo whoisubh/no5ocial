@@ -54,8 +54,25 @@ module.exports = async function handler(req, res) {
     const secret = (
       process.env.INSTAGRAM_APP_SECRET ||
       process.env.META_APP_SECRET ||
-      'a6db8aa7b936be95e91015594fc402e5'
+      ''
     ).trim().replace(/^["']|["']$/g, '');
+
+    const appId = (
+      process.env.INSTAGRAM_APP_ID ||
+      process.env.META_APP_ID ||
+      process.env.FACEBOOK_APP_ID ||
+      ''
+    ).trim();
+
+    if (!appId || !secret) {
+      return res.status(500).send(renderHtml({
+        success: false,
+        title: 'Server Configuration Error',
+        message: 'INSTAGRAM_APP_ID and/or INSTAGRAM_APP_SECRET are not configured in Vercel environment variables.',
+        actionText: 'Return to Workspace',
+        actionUrl: '/accounts',
+      }));
+    }
 
     if (state) {
       try {
@@ -78,18 +95,7 @@ module.exports = async function handler(req, res) {
       }
     }
 
-    const appId = (
-      process.env.INSTAGRAM_APP_ID ||
-      process.env.META_APP_ID ||
-      process.env.FACEBOOK_APP_ID ||
-      '1406614248351632'
-    ).trim();
-
-    const appSecret = (
-      process.env.INSTAGRAM_APP_SECRET ||
-      process.env.META_APP_SECRET ||
-      'a6db8aa7b936be95e91015594fc402e5'
-    ).trim().replace(/^["']|["']$/g, '');
+    const appSecret = secret;
 
     let host = req.headers['x-forwarded-host'] || req.headers.host || 'no5ocial.vercel.app';
     if (host.includes(',')) {
@@ -141,27 +147,19 @@ module.exports = async function handler(req, res) {
       }
     }
 
-    const isSecretFromEnv = Boolean(process.env.INSTAGRAM_APP_SECRET || process.env.META_APP_SECRET);
     if (!tokenRes.ok || tokenData.error_type || tokenData.error) {
       console.error('[Instagram Token Exchange Error]', tokenData);
       return res.status(400).send(renderHtml({
         success: false,
         title: 'Instagram Token Exchange Failed',
-        message: tokenData.error_message || tokenData.error?.message || 'Error validating verification code. The authorization code may have expired, redirect_uri must match, or the App Secret is invalid.',
+        message: tokenData.error_message || tokenData.error?.message || 'Instagram rejected the authorization exchange.',
         actionText: 'Authorize Instagram Again',
         actionUrl: `/api/auth/instagram/start?brandId=${encodeURIComponent(brandId)}&returnUrl=/accounts`,
         debugDetails: JSON.stringify({
-          redirect_uri_sent: redirectUri,
-          client_id: appId,
-          secret_source: isSecretFromEnv ? 'configured_in_vercel_environment' : 'fallback_default_secret (may be invalid/expired on Meta)',
           api_instagram_response: tokenData,
           graph_facebook_response: fbTokenData,
-          resolution_steps: [
-            '1. Verify Instagram App Secret: Go to Meta Dashboard > Your App > Use Cases > Instagram > API setup with Instagram Login — the Instagram App Secret is shown there (it is DIFFERENT from the Facebook App Secret in Settings > Basic).',
-            '2. Update Vercel Environment Variables: Add INSTAGRAM_APP_SECRET in Vercel Project Settings > Environment Variables.',
-            '3. Check Valid OAuth Redirect URIs in Meta Dashboard under Instagram > Settings: ensure "https://no5ocial.vercel.app/api/auth/callback/instagram" is added byte-for-byte.',
-            '4. Fresh Code Required: Never refresh the callback URL. Authorization codes are strictly single-use and expire in 5 minutes.',
-          ],
+          redirect_uri_used: redirectUri,
+          client_id: appId,
         }, null, 2),
       }));
     }
