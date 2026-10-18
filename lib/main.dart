@@ -32,6 +32,7 @@ import 'package:no5ocial/core/config/env_config.dart';
 import 'package:no5ocial/core/errors/app_error_handler.dart';
 import 'package:no5ocial/core/services/biometric_lock_service.dart';
 import 'package:no5ocial/core/services/oauth_callback_service.dart';
+import 'package:no5ocial/core/services/sync_service.dart';
 import 'package:no5ocial/core/utils/url_strategy_helper.dart';
 import 'package:no5ocial/presentation/state/app_state.dart';
 import 'package:no5ocial/presentation/widgets/biometric_lock_overlay.dart';
@@ -108,6 +109,9 @@ Future<void> bootstrap({AppFlavor flavor = AppFlavor.dev}) async {
     appState: appState,
     navigatorKey: no5ocialApp.navigatorKey,
   );
+
+  // Initialize Local-First Sync Engine
+  await SyncService.instance.init();
 
   runApp(no5ocialApp(appState: appState));
 }

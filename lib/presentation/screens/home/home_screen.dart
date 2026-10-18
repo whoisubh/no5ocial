@@ -15,6 +15,7 @@ import 'package:no5ocial/presentation/widgets/entity_badges.dart';
 import 'package:no5ocial/presentation/widgets/platform_icon_chip.dart';
 import 'package:no5ocial/presentation/widgets/platform_logo.dart';
 import 'package:no5ocial/presentation/widgets/status_badge.dart';
+import 'package:no5ocial/core/services/sync_service.dart';
 import '../analytics/analytics_screen.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -198,6 +199,73 @@ class HomeScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                // 0. Live Centralization Sync Indicator
+                ListenableBuilder(
+                  listenable: SyncService.instance,
+                  builder: (context, _) {
+                    final sync = SyncService.instance;
+                    final isSyncing = sync.status == SyncStatus.syncing;
+                    final isOffline = sync.status == SyncStatus.offline;
+
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: isOffline
+                            ? AppColors.warning.withAlpha(20)
+                            : AppColors.surface,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: isOffline ? AppColors.warning : AppColors.border,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            isSyncing
+                                ? Icons.sync
+                                : isOffline
+                                    ? Icons.cloud_off
+                                    : Icons.cloud_done_outlined,
+                            size: 16,
+                            color: isOffline
+                                ? AppColors.warning
+                                : isSyncing
+                                    ? AppColors.accent
+                                    : AppColors.success,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              isSyncing
+                                  ? 'Synchronizing local changes with central cloud...'
+                                  : isOffline
+                                      ? 'Working in offline mode. Changes saved locally.'
+                                      : 'Centralization Active • Last synced: ${sync.formattedLastSync}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textSecondary,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                          TextButton.icon(
+                            onPressed: isSyncing
+                                ? null
+                                : () => SyncService.instance.syncNow(),
+                            icon: const Icon(Icons.refresh, size: 14),
+                            label: const Text('Sync Now', style: TextStyle(fontSize: 11)),
+                            style: TextButton.styleFrom(
+                              visualDensity: VisualDensity.compact,
+                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+
                 // 1. Executive Operations Hero Card
                 _buildHeroBanner(context, l10n),
                 const SizedBox(height: 20),

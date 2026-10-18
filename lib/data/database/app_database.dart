@@ -266,6 +266,27 @@ class AppDatabase {
         value TEXT NOT NULL
       )
     ''');
+
+    // Run schema migrations safely to add sync tracking metadata columns
+    await _ensureSyncColumns(db, 'brands');
+    await _ensureSyncColumns(db, 'channel_groups');
+    await _ensureSyncColumns(db, 'social_accounts');
+    await _ensureSyncColumns(db, 'content_posts');
+    await _ensureSyncColumns(db, 'post_variants');
+  }
+
+  Future<void> _ensureSyncColumns(Database db, String tableName) async {
+    final columns = await db.rawQuery('PRAGMA table_info($tableName)');
+    final columnNames = columns.map((c) => c['name'] as String).toSet();
+    if (!columnNames.contains('updated_at_utc')) {
+      await db.execute('ALTER TABLE $tableName ADD COLUMN updated_at_utc TEXT');
+    }
+    if (!columnNames.contains('synced_at_utc')) {
+      await db.execute('ALTER TABLE $tableName ADD COLUMN synced_at_utc TEXT');
+    }
+    if (!columnNames.contains('is_deleted')) {
+      await db.execute('ALTER TABLE $tableName ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0');
+    }
   }
 
   Future<void> _seedInitialData(Database db) async {
@@ -793,5 +814,70 @@ class AppDatabase {
     );
     if (list.isEmpty) return null;
     return list.first['value'] as String?;
+  }
+
+  // ==============================================================================
+  // Local-First Outbox Synchronization Engine Helpers
+  // ==============================================================================
+
+  /// Returns un-synced dirty records for a specific table
+  Future<List<Map<String, dynamic>>> getUnsyncedRecords(String tableName) async {
+    final db = await database;
+    return await db.rawQuery('''
+      SELECT * FROM $tableName 
+      WHERE synced_at_utc IS NULL 
+         OR updated_at_utc > synced_at_utc
+    ''');
+  }
+
+  /// Marks a batch of record IDs as synced at UTC
+  Future<void> markRecordsAsSynced({
+    required String tableName,
+    required List<String> recordIds,
+    required String syncedAtUtc,
+  }) async {
+    if (recordIds.isEmpty) return;
+    final db = await database;
+    final batch = db.batch();
+    for (final id in recordIds) {
+      batch.update(
+        tableName,
+        {'synced_at_utc': syncedAtUtc},
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+    }
+    await batch.commit(noResult: true);
+  }
+
+  /// Upserts records pulled from central sync server applying Last-Write-Wins (LWW)
+  Future<void> upsertRemoteDelta({
+    required String tableName,
+    required List<Map<String, dynamic>> records,
+    required String syncedAtUtc,
+  }) async {
+    if (records.isEmpty) return;
+    final db = await database;
+
+    for (final record in records) {
+      final id = record['id'] as String?;
+      if (id == null) continue;
+
+      final existing = await db.query(tableName, where: 'id = ?', whereArgs: [id], limit: 1);
+      final mutable = Map<String, dynamic>.from(record);
+      mutable['synced_at_utc'] = syncedAtUtc;
+
+      if (existing.isEmpty) {
+        await db.insert(tableName, mutable, conflictAlgorithm: ConflictAlgorithm.replace);
+      } else {
+        final localUpdated = existing.first['updated_at_utc'] as String?;
+        final remoteUpdated = record['updated_at_utc'] as String?;
+
+        // LWW: Only apply if remote is newer or equal
+        if (localUpdated == null || remoteUpdated == null || remoteUpdated.compareTo(localUpdated) >= 0) {
+          await db.update(tableName, mutable, where: 'id = ?', whereArgs: [id]);
+        }
+      }
+    }
   }
 }
