@@ -8,6 +8,7 @@ import 'package:no5ocial/core/utils/date_formatter.dart';
 import 'package:no5ocial/presentation/state/app_state.dart';
 import 'package:no5ocial/presentation/widgets/app_sheets.dart';
 import 'package:no5ocial/presentation/widgets/passkey_management_sheet.dart';
+import 'package:no5ocial/core/services/media_hosting_service.dart';
 
 class SettingsScreen extends StatelessWidget {
   final AppState appState;
@@ -768,6 +769,10 @@ class SettingsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 16),
 
+              _buildSectionTitle('Client-Side Media Hosting (Cloudinary / ImgBB)'),
+              _buildMediaHostingCard(context),
+              const SizedBox(height: 16),
+
               _buildSectionTitle('Operations & Audit Logs'),
               InkWell(
                 onTap: () => _showAuditLog(context),
@@ -923,6 +928,227 @@ class SettingsScreen extends StatelessWidget {
             fontWeight: FontWeight.bold,
             fontSize: 16,
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMediaHostingCard(BuildContext context) {
+    return FutureBuilder<MediaHostingStrategy>(
+      future: MediaHostingService.instance.getStrategy(),
+      builder: (context, snapshot) {
+        final strategy = snapshot.data ?? MediaHostingStrategy.r2Primary;
+        final strategyLabel = switch (strategy) {
+          MediaHostingStrategy.r2Primary => 'Cloudflare R2 (10GB Free Lifetime)',
+          MediaHostingStrategy.balanced => 'Smart Balanced (Cloudinary + ImgBB)',
+          MediaHostingStrategy.cloudinary => 'Cloudinary Only (Photos & Videos)',
+          MediaHostingStrategy.imgbb => 'ImgBB (Photos) + Cloudinary (Videos)',
+        };
+
+        return Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.accent.withAlpha(20),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.cloud_sync_outlined, color: AppColors.accent, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      strategyLabel,
+                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                    ),
+                    const SizedBox(height: 2),
+                    const Text(
+                      'Automated load balancing & format validation (max 15MB img, 100MB vid)',
+                      style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                    ),
+                  ],
+                ),
+              ),
+              TextButton.icon(
+                onPressed: () => _showMediaHostingConfigDialog(context),
+                icon: const Icon(Icons.tune, size: 14),
+                label: const Text('Configure'),
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.accent,
+                  visualDensity: VisualDensity.compact,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showMediaHostingConfigDialog(BuildContext context) async {
+    final currentStrategy = await MediaHostingService.instance.getStrategy();
+    final cloudinaryConfig = await MediaHostingService.instance.getCloudinaryConfig();
+    final imgbbKey = await MediaHostingService.instance.getImgbbApiKey();
+
+    if (!context.mounted) return;
+
+    MediaHostingStrategy selectedStrategy = currentStrategy;
+    final cloudNameCtrl = TextEditingController(text: cloudinaryConfig['cloudName']);
+    final uploadPresetCtrl = TextEditingController(text: cloudinaryConfig['uploadPreset']);
+    final imgbbKeyCtrl = TextEditingController(text: imgbbKey ?? '');
+
+    showDialog(
+      context: context,
+      builder: (dCtx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: AppColors.surface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.cloud_sync_outlined, color: AppColors.accent, size: 22),
+              SizedBox(width: 10),
+              Text('Media Hosting Manager', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text(
+                  'Intelligently distributes uploads across Cloudinary and ImgBB to preserve free quota and optimize bandwidth.',
+                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                ),
+                const SizedBox(height: 16),
+                SegmentedButton<MediaHostingStrategy>(
+                  segments: const [
+                    ButtonSegment(
+                      value: MediaHostingStrategy.r2Primary,
+                      label: Text('Cloudflare R2'),
+                      icon: Icon(Icons.cloud_done, size: 14),
+                    ),
+                    ButtonSegment(
+                      value: MediaHostingStrategy.balanced,
+                      label: Text('Balanced'),
+                      icon: Icon(Icons.balance, size: 14),
+                    ),
+                    ButtonSegment(
+                      value: MediaHostingStrategy.cloudinary,
+                      label: Text('Cloudinary'),
+                      icon: Icon(Icons.cloud_outlined, size: 14),
+                    ),
+                    ButtonSegment(
+                      value: MediaHostingStrategy.imgbb,
+                      label: Text('ImgBB'),
+                      icon: Icon(Icons.image_outlined, size: 14),
+                    ),
+                  ],
+                  selected: {selectedStrategy},
+                  onSelectionChanged: (set) {
+                    setDialogState(() => selectedStrategy = set.first);
+                  },
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Cloudinary Configuration (Videos & Photos)',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: cloudNameCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Cloud Name *',
+                    hintText: 'e.g. no5ocial',
+                    isDense: true,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: uploadPresetCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Unsigned Preset *',
+                    hintText: 'e.g. no5ocial_unsigned',
+                    isDense: true,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'ImgBB Configuration (Photos load-balancing)',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: imgbbKeyCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'ImgBB Free API Key',
+                    hintText: 'Paste API key from api.imgbb.com',
+                    isDense: true,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceSecondary,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: const Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '🛡️ Anti-Misuse Policies Active:',
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                      ),
+                      SizedBox(height: 4),
+                      Text('• Images: Max 15MB (JPG, PNG, WEBP, GIF)', style: TextStyle(fontSize: 10.5, color: AppColors.textSecondary)),
+                      Text('• Videos: Max 100MB (MP4, MOV, WEBM)', style: TextStyle(fontSize: 10.5, color: AppColors.textSecondary)),
+                      Text('• Client Rate Limit: Max 20 uploads/minute', style: TextStyle(fontSize: 10.5, color: AppColors.textSecondary)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dCtx).pop(),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                await MediaHostingService.instance.setStrategy(selectedStrategy);
+                await MediaHostingService.instance.setCloudinaryConfig(
+                  cloudName: cloudNameCtrl.text.trim().isNotEmpty
+                      ? cloudNameCtrl.text.trim()
+                      : MediaHostingService.defaultCloudName,
+                  uploadPreset: uploadPresetCtrl.text.trim().isNotEmpty
+                      ? uploadPresetCtrl.text.trim()
+                      : MediaHostingService.defaultUploadPreset,
+                );
+                await MediaHostingService.instance.setImgbbApiKey(imgbbKeyCtrl.text.trim());
+
+                if (dCtx.mounted) Navigator.of(dCtx).pop();
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Media hosting strategy and limits saved.')),
+                  );
+                }
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.accent, foregroundColor: Colors.white),
+              child: const Text('Save Settings'),
+            ),
+          ],
         ),
       ),
     );

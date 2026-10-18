@@ -15,6 +15,7 @@ import 'package:no5ocial/presentation/widgets/entity_badges.dart';
 import 'package:no5ocial/presentation/widgets/platform_icon_chip.dart';
 import 'package:no5ocial/presentation/widgets/platform_logo.dart';
 import 'package:no5ocial/presentation/widgets/status_badge.dart';
+import '../analytics/analytics_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   final AppState appState;
@@ -165,6 +166,17 @@ class HomeScreen extends StatelessWidget {
                     errorBuilder: (_, _, _) => const Text('no5ocial'),
                   ),
                   actions: [
+                    IconButton(
+                      icon: const Icon(Icons.auto_graph_rounded, size: 20),
+                      tooltip: 'Audience & Growth Analytics',
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => AnalyticsScreen(appState: appState),
+                          ),
+                        );
+                      },
+                    ),
                     IconButton(
                       icon: Icon(
                         appState.isDarkMode ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
@@ -335,6 +347,10 @@ class HomeScreen extends StatelessWidget {
                       ),
                     ],
                   ),
+                const SizedBox(height: 24),
+
+                // 3.4 Audience & Growth Analytics Widget
+                _buildAnalyticsGrowthCard(context),
                 const SizedBox(height: 24),
 
                 // 3.5 Active Channel Groups & Product Profiles
@@ -746,6 +762,83 @@ class HomeScreen extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildAnalyticsGrowthCard(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border),
+        boxShadow: AppColors.cardShadow,
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: AppColors.accent.withAlpha(25),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(
+              Icons.insights_rounded,
+              size: 22,
+              color: AppColors.accent,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  children: [
+                    Text(
+                      'Audience Growth & Velocity',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13.5,
+                      ),
+                    ),
+                    SizedBox(width: 6),
+                    Icon(Icons.trending_up, size: 14, color: AppColors.success),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  appState.accounts.isEmpty
+                      ? 'Link your channels to view organic reach and subscriber metrics.'
+                      : 'Tracking ${appState.accounts.length} connected destination${appState.accounts.length > 1 ? 's' : ''} on-device.',
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => AnalyticsScreen(appState: appState),
+                ),
+              );
+            },
+            icon: const Icon(Icons.auto_graph_rounded, size: 14),
+            label: const Text('View Analytics'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.accent,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
       ),
     );
   }

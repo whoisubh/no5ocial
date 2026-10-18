@@ -44,6 +44,10 @@
       "destination": "/api/youtube?action=:action"
     },
     {
+      "source": "/api/media",
+      "destination": "/api/media"
+    },
+    {
       "source": "/((?!api/).*)",
       "destination": "/index"
     }

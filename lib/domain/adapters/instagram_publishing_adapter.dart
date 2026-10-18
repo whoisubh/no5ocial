@@ -12,6 +12,7 @@ import '../models/publish_attempt.dart';
 import '../models/social_account.dart';
 import '../validators/preflight_validator.dart';
 import 'publishing_adapter.dart';
+import '../../core/services/media_hosting_service.dart';
 
 /// Real official Instagram Graph API Publishing Adapter (v21.0).
 ///
@@ -258,6 +259,18 @@ class InstagramPublishingAdapter implements PublishingAdapter {
     }
   }
 
+  Future<String> _resolvePublicUrl(MediaAsset media) async {
+    final rawPath = media.localPreviewUrl ?? media.fileName;
+    if (rawPath.startsWith('http://') || rawPath.startsWith('https://')) {
+      return rawPath;
+    }
+    return await MediaHostingService.instance.uploadMedia(
+      filePath: rawPath,
+      fileName: media.fileName,
+      isVideo: media.mediaType == MediaType.video,
+    );
+  }
+
   // --- Step 1: Create Media Container ---
   Future<String> _createMediaContainer({
     required String igUserId,
@@ -269,7 +282,7 @@ class InstagramPublishingAdapter implements PublishingAdapter {
 
     if (attachedMedia.length == 1) {
       final media = attachedMedia.first;
-      final mediaUrl = media.localPreviewUrl ?? '';
+      final mediaUrl = await _resolvePublicUrl(media);
 
       if (media.mediaType == MediaType.video) {
         // Single Video / Reel
@@ -296,7 +309,7 @@ class InstagramPublishingAdapter implements PublishingAdapter {
       // Carousel (2–10 items)
       final itemContainerIds = <String>[];
       for (final media in attachedMedia.take(10)) {
-        final mediaUrl = media.localPreviewUrl ?? '';
+        final mediaUrl = await _resolvePublicUrl(media);
         final isVideo = media.mediaType == MediaType.video;
 
         final itemResponse = await _httpClient.post(endpoint, body: {

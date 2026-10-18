@@ -16,6 +16,7 @@ import 'package:no5ocial/domain/adapters/instagram_publishing_adapter.dart';
 import 'package:no5ocial/domain/adapters/linkedin_publishing_adapter.dart';
 import 'package:no5ocial/domain/adapters/threads_publishing_adapter.dart';
 import 'package:no5ocial/domain/adapters/x_publishing_adapter.dart';
+import 'package:no5ocial/domain/adapters/youtube_publishing_adapter.dart';
 import 'package:no5ocial/domain/enums/platform_type.dart';
 import 'package:no5ocial/l10n/app_localizations.dart';
 import 'package:no5ocial/presentation/navigation/main_scaffold.dart';
@@ -85,6 +86,7 @@ Future<void> bootstrap({AppFlavor flavor = AppFlavor.dev}) async {
       PlatformType.linkedin: LinkedInPublishingAdapter(),
       PlatformType.x: XPublishingAdapter(),
       PlatformType.threads: ThreadsPublishingAdapter(),
+      PlatformType.youtube: YouTubePublishingAdapter(),
     },
     fallbackAdapter: const FakePublishingAdapter(),
   );

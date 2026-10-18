@@ -11,6 +11,7 @@ import '../models/publish_attempt.dart';
 import '../models/social_account.dart';
 import '../validators/preflight_validator.dart';
 import 'publishing_adapter.dart';
+import '../../core/services/media_hosting_service.dart';
 
 /// Real official Meta Threads API v1.0 Publishing Adapter.
 ///
@@ -177,15 +178,31 @@ class ThreadsPublishingAdapter implements PublishingAdapter {
 
       if (hasImages && attachedMedia.isNotEmpty) {
         final firstImage = attachedMedia.firstWhere((m) => m.mediaType == MediaType.image);
+        final rawPath = firstImage.localPreviewUrl ?? firstImage.fileName;
+        final publicUrl = (rawPath.startsWith('http://') || rawPath.startsWith('https://'))
+            ? rawPath
+            : await MediaHostingService.instance.uploadMedia(
+                filePath: rawPath,
+                fileName: firstImage.fileName,
+                isVideo: false,
+              );
         containerParams['media_type'] = 'IMAGE';
-        containerParams['image_url'] = firstImage.localPreviewUrl ?? firstImage.fileName;
+        containerParams['image_url'] = publicUrl;
         if (text.trim().isNotEmpty) {
           containerParams['text'] = text;
         }
       } else if (hasVideos && attachedMedia.isNotEmpty) {
         final firstVideo = attachedMedia.firstWhere((m) => m.mediaType == MediaType.video);
+        final rawPath = firstVideo.localPreviewUrl ?? firstVideo.fileName;
+        final publicUrl = (rawPath.startsWith('http://') || rawPath.startsWith('https://'))
+            ? rawPath
+            : await MediaHostingService.instance.uploadMedia(
+                filePath: rawPath,
+                fileName: firstVideo.fileName,
+                isVideo: true,
+              );
         containerParams['media_type'] = 'VIDEO';
-        containerParams['video_url'] = firstVideo.localPreviewUrl ?? firstVideo.fileName;
+        containerParams['video_url'] = publicUrl;
         if (text.trim().isNotEmpty) {
           containerParams['text'] = text;
         }

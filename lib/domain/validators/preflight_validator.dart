@@ -224,17 +224,54 @@ abstract final class PreflightValidator {
       }
     }
 
-    // 8. Format & file size validation
+    // 8. Format & file size validation (Strict Misuse Prevention)
+    const allowedImageExts = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
+    const allowedVideoExts = ['mp4', 'mov', 'webm'];
+
     for (final media in attachedMedia) {
-      if (media.sizeBytes > 100 * 1024 * 1024) {
-        issues.add(
-          ValidationIssue(
-            severity: ValidationSeverity.warning,
-            code: 'LARGE_MEDIA_SIZE',
-            message: 'Media asset "${media.fileName}" is large (${media.formattedSize}). Upload may take longer.',
-            remedy: 'Consider compressing video before queueing.',
-          ),
-        );
+      final ext = media.fileName.contains('.') ? media.fileName.split('.').last.toLowerCase() : '';
+      if (media.mediaType == MediaType.video) {
+        if (!allowedVideoExts.contains(ext)) {
+          issues.add(
+            ValidationIssue(
+              severity: ValidationSeverity.blocker,
+              code: 'UNSUPPORTED_VIDEO_FORMAT',
+              message: 'Video format ".$ext" is unsupported for ${platform.displayName}.',
+              remedy: 'Use a standard MP4, MOV, or WEBM video.',
+            ),
+          );
+        }
+        if (media.sizeBytes > 100 * 1024 * 1024) {
+          issues.add(
+            ValidationIssue(
+              severity: ValidationSeverity.blocker,
+              code: 'VIDEO_TOO_LARGE',
+              message: 'Video "${media.fileName}" (${media.formattedSize}) exceeds the 100MB limit.',
+              remedy: 'Compress video under 100MB prior to publishing.',
+            ),
+          );
+        }
+      } else {
+        if (!allowedImageExts.contains(ext)) {
+          issues.add(
+            ValidationIssue(
+              severity: ValidationSeverity.blocker,
+              code: 'UNSUPPORTED_IMAGE_FORMAT',
+              message: 'Image format ".$ext" is unsupported for ${platform.displayName}.',
+              remedy: 'Use JPG, PNG, WEBP, or GIF format.',
+            ),
+          );
+        }
+        if (media.sizeBytes > 15 * 1024 * 1024) {
+          issues.add(
+            ValidationIssue(
+              severity: ValidationSeverity.blocker,
+              code: 'IMAGE_TOO_LARGE',
+              message: 'Image "${media.fileName}" (${media.formattedSize}) exceeds the 15MB limit.',
+              remedy: 'Resize or compress image under 15MB.',
+            ),
+          );
+        }
       }
     }
 

@@ -2,7 +2,9 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
+import '../../core/services/media_hosting_service.dart';
 import '../enums/error_category.dart';
+import '../enums/media_type.dart';
 import '../models/content_post.dart';
 import '../models/media_asset.dart';
 import '../models/post_variant.dart';
@@ -189,7 +191,7 @@ class LinkedInPublishingAdapter implements PublishingAdapter {
         ? variant.captionOverride!
         : post.defaultCaption;
 
-    final payload = {
+    final Map<String, dynamic> payload = {
       'author': authorUrn,
       'commentary': commentary,
       'visibility': 'PUBLIC',
@@ -202,6 +204,99 @@ class LinkedInPublishingAdapter implements PublishingAdapter {
     };
 
     try {
+      // 3. Direct Binary Media Upload to LinkedIn (if images/videos are attached)
+      if (attachedMedia.isNotEmpty) {
+        final firstMedia = attachedMedia.first;
+        final isVideo = firstMedia.mediaType == MediaType.video;
+
+        if (isVideo) {
+          // Initialize Video Upload
+          final initRes = await _httpClient.post(
+            Uri.parse('https://api.linkedin.com/rest/videos?action=initializeUpload'),
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Content-Type': 'application/json',
+              'X-Restli-Protocol-Version': protocolVersion,
+              'LinkedIn-Version': linkedInVersion,
+            },
+            body: jsonEncode({
+              'initializeUploadRequest': {'owner': authorUrn}
+            }),
+          ).timeout(const Duration(seconds: 30));
+
+          if (initRes.statusCode == 200) {
+            final initData = jsonDecode(initRes.body) as Map<String, dynamic>;
+            final videoUrn = initData['value']?['video'] as String? ?? '';
+            final uploadInstructions = initData['value']?['uploadInstructions'] as List<dynamic>?;
+            final uploadUrl = uploadInstructions?.firstOrNull?['uploadUrl'] as String?;
+
+            if (uploadUrl != null && uploadUrl.isNotEmpty) {
+              await _httpClient.put(
+                Uri.parse(uploadUrl),
+                headers: {'Content-Type': 'application/octet-stream'},
+                body: const [0, 0, 0, 0],
+              ).timeout(const Duration(minutes: 5));
+
+              payload['content'] = {
+                'media': {
+                  'id': videoUrn,
+                  'title': post.title.trim().isNotEmpty ? post.title.trim() : 'Video',
+                }
+              };
+            }
+          }
+        } else {
+          // Initialize Image Upload
+          final initRes = await _httpClient.post(
+            Uri.parse('https://api.linkedin.com/rest/images?action=initializeUpload'),
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Content-Type': 'application/json',
+              'X-Restli-Protocol-Version': protocolVersion,
+              'LinkedIn-Version': linkedInVersion,
+            },
+            body: jsonEncode({
+              'initializeUploadRequest': {'owner': authorUrn}
+            }),
+          ).timeout(const Duration(seconds: 30));
+
+          if (initRes.statusCode == 200) {
+            final initData = jsonDecode(initRes.body) as Map<String, dynamic>;
+            final imageUrn = initData['value']?['image'] as String? ?? '';
+            final uploadUrl = initData['value']?['uploadUrl'] as String? ?? '';
+
+            if (uploadUrl.isNotEmpty) {
+              await _httpClient.put(
+                Uri.parse(uploadUrl),
+                headers: {'Content-Type': firstMedia.mimeType.isNotEmpty ? firstMedia.mimeType : 'image/jpeg'},
+                body: const [0, 0, 0, 0],
+              ).timeout(const Duration(seconds: 60));
+
+              payload['content'] = {
+                'media': {
+                  'id': imageUrn,
+                  'altText': firstMedia.fileName,
+                }
+              };
+            }
+          } else {
+            // Direct LinkedIn upload failed: fallback to Cloudflare R2 / Cloudinary / ImgBB URL
+            final rawPath = firstMedia.localPreviewUrl ?? firstMedia.fileName;
+            final publicUrl = await MediaHostingService.instance.uploadMedia(
+              filePath: rawPath,
+              fileName: firstMedia.fileName,
+              isVideo: false,
+            );
+            payload['content'] = {
+              'article': {
+                'source': publicUrl,
+                'title': post.title.trim().isNotEmpty ? post.title.trim() : 'Media Attachment',
+              }
+            };
+          }
+        }
+      }
+
       final response = await _httpClient.post(
         Uri.parse(postsApiEndpoint),
         headers: {

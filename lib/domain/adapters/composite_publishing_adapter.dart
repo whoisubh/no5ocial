@@ -10,6 +10,7 @@ import 'linkedin_publishing_adapter.dart';
 import 'publishing_adapter.dart';
 import 'threads_publishing_adapter.dart';
 import 'x_publishing_adapter.dart';
+import 'youtube_publishing_adapter.dart';
 
 /// Routes publishing, preflight validation, and reconciliation to the appropriate
 /// platform-specific publishing adapter.
@@ -29,6 +30,7 @@ class CompositePublishingAdapter implements PublishingAdapter {
           PlatformType.linkedin: LinkedInPublishingAdapter(),
           PlatformType.x: XPublishingAdapter(),
           PlatformType.threads: ThreadsPublishingAdapter(),
+          PlatformType.youtube: YouTubePublishingAdapter(),
         };
 
   PublishingAdapter _adapterFor(SocialAccount account) {

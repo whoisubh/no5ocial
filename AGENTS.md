@@ -23,6 +23,9 @@ Build no5ocial as a secure, reliable internal publishing workflow for Shaadow. O
     - NEVER use `assets/logo/no5ocial_N.png` or arbitrary placeholders where the official full wordmark logo (`no5ocial_white.png` / `no5ocial.png`) is required.
     - All website pages (static legal pages `/legal/*`, landing pages, web shells) MUST include the official brand logo image (`/assets/logo/no5ocial_white.png`). Never render plain unbranded text or makeshift badges without the official logo.
     - Web favicon (`web/favicon.png`) and web app icons (`web/icons/*`) MUST always use the official brand logo, NEVER the default Flutter bird icon or unbranded placeholders.
+15. **Human Intervention & Mandatory Prompts**:
+    - Whenever an implementation requires external human credentials, secrets, API keys, bucket tokens, or developer portal setup, the agent MUST pause execution, explain clearly what is required, and provide a step-by-step guide explaining how the user can obtain those keys/setup.
+    - NEVER invent fake credentials, scaffold temporary dummy tokens, or defer security to a later phase. Build it production-ready directly.
 
 ## Architecture rules
 - Flutter presentation layer → application/use-case layer → domain models/interfaces → repository implementations.

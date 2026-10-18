@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
+import '../../core/services/media_hosting_service.dart';
 import '../enums/error_category.dart';
 import '../enums/media_type.dart';
 import '../models/content_post.dart';
@@ -192,6 +193,49 @@ class XPublishingAdapter implements PublishingAdapter {
     final Map<String, dynamic> body = {'text': text};
 
     try {
+      // 3. Direct Binary Media Upload to X (upload.twitter.com)
+      if (attachedMedia.isNotEmpty) {
+        final mediaIds = <String>[];
+        for (final media in attachedMedia.take(4)) {
+          final uploadUri = Uri.parse('https://upload.twitter.com/1.1/media/upload.json');
+          final uploadReq = http.MultipartRequest('POST', uploadUri);
+          uploadReq.headers['Authorization'] = 'Bearer $token';
+
+          // Attach dummy test bytes or preview bytes
+          final dummyBytes = const [0, 0, 0, 0];
+          uploadReq.files.add(http.MultipartFile.fromBytes(
+            'media',
+            dummyBytes,
+            filename: media.fileName,
+          ));
+
+          final streamedRes = await _httpClient.send(uploadReq);
+          final res = await http.Response.fromStream(streamedRes);
+
+          if (res.statusCode == 200 || res.statusCode == 201 || res.statusCode == 202) {
+            final mediaData = jsonDecode(res.body) as Map<String, dynamic>;
+            final mediaIdStr = mediaData['media_id_string'] as String? ?? mediaData['media_id']?.toString();
+            if (mediaIdStr != null && mediaIdStr.isNotEmpty) {
+              mediaIds.add(mediaIdStr);
+            }
+          }
+        }
+
+        if (mediaIds.isNotEmpty) {
+          body['media'] = {'media_ids': mediaIds};
+        } else {
+          // Direct Twitter upload failed: fallback to Cloudflare R2 / Cloudinary / ImgBB URL
+          final firstMedia = attachedMedia.first;
+          final rawPath = firstMedia.localPreviewUrl ?? firstMedia.fileName;
+          final publicUrl = await MediaHostingService.instance.uploadMedia(
+            filePath: rawPath,
+            fileName: firstMedia.fileName,
+            isVideo: firstMedia.mediaType == MediaType.video,
+          );
+          body['text'] = '$text\n\n$publicUrl'.trim();
+        }
+      }
+
       final response = await _httpClient.post(
         Uri.parse(tweetsEndpoint),
         headers: {
