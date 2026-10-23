@@ -268,3 +268,127 @@ enum SystemBottleneckType {
     }
   }
 }
+
+/// 2-Day Publishing Pass (10 Coins = 2 Posts over 2 Days)
+/// Stored in local SQLite and synced to Firebase Cloud Firestore.
+@immutable
+class PublishingPass {
+  final String id;
+  final String userId;
+  final int costCoins; // default 10
+  final int maxPosts; // default 2
+  final int postsUsed; // default 0
+  final int durationDays; // default 2
+  final DateTime activatedAt;
+  final DateTime expiresAt;
+  final bool isActive;
+
+  const PublishingPass({
+    required this.id,
+    required this.userId,
+    this.costCoins = 10,
+    this.maxPosts = 2,
+    this.postsUsed = 0,
+    this.durationDays = 2,
+    required this.activatedAt,
+    required this.expiresAt,
+    this.isActive = true,
+  });
+
+  int get postsRemaining => (maxPosts - postsUsed).clamp(0, maxPosts);
+  bool get hasPostsRemaining => postsRemaining > 0;
+  bool get isExpired => DateTime.now().toUtc().isAfter(expiresAt);
+  bool get isValid => isActive && !isExpired && hasPostsRemaining;
+
+  Duration get remainingTime {
+    if (isExpired) return Duration.zero;
+    return expiresAt.difference(DateTime.now().toUtc());
+  }
+
+  String get remainingTimeString {
+    final rem = remainingTime;
+    if (rem.inMinutes <= 0) return 'Expired';
+    final hours = rem.inHours;
+    final mins = rem.inMinutes.remainder(60);
+    if (hours > 0) {
+      return '${hours}h ${mins}m remaining';
+    }
+    return '${mins}m remaining';
+  }
+
+  PublishingPass copyWith({
+    String? id,
+    String? userId,
+    int? costCoins,
+    int? maxPosts,
+    int? postsUsed,
+    int? durationDays,
+    DateTime? activatedAt,
+    DateTime? expiresAt,
+    bool? isActive,
+  }) {
+    return PublishingPass(
+      id: id ?? this.id,
+      userId: userId ?? this.userId,
+      costCoins: costCoins ?? this.costCoins,
+      maxPosts: maxPosts ?? this.maxPosts,
+      postsUsed: postsUsed ?? this.postsUsed,
+      durationDays: durationDays ?? this.durationDays,
+      activatedAt: activatedAt ?? this.activatedAt,
+      expiresAt: expiresAt ?? this.expiresAt,
+      isActive: isActive ?? this.isActive,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'user_id': userId,
+        'cost_coins': costCoins,
+        'max_posts': maxPosts,
+        'posts_used': postsUsed,
+        'posts_remaining': postsRemaining,
+        'duration_days': durationDays,
+        'activated_at_utc': activatedAt.toUtc().toIso8601String(),
+        'expires_at_utc': expiresAt.toUtc().toIso8601String(),
+        'is_active': isActive,
+        'updated_at_utc': DateTime.now().toUtc().toIso8601String(),
+      };
+
+  factory PublishingPass.fromJson(Map<String, dynamic> json) {
+    final activated = DateTime.tryParse(json['activated_at_utc']?.toString() ?? json['activatedAt']?.toString() ?? '')?.toUtc() ?? DateTime.now().toUtc();
+    final duration = json['duration_days'] as int? ?? json['durationDays'] as int? ?? 2;
+    final expires = DateTime.tryParse(json['expires_at_utc']?.toString() ?? json['expiresAt']?.toString() ?? '')?.toUtc() ?? activated.add(Duration(days: duration));
+
+    return PublishingPass(
+      id: json['id'] as String? ?? 'pass_${DateTime.now().millisecondsSinceEpoch}',
+      userId: json['user_id'] as String? ?? json['userId'] as String? ?? '',
+      costCoins: json['cost_coins'] as int? ?? json['costCoins'] as int? ?? 10,
+      maxPosts: json['max_posts'] as int? ?? json['maxPosts'] as int? ?? 2,
+      postsUsed: json['posts_used'] as int? ?? json['postsUsed'] as int? ?? 0,
+      durationDays: duration,
+      activatedAt: activated,
+      expiresAt: expires,
+      isActive: json['is_active'] == 1 || json['is_active'] == true || json['isActive'] == true,
+    );
+  }
+}
+
+/// Evaluation result for composer publish/schedule action
+@immutable
+class PublishingAccessResult {
+  final bool canPublish;
+  final bool canActivatePass;
+  final bool requiresCoins;
+  final int coinsNeeded;
+  final String message;
+  final PublishingPass? activePass;
+
+  const PublishingAccessResult({
+    required this.canPublish,
+    this.canActivatePass = false,
+    this.requiresCoins = false,
+    this.coinsNeeded = 0,
+    required this.message,
+    this.activePass,
+  });
+}

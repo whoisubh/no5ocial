@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:no5ocial/core/services/monetization_service.dart';
 import 'package:no5ocial/core/theme/app_colors.dart';
-import 'package:no5ocial/domain/models/monetization/monetization_models.dart';
 import 'package:no5ocial/presentation/state/app_state.dart';
 
 /// Consumer Settings Section for the Ad-Supported Publishing & Coin System.
@@ -17,6 +16,7 @@ class MonetizationSettingsView extends StatefulWidget {
 
 class _MonetizationSettingsViewState extends State<MonetizationSettingsView> {
   bool _isWatchingAd = false;
+  bool _isActivatingPass = false;
 
   @override
   Widget build(BuildContext context) {
@@ -24,12 +24,13 @@ class _MonetizationSettingsViewState extends State<MonetizationSettingsView> {
       listenable: MonetizationService.instance,
       builder: (context, _) {
         final monetization = MonetizationService.instance;
-        final ceiling = monetization.dailyCeiling;
+        final pass = monetization.activePass;
+        final isPassActive = pass != null && pass.isValid;
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // 1. Publishing Coins (Credits) Wallet Card (Primary Ad-System Action)
+            // 1. Publishing Coins (Credits) Wallet Card
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -73,7 +74,7 @@ class _MonetizationSettingsViewState extends State<MonetizationSettingsView> {
                             ),
                             SizedBox(height: 2),
                             Text(
-                              '1 Coin = 1 Multi-Platform Post',
+                              '10 Coins = 2 Posts in 2 Days',
                               style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
                             ),
                           ],
@@ -105,7 +106,7 @@ class _MonetizationSettingsViewState extends State<MonetizationSettingsView> {
                   ),
                   const SizedBox(height: 12),
                   const Text(
-                    'Reached your daily free post limit? Watch a short partner video ad to earn Coins and keep publishing across all your social channels.',
+                    'Watch short partner video ads to earn Coins. Collect 10 Coins to unlock a 2-Day Pass and publish up to 2 multi-platform posts.',
                     style: TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.4),
                   ),
                   const SizedBox(height: 14),
@@ -156,150 +157,193 @@ class _MonetizationSettingsViewState extends State<MonetizationSettingsView> {
             ),
             const SizedBox(height: 14),
 
-            // 2. Active Free & Ad-Supported Plan Card
+            // 2. 2-Day Publishing Pass Status Card (10 Coins = 2 Posts over 2 Days)
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: AppColors.surface,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.border),
-                boxShadow: AppColors.cardShadow,
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppColors.accent.withAlpha(20),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(
-                      Icons.all_inclusive_rounded,
-                      color: AppColors.accent,
-                      size: 22,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Free & Ad-Supported',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.ink),
-                        ),
-                        SizedBox(height: 2),
-                        Text(
-                          '10 daily free posts • Unlimited with Coins',
-                          style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFECFDF5),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: const Color(0xFFA7F3D0)),
-                    ),
-                    child: const Text(
-                      'ACTIVE',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF059669),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 14),
-
-            // 3. Daily Quota Metric Card
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.border),
+                border: Border.all(
+                  color: isPassActive ? const Color(0xFFA7F3D0) : AppColors.border,
+                ),
                 boxShadow: AppColors.cardShadow,
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Row(
+                  Row(
                     children: [
-                      Icon(Icons.bar_chart_rounded, color: AppColors.accent, size: 20),
-                      SizedBox(width: 8),
-                      Text(
-                        'Daily Free Post Quota',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.ink),
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: isPassActive ? const Color(0xFFECFDF5) : AppColors.surfaceSecondary,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(
+                          Icons.confirmation_number_rounded,
+                          color: isPassActive ? const Color(0xFF059669) : AppColors.textSecondary,
+                          size: 22,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              '2-Day Publishing Pass',
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.ink),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              isPassActive
+                                  ? '${pass.postsRemaining} of ${pass.maxPosts} posts remaining'
+                                  : '10 Coins for 2 posts in 2 days',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: isPassActive ? const Color(0xFF059669) : AppColors.textSecondary,
+                                fontWeight: isPassActive ? FontWeight.w600 : FontWeight.normal,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: isPassActive ? const Color(0xFFECFDF5) : AppColors.surfaceSecondary,
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(
+                            color: isPassActive ? const Color(0xFFA7F3D0) : AppColors.border,
+                          ),
+                        ),
+                        child: Text(
+                          isPassActive ? 'ACTIVE' : 'INACTIVE',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: isPassActive ? const Color(0xFF059669) : AppColors.textSecondary,
+                          ),
+                        ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'Includes 10 daily scheduled posts. Extra posts consume 1 Coin each.',
-                    style: TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.4),
-                  ),
-                  const SizedBox(height: 14),
-
-                  _buildQuotaMetric(
-                    label: 'Scheduled Posts Today',
-                    current: ceiling.scheduledPostsToday,
-                    max: DailyRewardCeiling.maxFreeScheduledPostsPerDay,
-                    unit: 'posts',
-                    color: AppColors.accent,
-                  ),
+                  const SizedBox(height: 12),
+                  if (isPassActive) ...[
+                    Row(
+                      children: [
+                        const Icon(Icons.timer_outlined, size: 14, color: AppColors.textSecondary),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Expires in ${pass.remainingTimeString}',
+                          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: List.generate(pass.maxPosts, (index) {
+                        final isUsed = index < pass.postsUsed;
+                        return Expanded(
+                          child: Container(
+                            margin: EdgeInsets.only(right: index == pass.maxPosts - 1 ? 0 : 8),
+                            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+                            decoration: BoxDecoration(
+                              color: isUsed ? AppColors.surfaceSecondary : const Color(0xFFECFDF5),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: isUsed ? AppColors.border : const Color(0xFFA7F3D0),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  isUsed ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+                                  size: 16,
+                                  color: isUsed ? AppColors.textSecondary : const Color(0xFF059669),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Post ${index + 1}: ${isUsed ? "Used" : "Available"}',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: isUsed ? AppColors.textSecondary : const Color(0xFF059669),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }),
+                    ),
+                  ] else ...[
+                    Text(
+                      monetization.postCoins >= 10
+                          ? 'You have enough Coins! Activate your 2-Day Pass to publish 2 posts across all connected channels.'
+                          : 'You need 10 Coins to activate a pass. You currently have ${monetization.postCoins} Coins (${10 - monetization.postCoins} more needed).',
+                      style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.4),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: (_isActivatingPass || monetization.postCoins < 10)
+                            ? null
+                            : () async {
+                                setState(() => _isActivatingPass = true);
+                                final messenger = ScaffoldMessenger.of(context);
+                                final res = await monetization.activateTwoDayPass(
+                                  userId: widget.appState.localUserId,
+                                );
+                                if (mounted) {
+                                  setState(() => _isActivatingPass = false);
+                                  messenger.showSnackBar(
+                                    SnackBar(
+                                      content: Text(res.message),
+                                      backgroundColor: res.success ? const Color(0xFF059669) : AppColors.error,
+                                    ),
+                                  );
+                                }
+                              },
+                        icon: _isActivatingPass
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              )
+                            : const Icon(Icons.bolt_rounded, size: 18),
+                        label: Text(
+                          _isActivatingPass
+                              ? 'Activating Pass...'
+                              : (monetization.postCoins >= 10
+                                  ? 'Activate 2-Day Pass (10 Coins)'
+                                  : 'Need 10 Coins (${10 - monetization.postCoins} more needed)'),
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF059669),
+                          foregroundColor: Colors.white,
+                          disabledBackgroundColor: AppColors.surfaceSecondary,
+                          disabledForegroundColor: AppColors.textSecondary,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          elevation: 0,
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
             const SizedBox(height: 14),
 
-            // 4. Real Database & Cloud Synced Transaction Ledger
+            // 3. Real Database & Cloud Synced Transaction Ledger
             _buildTransactionLedgerCard(monetization.coinTransactions),
           ],
         );
       },
-    );
-  }
-
-  Widget _buildQuotaMetric({
-    required String label,
-    required int current,
-    required int max,
-    required String unit,
-    required Color color,
-  }) {
-    final progress = (current / max).clamp(0.0, 1.0);
-    final isFull = current >= max;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(label, style: const TextStyle(fontSize: 12, color: AppColors.ink)),
-            Text(
-              '$current / $max $unit',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isFull ? AppColors.error : AppColors.ink),
-            ),
-          ],
-        ),
-        const SizedBox(height: 6),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: LinearProgressIndicator(
-            value: progress,
-            backgroundColor: AppColors.surfaceSecondary,
-            valueColor: AlwaysStoppedAnimation<Color>(isFull ? AppColors.error : color),
-            minHeight: 6,
-          ),
-        ),
-      ],
     );
   }
 

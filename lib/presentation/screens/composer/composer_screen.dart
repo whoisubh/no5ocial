@@ -32,7 +32,6 @@ import 'package:no5ocial/core/services/google_auth_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:no5ocial/core/services/video_thumbnail_service.dart';
 import 'package:no5ocial/core/services/monetization_service.dart';
-import 'package:no5ocial/presentation/widgets/monetization/upgrade_paywall_sheet.dart';
 
 class ComposerScreen extends StatefulWidget {
   final AppState appState;
@@ -586,27 +585,103 @@ class _ComposerScreenState extends State<ComposerScreen>
 
     final isScheduled = _scheduledDateTime != null;
 
-    // --- Monetization & Bottleneck Gatekeeper for Scheduled Posts ---
-    bool usedCoin = false;
-    if (isScheduled) {
-      final access = MonetizationService.instance.evaluateSchedulingAccess(
-        workspaceMode: widget.appState.workspaceMode,
-        memberCount: widget.appState.teamMembers.length,
-      );
-      if (access.requiresCoin) {
-        usedCoin = true;
-      } else if (!access.canSchedule && access.bottleneck != null) {
-        // Daily limit reached and 0 coins: show the ad & coin reward sheet
-        final watchedAd = await UpgradePaywallSheet.show(
-          context,
-          bottleneck: access.bottleneck!,
+    // --- 2-Day Publishing Pass (10 Coins = 2 Posts over 2 Days) Gatekeeper ---
+    final access = MonetizationService.instance.evaluatePublishingAccess(
+      userId: widget.appState.localUserId,
+    );
+
+    bool needsPassActivation = false;
+
+    if (!access.canPublish) {
+      if (access.canActivatePass) {
+        // User has no active pass, but has >= 10 Coins in DB wallet
+        final shouldActivate = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.confirmation_number_rounded, color: Color(0xFF059669), size: 22),
+                SizedBox(width: 8),
+                Text('Activate 2-Day Pass?'),
+              ],
+            ),
+            content: Text(
+              'In no5ocial, publishing requires an active 2-Day Pass (10 Coins = 2 posts over 2 days).\n\n'
+              'You have ${MonetizationService.instance.postCoins} Coins in your verified database wallet.\n\n'
+              'Spend 10 Coins to activate your 2-Day Pass and publish this post now? (1 post will remain valid for 48 hours).',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF059669),
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Activate Pass & Post (10 Coins)'),
+              ),
+            ],
+          ),
         );
 
-        if (watchedAd == true) {
-          usedCoin = true;
+        if (shouldActivate == true) {
+          needsPassActivation = true;
         } else {
           return;
         }
+      } else {
+        // User has < 10 Coins: show prompt to watch rewarded video ads
+        final watched = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.monetization_on_rounded, color: Color(0xFFD97706), size: 22),
+                SizedBox(width: 8),
+                Text('Need 10 Coins to Post'),
+              ],
+            ),
+            content: Text(
+              'In no5ocial, 10 Coins unlocks a 2-Day Pass allowing 2 multi-platform posts over 2 days.\n\n'
+              'You currently have ${MonetizationService.instance.postCoins} Coins (${access.coinsNeeded} more needed).\n\n'
+              'Watch partner video ads to earn Coins!',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton.icon(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                icon: const Icon(Icons.play_circle_filled_rounded, size: 16),
+                label: const Text('Watch Ad (+2 Coins)'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFD97706),
+                  foregroundColor: Colors.white,
+                ),
+              ),
+            ],
+          ),
+        );
+
+        if (watched == true) {
+          final res = await MonetizationService.instance.watchAdForCoins(
+            rewardAmount: 2,
+            userId: widget.appState.localUserId,
+          );
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(res.message),
+                backgroundColor: res.success ? const Color(0xFF059669) : AppColors.error,
+              ),
+            );
+          }
+        }
+        return;
       }
     }
 
@@ -616,6 +691,12 @@ class _ComposerScreenState extends State<ComposerScreen>
         ? 'Submit for Review'
         : (isScheduled ? 'Schedule' : 'Publish');
 
+    final passInfo = needsPassActivation
+        ? '\n\n🪙 10 Coins will activate a 2-Day Pass (Post 1 of 2 will be used).'
+        : (access.activePass != null
+            ? '\n\n🎫 Will use Post ${access.activePass!.postsUsed + 1} of 2 on your active 2-Day Pass (${access.activePass!.remainingTimeString}).'
+            : '');
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -624,8 +705,8 @@ class _ComposerScreenState extends State<ComposerScreen>
           !canPublish
               ? 'As an Uploader, this post will be submitted to your workspace review queue for a Social Media Manager or Administrator to approve.'
               : (isScheduled
-                  ? 'Are you sure you want to schedule this post for ${DateFormatter.formatToLocal(_scheduledDateTime)} across ${_selectedAccountIds.length} target channels?${usedCoin ? "\n\n🪙 1 Coin will be used from your wallet." : ""}'
-                  : 'Are you sure you want to immediately publish this post to ${_selectedAccountIds.length} target channels?'),
+                  ? 'Are you sure you want to schedule this post for ${DateFormatter.formatToLocal(_scheduledDateTime)} across ${_selectedAccountIds.length} target channels?$passInfo'
+                  : 'Are you sure you want to immediately publish this post to ${_selectedAccountIds.length} target channels?$passInfo'),
         ),
         actions: [
           TextButton(
@@ -690,15 +771,16 @@ class _ComposerScreenState extends State<ComposerScreen>
         return;
       }
 
-      if (isScheduled) {
-        if (usedCoin) {
-          await MonetizationService.instance.consumePostCoin(
+      if (canPublish) {
+        if (needsPassActivation) {
+          await MonetizationService.instance.activateTwoDayPass(
             userId: widget.appState.localUserId,
-            postId: post.id,
           );
-        } else {
-          await MonetizationService.instance.recordScheduledPost();
         }
+        await MonetizationService.instance.consumePostOnPass(
+          userId: widget.appState.localUserId,
+          postId: post.id,
+        );
       }
 
       if (!mounted) return;

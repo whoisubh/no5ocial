@@ -11,6 +11,7 @@ import 'package:no5ocial/domain/models/channel_group.dart';
 import 'package:no5ocial/domain/models/content_post.dart';
 import 'package:no5ocial/domain/models/passkey_credential.dart';
 import 'package:no5ocial/domain/models/social_account.dart';
+import 'package:no5ocial/domain/models/monetization/monetization_models.dart';
 
 enum FirebaseSyncStatus {
   idle,
@@ -259,6 +260,57 @@ class FirebaseSyncService extends ChangeNotifier {
         }
       } catch (e) {
         debugPrint('FirebaseSyncService: Error syncing wallet: $e');
+      }
+
+      // 5.1 Push & Synchronize Unsynced Coin Transactions
+      try {
+        final unsyncedTx = await db.getUnsyncedRecords('coin_transactions');
+        for (final tx in unsyncedTx) {
+          final txId = tx['id'] as String?;
+          if (txId != null && txId.isNotEmpty) {
+            await userRef.collection('wallet_transactions').doc(txId).set(
+              Map<String, dynamic>.from(tx),
+              SetOptions(merge: true),
+            );
+          }
+        }
+        if (unsyncedTx.isNotEmpty) {
+          await db.markRecordsAsSynced(
+            tableName: 'coin_transactions',
+            recordIds: unsyncedTx.map((t) => t['id'] as String).toList(),
+            syncedAtUtc: nowUtc,
+          );
+        }
+      } catch (e) {
+        debugPrint('FirebaseSyncService: Error syncing coin transactions: $e');
+      }
+
+      // 5.2 2-Day Publishing Pass Cloud Synchronization (users/{userId}/publishing_pass/current)
+      try {
+        final passDocSnap = await userRef.collection('publishing_pass').doc('current').get();
+        final localPass = await db.getActivePublishingPass(userId);
+
+        if (passDocSnap.exists && passDocSnap.data() != null) {
+          final remotePassData = passDocSnap.data()!;
+          final remoteUpdated = remotePassData['updated_at_utc'] as String? ?? '';
+          final localUpdated = localPass?.activatedAt.toUtc().toIso8601String() ?? '';
+
+          if (localPass == null || remoteUpdated.compareTo(localUpdated) >= 0) {
+            await db.savePublishingPass(remotePassData);
+          } else {
+            await userRef.collection('publishing_pass').doc('current').set(
+              localPass.toJson(),
+              SetOptions(merge: true),
+            );
+          }
+        } else if (localPass != null) {
+          await userRef.collection('publishing_pass').doc('current').set(
+            localPass.toJson(),
+            SetOptions(merge: true),
+          );
+        }
+      } catch (e) {
+        debugPrint('FirebaseSyncService: Error syncing publishing pass: $e');
       }
 
       // =========================================================================
@@ -816,6 +868,62 @@ class FirebaseSyncService extends ChangeNotifier {
       debugPrint('FirebaseSyncService: Error pulling wallet balance: $e');
     }
     return null;
+  }
+
+  /// Push 2-day publishing pass status to Cloud Firestore
+  Future<void> pushPublishingPass(String userId, Map<String, dynamic> passData) async {
+    if (userId.isEmpty || firestore == null) return;
+    try {
+      final mutable = Map<String, dynamic>.from(passData);
+      mutable['updated_at_utc'] = DateTime.now().toUtc().toIso8601String();
+      await firestore!
+          .collection('users')
+          .doc(userId)
+          .collection('publishing_pass')
+          .doc('current')
+          .set(mutable, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('FirebaseSyncService: Error pushing publishing pass: $e');
+    }
+  }
+
+  /// Pull 2-day publishing pass from Cloud Firestore
+  Future<PublishingPass?> pullPublishingPass(String userId) async {
+    if (userId.isEmpty || firestore == null) return null;
+    try {
+      final doc = await firestore!
+          .collection('users')
+          .doc(userId)
+          .collection('publishing_pass')
+          .doc('current')
+          .get();
+      if (doc.exists && doc.data() != null) {
+        final pass = PublishingPass.fromJson(doc.data()!);
+        await AppDatabase.instance.savePublishingPass(doc.data()!);
+        return pass;
+      }
+    } catch (e) {
+      debugPrint('FirebaseSyncService: Error pulling publishing pass: $e');
+    }
+    return null;
+  }
+
+  /// Push an individual coin transaction to Cloud Firestore
+  Future<void> pushCoinTransaction(String userId, Map<String, dynamic> tx) async {
+    if (userId.isEmpty || firestore == null) return;
+    try {
+      final txId = tx['id'] as String? ?? 'tx-${DateTime.now().millisecondsSinceEpoch}';
+      final mutable = Map<String, dynamic>.from(tx);
+      mutable['updated_at_utc'] = DateTime.now().toUtc().toIso8601String();
+      await firestore!
+          .collection('users')
+          .doc(userId)
+          .collection('wallet_transactions')
+          .doc(txId)
+          .set(mutable, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('FirebaseSyncService: Error pushing coin transaction: $e');
+    }
   }
 
   /// Formatted last sync time string

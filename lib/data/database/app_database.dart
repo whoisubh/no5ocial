@@ -17,6 +17,7 @@ import 'package:no5ocial/domain/models/publish_job.dart';
 import 'package:no5ocial/domain/models/social_account.dart';
 import 'package:no5ocial/domain/models/org_member.dart';
 import 'package:no5ocial/domain/models/org_invite.dart';
+import 'package:no5ocial/domain/models/monetization/monetization_models.dart';
 
 class AppDatabase {
   static AppDatabase? _instance;
@@ -331,6 +332,23 @@ class AppDatabase {
       )
     ''');
 
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS publishing_passes (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        cost_coins INTEGER NOT NULL DEFAULT 10,
+        max_posts INTEGER NOT NULL DEFAULT 2,
+        posts_used INTEGER NOT NULL DEFAULT 0,
+        duration_days INTEGER NOT NULL DEFAULT 2,
+        activated_at_utc TEXT NOT NULL,
+        expires_at_utc TEXT NOT NULL,
+        is_active INTEGER NOT NULL DEFAULT 1,
+        created_at_utc TEXT NOT NULL,
+        updated_at_utc TEXT NOT NULL,
+        synced_at_utc TEXT
+      )
+    ''');
+
     // Run schema migrations safely to add sync tracking metadata columns
     await _ensureSyncColumns(db, 'brands');
     await _ensureSyncColumns(db, 'channel_groups');
@@ -344,6 +362,7 @@ class AppDatabase {
     await _ensureSyncColumns(db, 'org_invites');
     await _ensureSyncColumns(db, 'user_wallets');
     await _ensureSyncColumns(db, 'coin_transactions');
+    await _ensureSyncColumns(db, 'publishing_passes');
   }
 
   Future<void> _ensureSyncColumns(Database db, String tableName) async {
@@ -1113,6 +1132,227 @@ class AppDatabase {
       orderBy: 'created_at_utc DESC',
       limit: limit,
     );
+  }
+
+  // ==============================================================================
+  // 2-Day Publishing Pass Operations (10 Coins = 2 Posts over 2 Days)
+  // ==============================================================================
+
+  /// Returns the current active and unexpired publishing pass for the user
+  Future<PublishingPass?> getActivePublishingPass(String userId) async {
+    final db = await database;
+    final nowUtc = DateTime.now().toUtc();
+    final rows = await db.query(
+      'publishing_passes',
+      where: 'user_id = ? AND is_active = 1',
+      whereArgs: [userId],
+      orderBy: 'activated_at_utc DESC',
+      limit: 1,
+    );
+
+    if (rows.isEmpty) return null;
+    final pass = PublishingPass.fromJson(rows.first);
+
+    // If 48 hours have elapsed or posts exhausted, mark inactive in SQLite
+    if (nowUtc.isAfter(pass.expiresAt) || pass.postsUsed >= pass.maxPosts) {
+      await db.update(
+        'publishing_passes',
+        {
+          'is_active': 0,
+          'updated_at_utc': nowUtc.toIso8601String(),
+        },
+        where: 'id = ?',
+        whereArgs: [pass.id],
+      );
+      return null;
+    }
+
+    return pass;
+  }
+
+  /// Activates a 2-day publishing pass by deducting 10 coins atomically
+  Future<PublishingPass?> activatePublishingPass({
+    required String userId,
+    int costCoins = 10,
+    int maxPosts = 2,
+    int durationDays = 2,
+  }) async {
+    final db = await database;
+    final nowUtc = DateTime.now().toUtc();
+    final nowStr = nowUtc.toIso8601String();
+    final expiresStr = nowUtc.add(Duration(days: durationDays)).toIso8601String();
+
+    return await db.transaction<PublishingPass?>((txn) async {
+      // 1. Verify coin balance >= costCoins
+      final walletRows = await txn.query(
+        'user_wallets',
+        where: 'user_id = ?',
+        whereArgs: [userId],
+        limit: 1,
+      );
+
+      final balance = walletRows.isNotEmpty ? (walletRows.first['balance'] as int? ?? 0) : 0;
+      if (balance < costCoins) {
+        return null; // Insufficient coins
+      }
+
+      final spent = walletRows.isNotEmpty ? (walletRows.first['total_spent'] as int? ?? 0) : 0;
+      final newBalance = balance - costCoins;
+      final newSpent = spent + costCoins;
+
+      // 2. Deduct coins from wallet
+      await txn.update(
+        'user_wallets',
+        {
+          'balance': newBalance,
+          'total_spent': newSpent,
+          'updated_at_utc': nowStr,
+        },
+        where: 'user_id = ?',
+        whereArgs: [userId],
+      );
+
+      // 3. Record transaction in ledger
+      final txId = 'tx-${nowUtc.millisecondsSinceEpoch}-${userId.hashCode.abs().toString().padLeft(4, '0')}';
+      await txn.insert('coin_transactions', {
+        'id': txId,
+        'user_id': userId,
+        'amount': -costCoins,
+        'balance_after': newBalance,
+        'type': 'pass_activation',
+        'description': '$durationDays-Day Pass (2 Posts for $costCoins Coins)',
+        'reference_id': null,
+        'created_at_utc': nowStr,
+        'updated_at_utc': nowStr,
+      });
+
+      // 4. Mark all existing passes for this user inactive
+      await txn.update(
+        'publishing_passes',
+        {'is_active': 0, 'updated_at_utc': nowStr},
+        where: 'user_id = ?',
+        whereArgs: [userId],
+      );
+
+      // 5. Create new active pass
+      final passId = 'pass-${nowUtc.millisecondsSinceEpoch}-${userId.hashCode.abs().toString().padLeft(4, '0')}';
+      final passData = {
+        'id': passId,
+        'user_id': userId,
+        'cost_coins': costCoins,
+        'max_posts': maxPosts,
+        'posts_used': 0,
+        'duration_days': durationDays,
+        'activated_at_utc': nowStr,
+        'expires_at_utc': expiresStr,
+        'is_active': 1,
+        'created_at_utc': nowStr,
+        'updated_at_utc': nowStr,
+      };
+
+      await txn.insert('publishing_passes', passData);
+
+      return PublishingPass.fromJson(passData);
+    });
+  }
+
+  /// Consumes 1 post from the user's active pass
+  Future<PublishingPass?> consumePostFromPass({
+    required String userId,
+    String? postId,
+  }) async {
+    final db = await database;
+    final nowUtc = DateTime.now().toUtc();
+    final nowStr = nowUtc.toIso8601String();
+
+    return await db.transaction<PublishingPass?>((txn) async {
+      final rows = await txn.query(
+        'publishing_passes',
+        where: 'user_id = ? AND is_active = 1',
+        whereArgs: [userId],
+        orderBy: 'activated_at_utc DESC',
+        limit: 1,
+      );
+
+      if (rows.isEmpty) return null;
+      final currentPass = PublishingPass.fromJson(rows.first);
+
+      if (nowUtc.isAfter(currentPass.expiresAt)) {
+        await txn.update(
+          'publishing_passes',
+          {'is_active': 0, 'updated_at_utc': nowStr},
+          where: 'id = ?',
+          whereArgs: [currentPass.id],
+        );
+        return null;
+      }
+
+      final newUsed = currentPass.postsUsed + 1;
+      final shouldDeactivate = newUsed >= currentPass.maxPosts;
+
+      await txn.update(
+        'publishing_passes',
+        {
+          'posts_used': newUsed,
+          'is_active': shouldDeactivate ? 0 : 1,
+          'updated_at_utc': nowStr,
+        },
+        where: 'id = ?',
+        whereArgs: [currentPass.id],
+      );
+
+      // Record post usage in coin transactions ledger (audited record)
+      final txId = 'tx-${nowUtc.millisecondsSinceEpoch}-${userId.hashCode.abs().toString().padLeft(4, '0')}';
+      final balance = await getCoinBalance(userId);
+      await txn.insert('coin_transactions', {
+        'id': txId,
+        'user_id': userId,
+        'amount': 0,
+        'balance_after': balance,
+        'type': 'post_published',
+        'description': 'Post published ($newUsed of ${currentPass.maxPosts} used on 2-Day Pass)',
+        'reference_id': postId,
+        'created_at_utc': nowStr,
+        'updated_at_utc': nowStr,
+      });
+
+      return currentPass.copyWith(
+        postsUsed: newUsed,
+        isActive: !shouldDeactivate,
+      );
+    });
+  }
+
+  /// Saves or reconciles a publishing pass from Firebase Cloud Firestore
+  Future<void> savePublishingPass(Map<String, dynamic> passData) async {
+    final db = await database;
+    final id = passData['id'] as String?;
+    if (id == null || id.isEmpty) return;
+
+    final existing = await db.query('publishing_passes', where: 'id = ?', whereArgs: [id], limit: 1);
+    final mutable = Map<String, dynamic>.from(passData);
+    if (!mutable.containsKey('updated_at_utc')) {
+      mutable['updated_at_utc'] = DateTime.now().toUtc().toIso8601String();
+    }
+
+    if (existing.isEmpty) {
+      await db.insert('publishing_passes', mutable, conflictAlgorithm: ConflictAlgorithm.replace);
+    } else {
+      await db.update('publishing_passes', mutable, where: 'id = ?', whereArgs: [id]);
+    }
+  }
+
+  /// Returns historical publishing passes for this user
+  Future<List<PublishingPass>> getPublishingPassHistory(String userId, {int limit = 10}) async {
+    final db = await database;
+    final rows = await db.query(
+      'publishing_passes',
+      where: 'user_id = ?',
+      whereArgs: [userId],
+      orderBy: 'activated_at_utc DESC',
+      limit: limit,
+    );
+    return rows.map((r) => PublishingPass.fromJson(r)).toList();
   }
 
   // ==============================================================================

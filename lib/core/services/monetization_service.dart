@@ -24,6 +24,7 @@ class MonetizationService extends ChangeNotifier {
   int _offerwallCredits = 0;
   int _postCoins = 0;
   String? _activeUserId;
+  PublishingPass? _activePass;
   List<Map<String, dynamic>> _coinTransactions = const [];
   bool _isInitialized = false;
 
@@ -33,6 +34,7 @@ class MonetizationService extends ChangeNotifier {
   int get offerwallCredits => _offerwallCredits;
   int get postCoins => _postCoins;
   String? get activeUserId => _activeUserId;
+  PublishingPass? get activePass => _activePass;
   List<Map<String, dynamic>> get coinTransactions => _coinTransactions;
   bool get isInitialized => _isInitialized;
 
@@ -69,6 +71,7 @@ class MonetizationService extends ChangeNotifier {
       } else {
         _postCoins = await AppDatabase.instance.getCoinBalance('local_user');
         _coinTransactions = await AppDatabase.instance.getCoinTransactions('local_user');
+        _activePass = await AppDatabase.instance.getActivePublishingPass('local_user');
       }
 
       _isInitialized = true;
@@ -313,7 +316,16 @@ class MonetizationService extends ChangeNotifier {
     try {
       _postCoins = await AppDatabase.instance.getCoinBalance(userId);
       _coinTransactions = await AppDatabase.instance.getCoinTransactions(userId);
+      _activePass = await AppDatabase.instance.getActivePublishingPass(userId);
       notifyListeners();
+
+      // Background pull from Cloud Firestore to reconcile
+      unawaited(FirebaseSyncService.instance.pullPublishingPass(userId).then((remotePass) {
+        if (remotePass != null) {
+          _activePass = remotePass.isValid ? remotePass : null;
+          notifyListeners();
+        }
+      }));
     } catch (e) {
       debugPrint('MonetizationService: Error loading real wallet from database: $e');
     }
@@ -337,6 +349,9 @@ class MonetizationService extends ChangeNotifier {
         );
         _coinTransactions = await AppDatabase.instance.getCoinTransactions(uid);
         unawaited(FirebaseSyncService.instance.pushWallet(uid, _postCoins));
+        if (_coinTransactions.isNotEmpty) {
+          unawaited(FirebaseSyncService.instance.pushCoinTransaction(uid, _coinTransactions.first));
+        }
         notifyListeners();
         return (
           success: true,
@@ -360,33 +375,126 @@ class MonetizationService extends ChangeNotifier {
     }
   }
 
-  /// Consumes 1 coin for publishing or scheduling a post beyond daily quota.
-  /// Deducts coin and records real transaction in SQLite & Cloud Firestore.
-  Future<bool> consumePostCoin({String? userId, String? postId}) async {
-    if (_currentPlan.isPaid) return true;
-    final uid = userId ?? _activeUserId ?? (await SessionService.instance.getSession())?['id'] as String? ?? 'local_user';
-    try {
-      final ok = await AppDatabase.instance.spendCoinFromWallet(
-        userId: uid,
-        description: 'Multi-destination post publishing',
-        postId: postId,
+  /// Evaluates whether the user can publish or schedule a post.
+  /// In no5ocial: 10 coins unlocks 2 posts over 2 days.
+  PublishingAccessResult evaluatePublishingAccess({String? userId}) {
+    if (_activePass != null && _activePass!.isValid) {
+      return PublishingAccessResult(
+        canPublish: true,
+        canActivatePass: false,
+        requiresCoins: false,
+        coinsNeeded: 0,
+        activePass: _activePass,
+        message: '${_activePass!.postsRemaining} of ${_activePass!.maxPosts} posts remaining (expires in ${_activePass!.remainingTimeString})',
       );
-      if (ok) {
+    }
+
+    if (_postCoins >= 10) {
+      return PublishingAccessResult(
+        canPublish: false,
+        canActivatePass: true,
+        requiresCoins: false,
+        coinsNeeded: 0,
+        message: '10 Coins required for a 2-Day Pass (allows 2 posts over 2 days). You have $_postCoins Coins.',
+      );
+    }
+
+    return PublishingAccessResult(
+      canPublish: false,
+      canActivatePass: false,
+      requiresCoins: true,
+      coinsNeeded: 10 - _postCoins,
+      message: '10 Coins required for a 2-Day Pass (allows 2 posts over 2 days). You have $_postCoins Coins (${10 - _postCoins} more needed).',
+    );
+  }
+
+  /// Activates a 2-day publishing pass (10 coins = 2 posts over 2 days).
+  /// Deducts 10 coins atomically from SQLite and syncs with Cloud Firestore.
+  Future<({bool success, String message, PublishingPass? pass})> activateTwoDayPass({
+    String? userId,
+  }) async {
+    final uid = userId ?? _activeUserId ?? (await SessionService.instance.getSession())?['id'] as String? ?? 'local_user';
+    if (_postCoins < 10) {
+      return (
+        success: false,
+        message: 'You need 10 Coins to activate a 2-Day Pass. You currently have $_postCoins Coins.',
+        pass: null,
+      );
+    }
+
+    try {
+      final newPass = await AppDatabase.instance.activatePublishingPass(
+        userId: uid,
+        costCoins: 10,
+        maxPosts: 2,
+        durationDays: 2,
+      );
+
+      if (newPass != null) {
+        _activePass = newPass;
         _postCoins = await AppDatabase.instance.getCoinBalance(uid);
         _coinTransactions = await AppDatabase.instance.getCoinTransactions(uid);
+        notifyListeners();
+
+        // Immediately persist to Cloud Firestore
         unawaited(FirebaseSyncService.instance.pushWallet(uid, _postCoins));
-        notifyListeners();
+        unawaited(FirebaseSyncService.instance.pushPublishingPass(uid, newPass.toJson()));
+        if (_coinTransactions.isNotEmpty) {
+          unawaited(FirebaseSyncService.instance.pushCoinTransaction(uid, _coinTransactions.first));
+        }
+
+        return (
+          success: true,
+          message: '2-Day Publishing Pass activated! You can now publish 2 posts in 2 days.',
+          pass: newPass,
+        );
       }
-      return ok;
+      return (
+        success: false,
+        message: 'Unable to activate pass. Please check your coin balance.',
+        pass: null,
+      );
     } catch (e) {
-      debugPrint('MonetizationService: Database error consuming coin: $e');
-      if (_postCoins > 0) {
-        _postCoins -= 1;
+      debugPrint('MonetizationService: Error activating pass: $e');
+      return (
+        success: false,
+        message: 'Failed to activate pass: $e',
+        pass: null,
+      );
+    }
+  }
+
+  /// Consumes 1 post on the active 2-day pass when publishing.
+  /// Updates SQLite and pushes to Firebase Cloud Firestore.
+  Future<bool> consumePostOnPass({String? userId, String? postId}) async {
+    final uid = userId ?? _activeUserId ?? (await SessionService.instance.getSession())?['id'] as String? ?? 'local_user';
+    try {
+      final updatedPass = await AppDatabase.instance.consumePostFromPass(
+        userId: uid,
+        postId: postId,
+      );
+      if (updatedPass != null) {
+        _activePass = updatedPass.isValid ? updatedPass : null;
+        _coinTransactions = await AppDatabase.instance.getCoinTransactions(uid);
         notifyListeners();
+
+        // Immediately sync to Cloud Firestore
+        unawaited(FirebaseSyncService.instance.pushPublishingPass(uid, updatedPass.toJson()));
+        if (_coinTransactions.isNotEmpty) {
+          unawaited(FirebaseSyncService.instance.pushCoinTransaction(uid, _coinTransactions.first));
+        }
         return true;
       }
       return false;
+    } catch (e) {
+      debugPrint('MonetizationService: Error consuming post on pass: $e');
+      return false;
     }
+  }
+
+  /// Legacy helper for consuming coin
+  Future<bool> consumePostCoin({String? userId, String? postId}) async {
+    return await consumePostOnPass(userId: userId, postId: postId);
   }
 
   /// Adds coins directly to the user balance in real SQLite database.
@@ -401,6 +509,9 @@ class MonetizationService extends ChangeNotifier {
       );
       _coinTransactions = await AppDatabase.instance.getCoinTransactions(uid);
       unawaited(FirebaseSyncService.instance.pushWallet(uid, _postCoins));
+      if (_coinTransactions.isNotEmpty) {
+        unawaited(FirebaseSyncService.instance.pushCoinTransaction(uid, _coinTransactions.first));
+      }
       notifyListeners();
     } catch (e) {
       _postCoins += amount;
@@ -412,6 +523,7 @@ class MonetizationService extends ChangeNotifier {
   void clearUserWallet() {
     _activeUserId = null;
     _postCoins = 0;
+    _activePass = null;
     _coinTransactions = [];
     notifyListeners();
   }
