@@ -241,7 +241,7 @@ class _MobileWelcomeScreenState extends State<MobileWelcomeScreen> {
                         height: 32,
                         fit: BoxFit.contain,
                         errorBuilder: (_, _, _) => Image.asset(
-                          'assets/logo/no5ocial_N.png',
+                          'assets/logo/no5ocial_cropped.png',
                           height: 28,
                         ),
                       ),
@@ -282,7 +282,7 @@ class _MobileWelcomeScreenState extends State<MobileWelcomeScreen> {
                                 ),
                                 const SizedBox(width: 8),
                                 Text(
-                                  '100% On-Device Vault • SQLite Powered',
+                                  '100% On-Device Vault • Private & Secure',
                                   style: GoogleFonts.plusJakartaSans(
                                     color: const Color(0xFFBFDBFE),
                                     fontWeight: FontWeight.w600,
@@ -331,7 +331,7 @@ class _MobileWelcomeScreenState extends State<MobileWelcomeScreen> {
                           icon: Icons.shield_rounded,
                           iconColor: const Color(0xFF34D399),
                           title: 'Zero Cloud Telemetry',
-                          description: 'Your OAuth tokens, media assets, and post history remain private in your phone\'s local SQLite vault.',
+                          description: 'Your connected accounts, media assets, and post history remain private in your phone\'s secure local vault.',
                         ),
                         const SizedBox(height: 10),
                         _buildFeatureCard(

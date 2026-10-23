@@ -13,8 +13,14 @@ class BiometricLockService extends ChangeNotifier {
   bool _isLocked = false;
   bool get isLocked => _isLocked;
 
+  bool _isInitialized = false;
   DateTime? _lastBackgroundedAt;
+  DateTime? _lastAuthenticatedAt;
   bool _isAuthenticating = false;
+  bool get isAuthenticating => _isAuthenticating;
+
+  String? _lastError;
+  String? get lastError => _lastError;
 
   /// Check whether the current device supports hardware local authentication
   Future<bool> isDeviceSupported() async {
@@ -29,7 +35,7 @@ class BiometricLockService extends ChangeNotifier {
     }
   }
 
-  /// Check whether biometrics are enrolled and available
+  /// Check whether biometrics are enrolled and available or device credentials exist
   Future<bool> canCheckBiometrics() async {
     try {
       if (kIsWeb) return false;
@@ -59,6 +65,8 @@ class BiometricLockService extends ChangeNotifier {
 
   /// Record timestamp when the app goes into the background
   void onAppPaused() {
+    // If the system biometric dialog itself caused the app to pause, do not mark as user backgrounding
+    if (_isAuthenticating) return;
     _lastBackgroundedAt = DateTime.now().toUtc();
   }
 
@@ -71,26 +79,41 @@ class BiometricLockService extends ChangeNotifier {
     if (!isEnabled) {
       if (_isLocked) {
         _isLocked = false;
+        _lastError = null;
         notifyListeners();
       }
       return;
     }
 
-    final timeoutSeconds = await SessionService.instance.getLockTimeoutSeconds();
+    // If currently in the middle of authenticating, do not interrupt or relock
+    if (_isAuthenticating) return;
+
+    // Grace window: If authentication succeeded just a moment ago (e.g. prompt just dismissed), do not relock
+    if (_lastAuthenticatedAt != null) {
+      final sinceAuth = DateTime.now().toUtc().difference(_lastAuthenticatedAt!).inMilliseconds;
+      if (sinceAuth < 3500) {
+        return;
+      }
+    }
+
     bool shouldLock = false;
 
-    if (_lastBackgroundedAt == null) {
-      // Cold start with biometric lock enabled
+    if (!_isInitialized) {
+      // Cold start / initial app launch with biometric lock enabled
+      _isInitialized = true;
       shouldLock = true;
-    } else {
+    } else if (_lastBackgroundedAt != null) {
+      final timeoutSeconds = await SessionService.instance.getLockTimeoutSeconds();
       final elapsed = DateTime.now().toUtc().difference(_lastBackgroundedAt!).inSeconds;
       if (elapsed >= timeoutSeconds) {
         shouldLock = true;
       }
+      _lastBackgroundedAt = null;
     }
 
-    if (shouldLock && !_isLocked) {
+    if (shouldLock) {
       _isLocked = true;
+      _lastError = null;
       notifyListeners();
       await authenticate();
     }
@@ -102,12 +125,15 @@ class BiometricLockService extends ChangeNotifier {
   }) async {
     if (kIsWeb) {
       _isLocked = false;
+      _lastError = null;
       notifyListeners();
       return true;
     }
 
     if (_isAuthenticating) return false;
     _isAuthenticating = true;
+    _lastError = null;
+    notifyListeners();
 
     try {
       final didAuthenticate = await _auth.authenticate(
@@ -119,26 +145,50 @@ class BiometricLockService extends ChangeNotifier {
       if (didAuthenticate) {
         _isLocked = false;
         _lastBackgroundedAt = null;
+        _lastAuthenticatedAt = DateTime.now().toUtc();
+        _lastError = null;
         notifyListeners();
         return true;
       } else {
-        // User cancelled or authentication did not complete
+        _lastError = 'Verification cancelled. Please try again.';
+        notifyListeners();
         return false;
       }
     } on PlatformException catch (e) {
       debugPrint('Biometric authentication PlatformException: ${e.code} - ${e.message}');
+      if (e.code == 'NotEnrolled') {
+        _lastError = 'No biometric or screen lock enrolled on device.';
+      } else if (e.code == 'LockedOut' || e.code == 'PermanentlyLockedOut') {
+        _lastError = 'Too many attempts. Screen lock temporarily disabled.';
+      } else {
+        _lastError = e.message ?? 'Authentication error';
+      }
+      notifyListeners();
       return false;
     } catch (e) {
       debugPrint('Biometric authentication general error: $e');
+      _lastError = 'Authentication error. Please try again.';
+      notifyListeners();
       return false;
     } finally {
       _isAuthenticating = false;
+      notifyListeners();
     }
+  }
+
+  /// Explicitly mark the session as authenticated (e.g. right after user turns on toggle in settings)
+  void markAuthenticated() {
+    _isLocked = false;
+    _lastBackgroundedAt = null;
+    _lastAuthenticatedAt = DateTime.now().toUtc();
+    _lastError = null;
+    notifyListeners();
   }
 
   /// Explicitly lock the workspace
   void lock() {
     _isLocked = true;
+    _lastError = null;
     notifyListeners();
   }
 
@@ -146,6 +196,8 @@ class BiometricLockService extends ChangeNotifier {
   void unlock() {
     _isLocked = false;
     _lastBackgroundedAt = null;
+    _lastAuthenticatedAt = DateTime.now().toUtc();
+    _lastError = null;
     notifyListeners();
   }
 }

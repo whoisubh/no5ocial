@@ -16,6 +16,8 @@ import 'package:no5ocial/presentation/widgets/platform_icon_chip.dart';
 import 'package:no5ocial/presentation/widgets/platform_logo.dart';
 import 'package:no5ocial/presentation/widgets/status_badge.dart';
 import 'package:no5ocial/core/services/sync_service.dart';
+import 'package:no5ocial/core/services/firebase_sync_service.dart';
+import 'package:no5ocial/presentation/widgets/monetization/day_pass_banner.dart';
 import '../analytics/analytics_screen.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -28,7 +30,21 @@ class HomeScreen extends StatelessWidget {
     this.onNavigate,
   });
 
+
   void _openComposer(BuildContext context) {
+    if (appState.isReadOnly) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Your role (Analyst) has read-only access. You can view metrics and calendar, but cannot create posts.',
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
     if (appState.accounts.isEmpty) {
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(
@@ -124,6 +140,13 @@ class HomeScreen extends StatelessWidget {
     }
   }
 
+  bool get _isDark => appState.isDarkMode;
+  Color get _surfaceColor => _isDark ? const Color(0xFF101522) : AppColors.surface;
+  Color get _surfaceSecColor => _isDark ? const Color(0xFF161F30) : AppColors.surfaceSecondary;
+  Color get _borderColor => _isDark ? const Color(0xFF1E293B) : AppColors.border;
+  Color get _textPrimaryColor => _isDark ? Colors.white : AppColors.textPrimary;
+  Color get _textSecColor => _isDark ? const Color(0xFF94A3B8) : AppColors.textSecondary;
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -158,13 +181,34 @@ class HomeScreen extends StatelessWidget {
               ? null
               : AppBar(
                   automaticallyImplyLeading: false,
-                  title: Image.asset(
-                    appState.isDarkMode
-                        ? 'assets/logo/no5ocial_white.png'
-                        : 'assets/logo/no5ocial.png',
-                    height: 26,
-                    fit: BoxFit.contain,
-                    errorBuilder: (_, _, _) => const Text('no5ocial'),
+                  title: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Image.asset(
+                        appState.isDarkMode
+                            ? 'assets/logo/no5ocial_white.png'
+                            : 'assets/logo/no5ocial.png',
+                        height: 24,
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, _, _) => const Text('no5ocial'),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppColors.accent.withAlpha(20),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Text(
+                          'Overview',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.accent,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   actions: [
                     IconButton(
@@ -199,13 +243,14 @@ class HomeScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // 0. Live Centralization Sync Indicator
+                // 0. Live Centralization Sync Indicator (SQLite ↔ Firebase Cloud)
                 ListenableBuilder(
-                  listenable: SyncService.instance,
+                  listenable: Listenable.merge([SyncService.instance, FirebaseSyncService.instance]),
                   builder: (context, _) {
+                    final fbSync = FirebaseSyncService.instance;
                     final sync = SyncService.instance;
-                    final isSyncing = sync.status == SyncStatus.syncing;
-                    final isOffline = sync.status == SyncStatus.offline;
+                    final isSyncing = fbSync.status == FirebaseSyncStatus.syncing || sync.status == SyncStatus.syncing;
+                    final isOffline = fbSync.status == FirebaseSyncStatus.offline && sync.status == SyncStatus.offline;
 
                     return Container(
                       margin: const EdgeInsets.only(bottom: 12),
@@ -213,10 +258,10 @@ class HomeScreen extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: isOffline
                             ? AppColors.warning.withAlpha(20)
-                            : AppColors.surface,
+                            : _surfaceColor,
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
-                          color: isOffline ? AppColors.warning : AppColors.border,
+                          color: isOffline ? AppColors.warning : _borderColor,
                         ),
                       ),
                       child: Row(
@@ -238,13 +283,13 @@ class HomeScreen extends StatelessWidget {
                           Expanded(
                             child: Text(
                               isSyncing
-                                  ? 'Synchronizing local changes with central cloud...'
+                                  ? 'Synchronizing local SQLite ↔ Firebase Cloud...'
                                   : isOffline
-                                      ? 'Working in offline mode. Changes saved locally.'
-                                      : 'Centralization Active • Last synced: ${sync.formattedLastSync}',
-                              style: const TextStyle(
+                                      ? 'Working in offline mode. Changes saved locally in SQLite.'
+                                      : 'Cloud DB Synchronized • Vault Live (${fbSync.formattedLastSync})',
+                              style: TextStyle(
                                 fontSize: 12,
-                                color: AppColors.textSecondary,
+                                color: _textSecColor,
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
@@ -252,7 +297,7 @@ class HomeScreen extends StatelessWidget {
                           TextButton.icon(
                             onPressed: isSyncing
                                 ? null
-                                : () => SyncService.instance.syncNow(),
+                                : () => appState.syncWithCloud(force: true),
                             icon: const Icon(Icons.refresh, size: 14),
                             label: const Text('Sync Now', style: TextStyle(fontSize: 11)),
                             style: TextButton.styleFrom(
@@ -266,6 +311,9 @@ class HomeScreen extends StatelessWidget {
                   },
                 ),
 
+                // 0.1 Day Pass / Ad Monetization Banner (Audience segmented)
+                DayPassBanner(appState: appState),
+
                 // 1. Executive Operations Hero Card
                 _buildHeroBanner(context, l10n),
                 const SizedBox(height: 20),
@@ -275,10 +323,10 @@ class HomeScreen extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: AppColors.errorBg,
+                      color: _isDark ? const Color(0xFF1F1215) : AppColors.errorBg,
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: AppColors.errorBorder),
-                      boxShadow: AppColors.cardShadow,
+                      border: Border.all(color: _isDark ? const Color(0xFF4A1D24) : AppColors.errorBorder),
+                      boxShadow: _isDark ? [] : AppColors.cardShadow,
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -314,6 +362,7 @@ class HomeScreen extends StatelessWidget {
                           l10n.actionRequiredSub,
                           style: AppTypography.bodySecondary.copyWith(
                             fontSize: 12,
+                            color: _textSecColor,
                           ),
                         ),
                         const SizedBox(height: 12),
@@ -430,50 +479,57 @@ class HomeScreen extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          isDesktop ? l10n.queueSectionTitle : 'Publishing Queue',
-                          style: AppTypography.titleLarge.copyWith(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.accentLight,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Text(
-                            '${scheduledJobs.length}',
-                            style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.accent,
+                    Expanded(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              isDesktop ? l10n.queueSectionTitle : 'Publishing Queue',
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTypography.titleLarge.copyWith(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: _textPrimaryColor,
+                              ),
                             ),
                           ),
-                        ),
-                      ],
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _isDark ? const Color(0xFF1E2D4A) : AppColors.accentLight,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              '${scheduledJobs.length}',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: _isDark ? const Color(0xFF60A5FA) : AppColors.accent,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
+                    const SizedBox(width: 8),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
-                        color: AppColors.surfaceSecondary,
+                        color: _surfaceSecColor,
                         borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: AppColors.border),
+                        border: Border.all(color: _borderColor),
                       ),
                       child: Text(
                         appState.userTimezone,
                         style: AppTypography.labelSmall.copyWith(
                           fontSize: 10,
                           fontWeight: FontWeight.w500,
-                          color: AppColors.textMuted,
+                          color: _textSecColor,
                         ),
                       ),
                     ),
@@ -488,10 +544,10 @@ class HomeScreen extends StatelessWidget {
                       horizontal: 20,
                     ),
                     decoration: BoxDecoration(
-                      color: AppColors.surface,
+                      color: _surfaceColor,
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: AppColors.border),
-                      boxShadow: AppColors.cardShadow,
+                      border: Border.all(color: _borderColor),
+                      boxShadow: _isDark ? [] : AppColors.cardShadow,
                     ),
                     child: Center(
                       child: Column(
@@ -499,24 +555,24 @@ class HomeScreen extends StatelessWidget {
                           Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: AppColors.surfaceSecondary,
+                              color: _surfaceSecColor,
                               shape: BoxShape.circle,
                             ),
-                            child: const Icon(
+                            child: Icon(
                               Icons.calendar_today_outlined,
                               size: 28,
-                              color: AppColors.textMuted,
+                              color: _textSecColor,
                             ),
                           ),
                           const SizedBox(height: 12),
                           Text(
                             l10n.queueEmptyTitle,
-                            style: AppTypography.titleMedium,
+                            style: AppTypography.titleMedium.copyWith(color: _textPrimaryColor),
                           ),
                           const SizedBox(height: 6),
                           Text(
                             l10n.queueEmptySubtitle,
-                            style: AppTypography.bodySecondary,
+                            style: AppTypography.bodySecondary.copyWith(color: _textSecColor),
                             textAlign: TextAlign.center,
                           ),
                           const SizedBox(height: 16),
@@ -556,6 +612,7 @@ class HomeScreen extends StatelessWidget {
                   style: AppTypography.titleLarge.copyWith(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
+                    color: _textPrimaryColor,
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -585,10 +642,10 @@ class HomeScreen extends StatelessWidget {
         return Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: AppColors.surface,
+            color: _surfaceColor,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.border),
-            boxShadow: AppColors.cardShadow,
+            border: Border.all(color: _borderColor),
+            boxShadow: _isDark ? [] : AppColors.cardShadow,
           ),
           child: isCompact
               ? Row(
@@ -600,22 +657,22 @@ class HomeScreen extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
+                          Text(
                             title,
                             style: TextStyle(
                               fontSize: 17,
                               fontWeight: FontWeight.w800,
-                              color: AppColors.textPrimary,
+                              color: _textPrimaryColor,
                               letterSpacing: -0.3,
                             ),
                           ),
                           const SizedBox(height: 6),
                           Text(
                             description,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 12.5,
                               fontWeight: FontWeight.w400,
-                              color: AppColors.textSecondary,
+                              color: _textSecColor,
                               height: 1.4,
                             ),
                           ),
@@ -633,22 +690,22 @@ class HomeScreen extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
+                          Text(
                             title,
                             style: TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.w800,
-                              color: AppColors.textPrimary,
+                              color: _textPrimaryColor,
                               letterSpacing: -0.4,
                             ),
                           ),
                           const SizedBox(height: 5),
                           Text(
                             description,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 13.5,
                               fontWeight: FontWeight.w400,
-                              color: AppColors.textSecondary,
+                              color: _textSecColor,
                               height: 1.4,
                             ),
                           ),
@@ -725,9 +782,9 @@ class HomeScreen extends StatelessWidget {
       width: 48,
       height: 48,
       decoration: BoxDecoration(
-        color: AppColors.surfaceSecondary,
+        color: _surfaceSecColor,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: _borderColor),
       ),
       clipBehavior: Clip.antiAlias,
       child: (photoUrl != null && photoUrl.isNotEmpty)
@@ -737,7 +794,7 @@ class HomeScreen extends StatelessWidget {
               errorBuilder: (_, _, _) => Padding(
                 padding: const EdgeInsets.all(8),
                 child: Image.asset(
-                  'assets/logo/no5ocial_N.png',
+                  'assets/logo/no5ocial_cropped.png',
                   fit: BoxFit.contain,
                   errorBuilder: (_, _, _) =>
                       const Icon(Icons.hub, color: AppColors.accent),
@@ -747,7 +804,7 @@ class HomeScreen extends StatelessWidget {
           : Padding(
               padding: const EdgeInsets.all(8),
               child: Image.asset(
-                'assets/logo/no5ocial_N.png',
+                'assets/logo/no5ocial_cropped.png',
                 fit: BoxFit.contain,
                 errorBuilder: (_, _, _) =>
                     const Icon(Icons.hub, color: AppColors.accent),
@@ -807,10 +864,10 @@ class HomeScreen extends StatelessWidget {
                 const SizedBox(height: 12),
                 Text(
                   label,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary,
+                    color: _textPrimaryColor,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -818,9 +875,9 @@ class HomeScreen extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   sublabel,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11,
-                    color: AppColors.textSecondary,
+                    color: _textSecColor,
                     fontWeight: FontWeight.w500,
                   ),
                   maxLines: 1,
@@ -835,79 +892,123 @@ class HomeScreen extends StatelessWidget {
   }
 
   Widget _buildAnalyticsGrowthCard(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
-        boxShadow: AppColors.cardShadow,
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: AppColors.accent.withAlpha(25),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: const Icon(
-              Icons.insights_rounded,
-              size: 22,
-              color: AppColors.accent,
-            ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < 460;
+        final iconBox = Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: AppColors.accent.withAlpha(25),
+            borderRadius: BorderRadius.circular(10),
           ),
-          const SizedBox(width: 14),
-          Expanded(
+          child: const Icon(
+            Icons.insights_rounded,
+            size: 22,
+            color: AppColors.accent,
+          ),
+        );
+
+        final textColumn = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Flexible(
+                  child: Text(
+                    'Audience Growth & Velocity',
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13.5,
+                      color: _textPrimaryColor,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                const Icon(Icons.trending_up, size: 14, color: AppColors.success),
+              ],
+            ),
+            const SizedBox(height: 2),
+            Text(
+              appState.accounts.isEmpty
+                  ? 'Link your channels to view organic reach and subscriber metrics.'
+                  : 'Tracking ${appState.accounts.length} connected destination${appState.accounts.length > 1 ? 's' : ''} on-device.',
+              style: TextStyle(
+                fontSize: 11.5,
+                color: _textSecColor,
+              ),
+            ),
+          ],
+        );
+
+        final button = ElevatedButton.icon(
+          onPressed: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => AnalyticsScreen(appState: appState),
+              ),
+            );
+          },
+          icon: const Icon(Icons.auto_graph_rounded, size: 14),
+          label: const Text('View Analytics'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.accent,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+          ),
+        );
+
+        if (isNarrow) {
+          return Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: _surfaceColor,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: _borderColor),
+              boxShadow: AppColors.cardShadow,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Row(
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Audience Growth & Velocity',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13.5,
-                      ),
-                    ),
-                    SizedBox(width: 6),
-                    Icon(Icons.trending_up, size: 14, color: AppColors.success),
+                    iconBox,
+                    const SizedBox(width: 12),
+                    Expanded(child: textColumn),
                   ],
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  appState.accounts.isEmpty
-                      ? 'Link your channels to view organic reach and subscriber metrics.'
-                      : 'Tracking ${appState.accounts.length} connected destination${appState.accounts.length > 1 ? 's' : ''} on-device.',
-                  style: const TextStyle(
-                    fontSize: 11.5,
-                    color: AppColors.textSecondary,
-                  ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: button,
                 ),
               ],
             ),
+          );
+        }
+
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: _surfaceColor,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: _borderColor),
+            boxShadow: AppColors.cardShadow,
           ),
-          const SizedBox(width: 8),
-          ElevatedButton.icon(
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => AnalyticsScreen(appState: appState),
-                ),
-              );
-            },
-            icon: const Icon(Icons.auto_graph_rounded, size: 14),
-            label: const Text('View Analytics'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.accent,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-            ),
+          child: Row(
+            children: [
+              iconBox,
+              const SizedBox(width: 14),
+              Expanded(child: textColumn),
+              const SizedBox(width: 10),
+              button,
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -923,9 +1024,9 @@ class HomeScreen extends StatelessWidget {
           padding: EdgeInsets.all(isMobile ? 12 : 18),
           width: double.infinity,
           decoration: BoxDecoration(
-            color: AppColors.surface,
+            color: _surfaceColor,
             borderRadius: BorderRadius.circular(isMobile ? 10 : 14),
-            border: Border.all(color: AppColors.border),
+            border: Border.all(color: _borderColor),
             boxShadow: AppColors.cardShadow,
           ),
           child: Column(
@@ -946,7 +1047,7 @@ class HomeScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 10),
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
@@ -956,14 +1057,14 @@ class HomeScreen extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary,
+                        color: _textPrimaryColor,
                       ),
                     ),
                     Text(
                       'Bundle profiles across networks for 1-click publishing',
                       style: TextStyle(
                         fontSize: 11,
-                        color: AppColors.textSecondary,
+                        color: _textSecColor,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -1015,9 +1116,9 @@ class HomeScreen extends StatelessWidget {
       margin: isFullWidth ? EdgeInsets.zero : const EdgeInsets.only(right: 12),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.surfaceSecondary,
+        color: _surfaceSecColor,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: _borderColor),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1044,9 +1145,9 @@ class HomeScreen extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               g.description!,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 11,
-                color: AppColors.textSecondary,
+                color: _textSecColor,
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -1116,7 +1217,7 @@ class HomeScreen extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: _surfaceColor,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: AppColors.errorBorder),
       ),
@@ -1131,7 +1232,10 @@ class HomeScreen extends StatelessWidget {
               children: [
                 Text(
                   post?.title ?? 'Untitled Post',
-                  style: AppTypography.titleMedium.copyWith(fontSize: 12),
+                  style: AppTypography.titleMedium.copyWith(
+                    fontSize: 12,
+                    color: _textPrimaryColor,
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -1180,9 +1284,9 @@ class HomeScreen extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: _surfaceColor,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: _borderColor),
         boxShadow: AppColors.cardShadow,
       ),
       child: Row(
@@ -1206,10 +1310,10 @@ class HomeScreen extends StatelessWidget {
                     Expanded(
                       child: Text(
                         post?.title ?? 'Untitled Post',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w700,
-                          color: AppColors.textPrimary,
+                          color: _textPrimaryColor,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -1225,7 +1329,7 @@ class HomeScreen extends StatelessWidget {
                           ? Icons.check_circle_outline
                           : Icons.schedule,
                       size: 13,
-                      color: AppColors.textSecondary,
+                      color: _textSecColor,
                     ),
                     const SizedBox(width: 4),
                     Expanded(
@@ -1235,6 +1339,7 @@ class HomeScreen extends StatelessWidget {
                             : 'Scheduled for ${DateFormatter.formatRelative(job.scheduledAtUtc)}',
                         style: AppTypography.bodySecondary.copyWith(
                           fontSize: 11,
+                          color: _textSecColor,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:no5ocial/core/services/firebase_sync_service.dart';
 import 'package:no5ocial/data/database/app_database.dart';
 
 enum SyncStatus {
@@ -85,7 +86,7 @@ class SyncService extends ChangeNotifier {
   }
 
   /// Triggers an immediate delta synchronization
-  Future<SyncResult> syncNow({String? userToken}) async {
+  Future<SyncResult> syncNow({String? userToken, String? userId}) async {
     if (_status == SyncStatus.syncing) {
       return SyncResult(
         success: false,
@@ -97,6 +98,37 @@ class SyncService extends ChangeNotifier {
     _status = SyncStatus.syncing;
     _lastError = null;
     notifyListeners();
+
+    // 1. If Firebase is active and a user identity is provided, sync via Firebase Cloud Firestore
+    if (userId != null && userId.isNotEmpty) {
+      try {
+        final fbResult = await FirebaseSyncService.instance.syncUserWorkspace(userId);
+        if (fbResult.success) {
+          _status = SyncStatus.synced;
+          _lastSyncedAt = fbResult.timestamp;
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString(_prefLastSyncTimeKey, fbResult.timestamp.toIso8601String());
+          notifyListeners();
+          return SyncResult(
+            success: true,
+            pushedCount: fbResult.pushedCount,
+            pulledCount: fbResult.pulledCount,
+            timestamp: fbResult.timestamp,
+          );
+        } else if (FirebaseSyncService.instance.status == FirebaseSyncStatus.offline) {
+          _status = SyncStatus.offline;
+          _lastError = fbResult.errorMessage;
+          notifyListeners();
+          return SyncResult(
+            success: false,
+            errorMessage: _lastError,
+            timestamp: DateTime.now(),
+          );
+        }
+      } catch (e) {
+        debugPrint('SyncService: Firebase sync attempt encountered: $e. Checking HTTP fallback...');
+      }
+    }
 
     try {
       final nowUtc = DateTime.now().toUtc().toIso8601String();

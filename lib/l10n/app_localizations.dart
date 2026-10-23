@@ -959,43 +959,43 @@ abstract class AppLocalizations {
   /// No description provided for @settingsSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Manage workspace preferences, inspect audit events, and configure workspace settings.'**
+  /// **'Manage workspace preferences, activity history, and workspace settings.'**
   String get settingsSubtitle;
 
   /// No description provided for @dbManagementTitle.
   ///
   /// In en, this message translates to:
-  /// **'Database & Workspace Management'**
+  /// **'Data & Storage'**
   String get dbManagementTitle;
 
   /// No description provided for @dbManagementSub.
   ///
   /// In en, this message translates to:
-  /// **'Manage local SQLite database records, reset workspace state, or load demonstration data.'**
+  /// **'Manage local application data and reset workspace state.'**
   String get dbManagementSub;
 
   /// No description provided for @wipeConfirmTitle.
   ///
   /// In en, this message translates to:
-  /// **'Confirm Database Wipe'**
+  /// **'Reset Workspace Data'**
   String get wipeConfirmTitle;
 
   /// No description provided for @wipeConfirmMessage.
   ///
   /// In en, this message translates to:
-  /// **'Are you sure you want to delete ALL data? This will clear all registered brands, connected accounts, groups, drafts, and queue jobs from local SQLite.'**
+  /// **'Are you sure you want to reset all data? This will clear all registered brands, connected accounts, drafts, and scheduled posts on this device.'**
   String get wipeConfirmMessage;
 
   /// No description provided for @dbWipedSnack.
   ///
   /// In en, this message translates to:
-  /// **'Workspace database reset to clean state (0 records).'**
+  /// **'Workspace data reset successfully.'**
   String get dbWipedSnack;
 
   /// No description provided for @demoLoadedSnack.
   ///
   /// In en, this message translates to:
-  /// **'Sample demo brands, accounts, and groups loaded into SQLite.'**
+  /// **'Sample workspace data loaded.'**
   String get demoLoadedSnack;
 
   /// No description provided for @loginTitle.

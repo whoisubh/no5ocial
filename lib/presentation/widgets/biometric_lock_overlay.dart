@@ -101,19 +101,59 @@ class _BiometricLockOverlayState extends State<BiometricLockOverlay> {
                           style: AppTypography.bodySecondary,
                           textAlign: TextAlign.center,
                         ),
-                        const SizedBox(height: 32),
+                        const SizedBox(height: 24),
+
+                        if (BiometricLockService.instance.lastError != null) ...[
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: AppColors.error.withAlpha(20),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: AppColors.error.withAlpha(50)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.info_outline, size: 16, color: AppColors.error),
+                                const SizedBox(width: 8),
+                                Flexible(
+                                  child: Text(
+                                    BiometricLockService.instance.lastError!,
+                                    style: AppTypography.labelMedium.copyWith(color: AppColors.error),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                        ] else
+                          const SizedBox(height: 8),
 
                         SizedBox(
                           width: 260,
                           height: 48,
                           child: FilledButton.icon(
-                            onPressed: () async {
-                              await BiometricLockService.instance.authenticate();
-                            },
-                            icon: const Icon(Icons.lock_open_rounded, size: 18),
-                            label: const Text(
-                              'Unlock with Biometrics',
-                              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                            onPressed: BiometricLockService.instance.isAuthenticating
+                                ? null
+                                : () async {
+                                    await BiometricLockService.instance.authenticate();
+                                  },
+                            icon: BiometricLockService.instance.isAuthenticating
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Icon(Icons.lock_open_rounded, size: 18),
+                            label: Text(
+                              BiometricLockService.instance.isAuthenticating
+                                  ? 'Verifying...'
+                                  : 'Unlock Workspace',
+                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
                             ),
                             style: FilledButton.styleFrom(
                               backgroundColor: AppColors.accent,

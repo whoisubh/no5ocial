@@ -114,7 +114,7 @@ class LegalPageLayout extends StatelessWidget {
                           height: 26,
                           fit: BoxFit.contain,
                           errorBuilder: (_, _, _) => Image.asset(
-                            'assets/logo/no5ocial_N.png',
+                            'assets/logo/no5ocial_cropped.png',
                             height: 26,
                             fit: BoxFit.contain,
                           ),

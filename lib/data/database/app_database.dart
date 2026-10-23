@@ -15,6 +15,8 @@ import 'package:no5ocial/domain/models/channel_group.dart';
 import 'package:no5ocial/domain/models/content_post.dart';
 import 'package:no5ocial/domain/models/publish_job.dart';
 import 'package:no5ocial/domain/models/social_account.dart';
+import 'package:no5ocial/domain/models/org_member.dart';
+import 'package:no5ocial/domain/models/org_invite.dart';
 
 class AppDatabase {
   static AppDatabase? _instance;
@@ -79,6 +81,8 @@ class AppDatabase {
     await db.delete('publish_jobs');
     await db.delete('audit_events');
     await db.delete('user_profiles');
+    await db.delete('org_members');
+    await db.delete('org_invites');
   }
 
   Future<void> seedDemoData() async {
@@ -267,12 +271,48 @@ class AppDatabase {
       )
     ''');
 
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS org_members (
+        id TEXT PRIMARY KEY,
+        org_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        user_email TEXT NOT NULL,
+        user_name TEXT NOT NULL,
+        user_photo_url TEXT,
+        role TEXT NOT NULL,
+        brand_scope TEXT,
+        invited_by_user_id TEXT,
+        joined_at_utc TEXT NOT NULL,
+        is_active INTEGER NOT NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS org_invites (
+        id TEXT PRIMARY KEY,
+        org_id TEXT NOT NULL,
+        token TEXT NOT NULL,
+        invited_email TEXT NOT NULL,
+        invited_role TEXT NOT NULL,
+        brand_scope TEXT,
+        invited_by_user_id TEXT NOT NULL,
+        created_at_utc TEXT NOT NULL,
+        expires_at_utc TEXT NOT NULL,
+        status TEXT NOT NULL
+      )
+    ''');
+
     // Run schema migrations safely to add sync tracking metadata columns
     await _ensureSyncColumns(db, 'brands');
     await _ensureSyncColumns(db, 'channel_groups');
     await _ensureSyncColumns(db, 'social_accounts');
     await _ensureSyncColumns(db, 'content_posts');
     await _ensureSyncColumns(db, 'post_variants');
+    await _ensureSyncColumns(db, 'publish_jobs');
+    await _ensureSyncColumns(db, 'media_assets');
+    await _ensureSyncColumns(db, 'audit_events');
+    await _ensureSyncColumns(db, 'org_members');
+    await _ensureSyncColumns(db, 'org_invites');
   }
 
   Future<void> _ensureSyncColumns(Database db, String tableName) async {
@@ -423,8 +463,28 @@ class AppDatabase {
     )).toList();
   }
 
+  Future<Brand?> getBrand(String id) async {
+    final db = await database;
+    final maps = await db.query('brands', where: 'id = ?', whereArgs: [id], limit: 1);
+    if (maps.isEmpty) return null;
+    final m = maps.first;
+    return Brand(
+      id: m['id'] as String,
+      name: m['name'] as String,
+      slug: m['slug'] as String,
+      description: m['description'] as String?,
+      websiteUrl: m['website_url'] as String?,
+      companySize: m['company_size'] as String?,
+      industry: m['industry'] as String?,
+      foundUsVia: m['found_us_via'] as String?,
+      isActive: (m['is_active'] as int? ?? 1) == 1,
+      createdAtUtc: DateTime.tryParse(m['created_at_utc'] as String? ?? '') ?? DateTime.now().toUtc(),
+    );
+  }
+
   Future<void> saveBrand(Brand brand) async {
     final db = await database;
+    final now = DateTime.now().toUtc().toIso8601String();
     await db.insert(
       'brands',
       {
@@ -438,6 +498,7 @@ class AppDatabase {
         'found_us_via': brand.foundUsVia,
         'is_active': brand.isActive ? 1 : 0,
         'created_at_utc': brand.createdAtUtc.toIso8601String(),
+        'updated_at_utc': now,
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
@@ -459,9 +520,11 @@ class AppDatabase {
 
   Future<void> saveGroup(ChannelGroup group) async {
     final db = await database;
+    final map = group.toMap();
+    map['updated_at_utc'] = DateTime.now().toUtc().toIso8601String();
     await db.insert(
       'channel_groups',
-      group.toMap(),
+      map,
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
   }
@@ -521,6 +584,7 @@ class AppDatabase {
 
   Future<void> saveAccount(SocialAccount account) async {
     final db = await database;
+    final now = DateTime.now().toUtc().toIso8601String();
     await db.insert(
       'social_accounts',
       {
@@ -535,7 +599,8 @@ class AppDatabase {
         'scopes': jsonEncode(account.scopes),
         'last_verified_at_utc': account.lastVerifiedAtUtc?.toIso8601String(),
         'is_manual_only': account.isManualOnly ? 1 : 0,
-        'created_at_utc': DateTime.now().toUtc().toIso8601String(),
+        'created_at_utc': now,
+        'updated_at_utc': now,
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
@@ -816,13 +881,36 @@ class AppDatabase {
     return list.first['value'] as String?;
   }
 
+  /// Get all key-value settings from local SQLite
+  Future<Map<String, String>> getAllSettings() async {
+    final db = await database;
+    final list = await db.query('app_settings');
+    final result = <String, String>{};
+    for (final row in list) {
+      final key = row['key'] as String?;
+      final value = row['value'] as String?;
+      if (key != null && value != null) {
+        result[key] = value;
+      }
+    }
+    return result;
+  }
+
   // ==============================================================================
   // Local-First Outbox Synchronization Engine Helpers
   // ==============================================================================
 
+  /// Returns all records for a table (for complete cloud backup)
+  Future<List<Map<String, dynamic>>> getAllRecords(String tableName) async {
+    final db = await database;
+    await _ensureSyncColumns(db, tableName);
+    return await db.query(tableName);
+  }
+
   /// Returns un-synced dirty records for a specific table
   Future<List<Map<String, dynamic>>> getUnsyncedRecords(String tableName) async {
     final db = await database;
+    await _ensureSyncColumns(db, tableName);
     return await db.rawQuery('''
       SELECT * FROM $tableName 
       WHERE synced_at_utc IS NULL 
@@ -838,6 +926,7 @@ class AppDatabase {
   }) async {
     if (recordIds.isEmpty) return;
     final db = await database;
+    await _ensureSyncColumns(db, tableName);
     final batch = db.batch();
     for (final id in recordIds) {
       batch.update(
@@ -880,4 +969,92 @@ class AppDatabase {
       }
     }
   }
+
+  // --- Org Member Operations ---
+
+  Future<List<OrgMember>> getOrgMembers(String orgId) async {
+    final db = await database;
+    final rows = await db.query(
+      'org_members',
+      where: 'org_id = ? AND is_active = 1',
+      whereArgs: [orgId],
+      orderBy: 'joined_at_utc ASC',
+    );
+    return rows.map((r) => OrgMember.fromJson(r)).toList();
+  }
+
+  Future<OrgMember?> getOrgMemberByUser(String orgId, String userId) async {
+    final db = await database;
+    final rows = await db.query(
+      'org_members',
+      where: 'org_id = ? AND user_id = ? AND is_active = 1',
+      whereArgs: [orgId, userId],
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+    return OrgMember.fromJson(rows.first);
+  }
+
+  Future<void> upsertOrgMember(OrgMember member) async {
+    final db = await database;
+    final data = member.toJson();
+    data['updated_at_utc'] = DateTime.now().toUtc().toIso8601String();
+    await db.insert('org_members', data, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<void> deleteOrgMember(String memberId) async {
+    final db = await database;
+    await db.delete('org_members', where: 'id = ?', whereArgs: [memberId]);
+  }
+
+  // --- Org Invite Operations ---
+
+  Future<List<OrgInvite>> getOrgInvites(String orgId) async {
+    final db = await database;
+    final rows = await db.query(
+      'org_invites',
+      where: 'org_id = ?',
+      whereArgs: [orgId],
+      orderBy: 'created_at_utc DESC',
+    );
+    return rows.map((r) => OrgInvite.fromJson(r)).toList();
+  }
+
+  Future<OrgInvite?> getOrgInviteByToken(String token) async {
+    final db = await database;
+    final rows = await db.query(
+      'org_invites',
+      where: 'token = ?',
+      whereArgs: [token],
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+    return OrgInvite.fromJson(rows.first);
+  }
+
+  Future<void> insertOrgInvite(OrgInvite invite) async {
+    final db = await database;
+    final data = invite.toJson();
+    data['updated_at_utc'] = DateTime.now().toUtc().toIso8601String();
+    await db.insert('org_invites', data, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<void> updateOrgInviteStatus(String inviteId, InviteStatus status) async {
+    final db = await database;
+    await db.update(
+      'org_invites',
+      {
+        'status': status.name,
+        'updated_at_utc': DateTime.now().toUtc().toIso8601String(),
+      },
+      where: 'id = ?',
+      whereArgs: [inviteId],
+    );
+  }
+
+  Future<void> deleteOrgInvite(String inviteId) async {
+    final db = await database;
+    await db.delete('org_invites', where: 'id = ?', whereArgs: [inviteId]);
+  }
 }
+

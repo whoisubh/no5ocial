@@ -5,6 +5,7 @@ import 'package:no5ocial/core/theme/app_colors.dart';
 import 'package:no5ocial/core/theme/app_typography.dart';
 import 'package:no5ocial/core/utils/calendar_export_helper.dart';
 import 'package:no5ocial/core/utils/date_formatter.dart';
+import 'package:no5ocial/domain/enums/platform_type.dart';
 import 'package:no5ocial/domain/enums/publish_status.dart';
 import 'package:no5ocial/domain/models/content_post.dart';
 import 'package:no5ocial/domain/models/publish_job.dart';
@@ -82,6 +83,14 @@ class _CalendarScreenState extends State<CalendarScreen> {
     );
   }
 
+  bool get _isDark => widget.appState.isDarkMode;
+  Color get _surfaceColor => _isDark ? const Color(0xFF101522) : AppColors.surface;
+  Color get _surfaceSecColor => _isDark ? const Color(0xFF161F30) : AppColors.surfaceSecondary;
+  Color get _borderColor => _isDark ? const Color(0xFF1E293B) : AppColors.border;
+  Color get _textPrimaryColor => _isDark ? Colors.white : AppColors.textPrimary;
+  Color get _textSecColor => _isDark ? const Color(0xFF94A3B8) : AppColors.textSecondary;
+  Color get _bgColor => _isDark ? const Color(0xFF0A0D14) : AppColors.background;
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -104,12 +113,20 @@ class _CalendarScreenState extends State<CalendarScreen> {
         final isDesktop = screenWidth >= 860;
 
         return Scaffold(
-          backgroundColor: AppColors.background,
+          backgroundColor: _bgColor,
           appBar: isDesktop
               ? null
               : AppBar(
                   automaticallyImplyLeading: false,
-                  title: const Text('Publishing Schedule'),
+                  backgroundColor: _surfaceColor,
+                  title: Text(
+                    'Calendar',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: _textPrimaryColor,
+                    ),
+                  ),
                   actions: [
                     IconButton(
                       tooltip: _showCalendar ? 'Hide Calendar' : 'Show Calendar',
@@ -118,6 +135,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                             ? Icons.calendar_view_month_outlined
                             : Icons.calendar_today_outlined,
                         size: 20,
+                        color: _textPrimaryColor,
                       ),
                       onPressed: () {
                         setState(() {
@@ -166,23 +184,27 @@ class _CalendarScreenState extends State<CalendarScreen> {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: _surfaceColor,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: _borderColor),
       ),
       child: Row(
         children: [
-          const Icon(Icons.access_time_outlined, size: 15, color: AppColors.textSecondary),
+          Icon(Icons.access_time_outlined, size: 15, color: _textSecColor),
           const SizedBox(width: 6),
-          Text(
-            widget.appState.userTimezone,
-            style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: AppColors.textSecondary),
+          Expanded(
+            child: Text(
+              widget.appState.userTimezone,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: _textSecColor),
+            ),
           ),
-          const Spacer(),
+          const SizedBox(width: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
             decoration: BoxDecoration(
-              color: totalScheduled > 0 ? AppColors.accent.withAlpha(20) : AppColors.surfaceSecondary,
+              color: totalScheduled > 0 ? AppColors.accent.withAlpha(25) : _surfaceSecColor,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Row(
@@ -213,10 +235,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
   Widget _buildInteractiveCalendarCard(List<PublishJob> scheduledJobs) {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: _surfaceColor,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
-        boxShadow: AppColors.cardShadow,
+        border: Border.all(color: _borderColor),
+        boxShadow: _isDark ? null : AppColors.cardShadow,
       ),
       padding: const EdgeInsets.only(top: 8, bottom: 12, left: 6, right: 6),
       child: TableCalendar<PublishJob>(
@@ -227,30 +249,43 @@ class _CalendarScreenState extends State<CalendarScreen> {
         calendarFormat: _calendarFormat,
         eventLoader: (day) => _getJobsForDay(day, scheduledJobs),
         startingDayOfWeek: StartingDayOfWeek.monday,
+        daysOfWeekStyle: DaysOfWeekStyle(
+          weekdayStyle: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: _textSecColor,
+          ),
+          weekendStyle: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFFE11D48),
+          ),
+        ),
         headerStyle: HeaderStyle(
           formatButtonVisible: true,
           titleCentered: true,
           formatButtonShowsNext: false,
           formatButtonDecoration: BoxDecoration(
-            color: AppColors.surfaceSecondary,
+            color: _surfaceSecColor,
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: AppColors.border),
+            border: Border.all(color: _borderColor),
           ),
-          formatButtonTextStyle: const TextStyle(
+          formatButtonTextStyle: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.bold,
-            color: AppColors.textPrimary,
+            color: _textPrimaryColor,
           ),
-          titleTextStyle: const TextStyle(
+          titleTextStyle: TextStyle(
             fontSize: 15,
             fontWeight: FontWeight.w700,
-            color: AppColors.ink,
+            color: _textPrimaryColor,
           ),
-          leftChevronIcon: const Icon(Icons.chevron_left, color: AppColors.ink, size: 20),
-          rightChevronIcon: const Icon(Icons.chevron_right, color: AppColors.ink, size: 20),
+          leftChevronIcon: Icon(Icons.chevron_left, color: _textPrimaryColor, size: 20),
+          rightChevronIcon: Icon(Icons.chevron_right, color: _textPrimaryColor, size: 20),
         ),
         calendarStyle: CalendarStyle(
           outsideDaysVisible: false,
+          defaultTextStyle: TextStyle(color: _textPrimaryColor),
           weekendTextStyle: const TextStyle(color: Color(0xFFE11D48)),
           holidayTextStyle: const TextStyle(color: Color(0xFFE11D48)),
           selectedDecoration: const BoxDecoration(
@@ -322,14 +357,18 @@ class _CalendarScreenState extends State<CalendarScreen> {
           children: [
             const Icon(Icons.event, size: 16, color: AppColors.accent),
             const SizedBox(width: 8),
-            Text(
-              dayLabel,
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.ink),
+            Expanded(
+              child: Text(
+                dayLabel,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: _textPrimaryColor),
+              ),
             ),
-            const Spacer(),
+            const SizedBox(width: 8),
             Text(
               '${dayJobs.length} scheduled',
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textSecondary),
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _textSecColor),
             ),
           ],
         ),
@@ -339,9 +378,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
             decoration: BoxDecoration(
-              color: AppColors.surface,
+              color: _surfaceColor,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.border),
+              border: Border.all(color: _borderColor),
             ),
             child: Column(
               children: [
@@ -349,7 +388,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 const SizedBox(height: 10),
                 Text(
                   'No posts scheduled for this day',
-                  style: AppTypography.titleMedium.copyWith(color: AppColors.textSecondary),
+                  style: AppTypography.titleMedium.copyWith(color: _textSecColor),
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -383,17 +422,17 @@ class _CalendarScreenState extends State<CalendarScreen> {
         width: double.infinity,
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
-          color: AppColors.surface,
+          color: _surfaceColor,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.border),
+          border: Border.all(color: _borderColor),
         ),
         child: Column(
           children: [
             const Icon(Icons.event_note_outlined, size: 44, color: AppColors.textMuted),
             const SizedBox(height: 10),
-            const Text(
+            Text(
               'No upcoming scheduled posts',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textSecondary),
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: _textSecColor),
             ),
             const SizedBox(height: 6),
             const Text(
@@ -407,7 +446,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
               icon: const Icon(Icons.add, size: 15),
               label: const Text('Create Scheduled Post'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.ink,
+                backgroundColor: _isDark ? AppColors.accent : AppColors.ink,
                 foregroundColor: Colors.white,
               ),
             ),
@@ -435,9 +474,13 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 children: [
                   const Icon(Icons.calendar_today, size: 13, color: AppColors.accent),
                   const SizedBox(width: 6),
-                  Text(
-                    entry.key,
-                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.ink),
+                  Expanded(
+                    child: Text(
+                      entry.key,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: _textPrimaryColor),
+                    ),
                   ),
                   const SizedBox(width: 8),
                   Text(
@@ -461,15 +504,25 @@ class _CalendarScreenState extends State<CalendarScreen> {
     final brand = post != null ? widget.appState.getBrandById(post.brandId) : null;
     final scheduledTime = DateFormatter.formatTime(job.scheduledAtUtc);
 
+    final isYouTube = account?.platform == PlatformType.youtube;
+    final displayTitle = post != null && post.title.isNotEmpty && post.title != 'Untitled Post'
+        ? post.title
+        : (post != null && post.defaultCaption.isNotEmpty
+            ? post.defaultCaption.split('\n').first
+            : 'Scheduled Post');
+    final isCaptionDistinct = post != null &&
+        post.defaultCaption.isNotEmpty &&
+        post.defaultCaption.trim() != displayTitle.trim();
+
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: _surfaceColor,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.border),
-        boxShadow: AppColors.cardShadow,
+        border: Border.all(color: _borderColor),
+        boxShadow: _isDark ? null : AppColors.cardShadow,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -480,7 +533,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: AppColors.accentLight,
+                  color: _isDark ? AppColors.accent.withAlpha(40) : AppColors.accentLight,
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
@@ -522,17 +575,36 @@ class _CalendarScreenState extends State<CalendarScreen> {
             ),
             const SizedBox(height: 4),
           ],
-          Text(
-            post?.title.isNotEmpty == true ? post!.title : 'Untitled Scheduled Post',
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.ink),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+          Row(
+            children: [
+              if (isYouTube) ...[
+                Container(
+                  margin: const EdgeInsets.only(right: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withAlpha(20),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: Colors.red.withAlpha(60)),
+                  ),
+                  child: const Text('YouTube',
+                      style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: Colors.red)),
+                ),
+              ],
+              Expanded(
+                child: Text(
+                  displayTitle,
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: _textPrimaryColor),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
           ),
-          if (post != null && post.defaultCaption.isNotEmpty) ...[
+          if (isCaptionDistinct) ...[
             const SizedBox(height: 2),
             Text(
               post.defaultCaption,
-              style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+              style: TextStyle(fontSize: 11, color: _textSecColor),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
@@ -567,7 +639,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 style: OutlinedButton.styleFrom(
                   visualDensity: VisualDensity.compact,
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  side: const BorderSide(color: AppColors.border),
+                  side: BorderSide(color: _borderColor),
                 ),
               ),
               const SizedBox(width: 8),

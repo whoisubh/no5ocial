@@ -255,6 +255,12 @@ class SessionService {
     await p.setString(_kRegisteredPasskeys, PasskeyCredential.listToJson(list));
   }
 
+  /// Save full list of registered passkeys
+  Future<void> saveRegisteredPasskeys(List<PasskeyCredential> list) async {
+    final p = await prefs;
+    await p.setString(_kRegisteredPasskeys, PasskeyCredential.listToJson(list));
+  }
+
   /// Delete a registered passkey credential
   Future<void> deletePasskeyCredential(String credentialId) async {
     final p = await prefs;

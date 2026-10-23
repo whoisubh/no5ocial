@@ -1,4 +1,5 @@
 // ignore_for_file: camel_case_types
+import 'dart:async';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
@@ -21,6 +22,7 @@ import 'package:no5ocial/domain/enums/platform_type.dart';
 import 'package:no5ocial/l10n/app_localizations.dart';
 import 'package:no5ocial/presentation/navigation/main_scaffold.dart';
 import 'package:no5ocial/presentation/screens/auth/login_screen.dart';
+import 'package:no5ocial/presentation/screens/invite/invite_accept_screen.dart';
 import 'package:no5ocial/presentation/screens/landing/landing_screen.dart';
 import 'package:no5ocial/presentation/screens/legal/disclaimer_screen.dart';
 import 'package:no5ocial/presentation/screens/legal/privacy_screen.dart';
@@ -37,6 +39,10 @@ import 'package:no5ocial/core/utils/url_strategy_helper.dart';
 import 'package:no5ocial/presentation/state/app_state.dart';
 import 'package:no5ocial/presentation/widgets/biometric_lock_overlay.dart';
 import 'package:no5ocial/presentation/widgets/session_expired_sheet.dart';
+import 'package:no5ocial/core/config/firebase_config.dart';
+import 'package:no5ocial/core/services/firebase_sync_service.dart';
+import 'package:no5ocial/core/services/applovin_max_mediation_service.dart';
+import 'package:no5ocial/core/services/monetization_service.dart';
 
 void main() async {
   await bootstrap(flavor: AppFlavor.dev);
@@ -54,6 +60,10 @@ Future<void> bootstrap({AppFlavor flavor = AppFlavor.dev}) async {
 
   // Initialize dynamic environment configuration from .env assets
   await EnvConfig.init(flavor: flavor);
+
+  // Initialize Firebase Cloud services (fail-safe for offline and local-first operation)
+  await FirebaseConfig.initialize();
+  await FirebaseSyncService.instance.init();
 
   // Initialize SQLite Database and Repositories
   try {
@@ -103,6 +113,9 @@ Future<void> bootstrap({AppFlavor flavor = AppFlavor.dev}) async {
   );
   await appState.loadSavedUserProfile();
   await appState.loadSavedThemeMode();
+  await appState.loadSavedWorkspaceMode();
+  await appState.initOrgMembers();
+  await appState.initCurrency();
 
   // Initialize OAuth deep link listener
   OAuthCallbackService.instance.init(
@@ -112,6 +125,10 @@ Future<void> bootstrap({AppFlavor flavor = AppFlavor.dev}) async {
 
   // Initialize Local-First Sync Engine
   await SyncService.instance.init();
+
+  // Initialize AppLovin MAX Mediation & Audience Segmentation Monetization Engine (non-blocking)
+  unawaited(AppLovinMaxMediationService.instance.initialize(userId: appState.localUserId));
+  unawaited(MonetizationService.instance.init());
 
   runApp(no5ocialApp(appState: appState));
 }
@@ -146,7 +163,7 @@ class _no5ocialAppState extends State<no5ocialApp> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+    if (state == AppLifecycleState.paused) {
       BiometricLockService.instance.onAppPaused();
     } else if (state == AppLifecycleState.resumed) {
       BiometricLockService.instance.onAppResumed(
@@ -232,6 +249,33 @@ class _no5ocialAppState extends State<no5ocialApp> with WidgetsBindingObserver {
               return MaterialPageRoute(
                 settings: const RouteSettings(name: '/legal/disclaimer'),
                 builder: (_) => const DisclaimerScreen(),
+              );
+            }
+
+            // Invite Route (Publicly accessible with invitation token)
+            if (normalized == '/invite' || normalized.startsWith('/invite/')) {
+              String token = '';
+              final uri = Uri.tryParse(routeName);
+              if (uri != null && uri.queryParameters.containsKey('token')) {
+                token = uri.queryParameters['token']!;
+              } else if (kIsWeb && Uri.base.queryParameters.containsKey('token')) {
+                token = Uri.base.queryParameters['token']!;
+              } else if (kIsWeb && Uri.base.fragment.isNotEmpty) {
+                final fragUri = Uri.tryParse(Uri.base.fragment);
+                if (fragUri != null && fragUri.queryParameters.containsKey('token')) {
+                  token = fragUri.queryParameters['token']!;
+                }
+              }
+              if (token.isEmpty && uri != null && uri.pathSegments.length > 1) {
+                token = uri.pathSegments[1];
+              }
+
+              return MaterialPageRoute(
+                settings: RouteSettings(name: routeName),
+                builder: (_) => InviteAcceptScreen(
+                  appState: appState,
+                  token: token,
+                ),
               );
             }
 

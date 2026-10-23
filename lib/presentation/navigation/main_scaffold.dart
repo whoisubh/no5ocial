@@ -38,6 +38,7 @@ class _MainScaffoldState extends State<MainScaffold> {
     _pageController = PageController(initialPage: _currentIndex);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       OAuthCallbackService.instance.checkWebOAuthCallback();
+      widget.appState.syncWithCloud();
     });
   }
 
@@ -50,13 +51,6 @@ class _MainScaffoldState extends State<MainScaffold> {
   void _onTabSelected(int index) {
     if (_currentIndex == index) return;
     setState(() => _currentIndex = index);
-    if (_pageController.hasClients) {
-      _pageController.animateToPage(
-        index,
-        duration: const Duration(milliseconds: 280),
-        curve: Curves.easeInOutCubic,
-      );
-    }
   }
 
   void _openComposer() {
@@ -275,7 +269,7 @@ class _MainScaffoldState extends State<MainScaffold> {
         // Strict Active Auth Guard: unauthenticated sessions cannot access dashboard
         if (!widget.appState.isLoggedIn) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            Navigator.of(context).pushNamedAndRemoveUntil('/welcome', (route) => false);
+            Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
           });
           return const Scaffold(
             backgroundColor: AppColors.background,
@@ -351,11 +345,8 @@ class _MainScaffoldState extends State<MainScaffold> {
 
         // Mobile / Compact Layout
         return Scaffold(
-          body: PageView(
-            controller: _pageController,
-            onPageChanged: (index) {
-              setState(() => _currentIndex = index);
-            },
+          body: IndexedStack(
+            index: _currentIndex,
             children: screens,
           ),
           floatingActionButton: _buildFloatingActionButton(),
@@ -450,7 +441,7 @@ class _MainScaffoldState extends State<MainScaffold> {
                       alignment: Alignment.centerLeft,
                       errorBuilder: (_, _, _) => Row(
                         children: [
-                          Image.asset('assets/logo/no5ocial_N.png', height: 28),
+                          Image.asset('assets/logo/no5ocial_cropped.png', height: 28),
                           const SizedBox(width: 8),
                           Text(
                             'no5ocial',
@@ -575,7 +566,7 @@ class _MainScaffoldState extends State<MainScaffold> {
                   ),
                   padding: const EdgeInsets.all(5),
                   child: Image.asset(
-                    'assets/logo/no5ocial_N.png',
+                    'assets/logo/no5ocial_cropped.png',
                     fit: BoxFit.contain,
                     errorBuilder: (_, _, _) => Container(
                       color: AppColors.ink,
@@ -990,15 +981,15 @@ class _MainScaffoldState extends State<MainScaffold> {
   String _getTitleForIndex(int index, AppLocalizations l10n) {
     switch (index) {
       case 0:
-        return l10n.consoleTitle;
+        return 'Overview';
       case 1:
-        return l10n.contentLibraryTitle;
+        return 'Content';
       case 2:
-        return l10n.calendarTitle;
+        return 'Calendar';
       case 3:
-        return l10n.registryTitle;
+        return 'Channels';
       case 4:
-        return l10n.settingsTitle;
+        return 'Settings';
       default:
         return l10n.appTitle;
     }

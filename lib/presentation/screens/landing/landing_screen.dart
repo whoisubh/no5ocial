@@ -189,7 +189,7 @@ class _LandingScreenState extends State<LandingScreen> {
                               height: 34,
                               fit: BoxFit.contain,
                               errorBuilder: (_, _, _) => Image.asset(
-                                'assets/logo/no5ocial_N.png',
+                                'assets/logo/no5ocial_cropped.png',
                                 height: 28,
                               ),
                             ),
@@ -359,7 +359,7 @@ class _LandingScreenState extends State<LandingScreen> {
                         height: 32,
                         fit: BoxFit.contain,
                         errorBuilder: (_, _, _) => Image.asset(
-                          'assets/logo/no5ocial_N.png',
+                          'assets/logo/no5ocial_cropped.png',
                           height: 28,
                         ),
                       ),
@@ -399,7 +399,7 @@ class _LandingScreenState extends State<LandingScreen> {
                                 ),
                                 const SizedBox(width: 8),
                                 Text(
-                                  '100% On-Device Vault • SQLite Powered',
+                                  '100% On-Device Vault • Private & Secure',
                                   style: GoogleFonts.plusJakartaSans(
                                     color: const Color(0xFFBFDBFE),
                                     fontWeight: FontWeight.w600,
@@ -448,7 +448,7 @@ class _LandingScreenState extends State<LandingScreen> {
                           icon: Icons.shield_rounded,
                           iconColor: const Color(0xFF34D399),
                           title: 'Zero Cloud Telemetry',
-                          description: 'Your OAuth tokens, media assets, and post history remain private in your phone\'s local SQLite vault.',
+                          description: 'Your connected accounts, media assets, and post history remain private in your phone\'s secure local vault.',
                         ),
                         const SizedBox(height: 10),
                         _buildMobileFeatureCard(
@@ -720,7 +720,7 @@ class _LandingScreenState extends State<LandingScreen> {
               ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 760),
                 child: Text(
-                  'no5ocial is a privacy-first multi-channel social media publishing and scheduling workspace. Plan, compose, and publish video and post campaigns across YouTube, Instagram, X (Twitter), and LinkedIn with smart preflight checks, local SQLite storage, and zero cloud lock-in.',
+                  'no5ocial is a privacy-first multi-channel social media publishing and scheduling workspace. Plan, compose, and publish video and post campaigns across YouTube, Instagram, X (Twitter), and LinkedIn with smart preflight checks, local-first privacy, and zero platform lock-in.',
                   textAlign: TextAlign.center,
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: isDesktop ? 18 : 15,
@@ -847,7 +847,7 @@ class _LandingScreenState extends State<LandingScreen> {
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
-                                'no5ocial://workspace/local-sqlite-vault  (Offline • Zero Telemetry)',
+                                'no5ocial://workspace/secure-vault  (Private • Encrypted Vault)',
                                 style: GoogleFonts.firaCode(
                                   color: const Color(0xFF64748B),
                                   fontSize: 11,
@@ -874,7 +874,7 @@ class _LandingScreenState extends State<LandingScreen> {
                           Container(width: 6, height: 6, decoration: const BoxDecoration(color: Color(0xFF34D399), shape: BoxShape.circle)),
                           const SizedBox(width: 6),
                           Text(
-                            'SQLite Active',
+                            'Vault Active',
                             style: GoogleFonts.plusJakartaSans(
                               color: const Color(0xFF34D399),
                               fontSize: 11,
@@ -1025,7 +1025,7 @@ class _LandingScreenState extends State<LandingScreen> {
 
         // Queue Item 2
         _MockDetailedQueueCard(
-          title: 'Engineering Deep Dive: Zero-Leak OAuth Tokens & SQLite Isolates',
+          title: 'Architecture Spotlight: Zero-Leak Multi-Destination Publishing',
           timeStr: 'Tomorrow • 10:00 IST',
           status: 'PREFLIGHT READY',
           statusColor: const Color(0xFF10B981),
@@ -1257,8 +1257,8 @@ class _LandingScreenState extends State<LandingScreen> {
             spacing: 36,
             children: const [
               _MetricCard(metric: '4-in-1', label: 'Multi-Destination Bundle', sub: 'Instagram, X, LinkedIn, YT'),
-              _MetricCard(metric: '100%', label: 'Local SQLite Storage', sub: 'Zero remote drafts or logs'),
-              _MetricCard(metric: '20+', label: 'Global Languages', sub: 'Native offline Flutter l10n'),
+              _MetricCard(metric: '100%', label: 'On-Device Privacy', sub: 'Zero remote drafts or trackers'),
+              _MetricCard(metric: '20+', label: 'Global Languages', sub: 'Full international support'),
               _MetricCard(metric: '0 Paywalls', label: 'Completely Free Forever', sub: 'Unlimited brands & channels'),
             ],
           ),
@@ -1440,8 +1440,8 @@ class _LandingScreenState extends State<LandingScreen> {
                   _BentoCard(
                     icon: Icons.security_rounded,
                     color: Color(0xFF10B981),
-                    title: 'Zero Cloud Storage / 100% Local',
-                    desc: 'Drafts, media references, and queue statuses reside strictly in your local device SQLite database. Zero remote telemetry.',
+                    title: 'Local-First Vault / 100% Private',
+                    desc: 'Drafts, media assets, and publishing queues reside securely on your local device with zero unauthorized telemetry.',
                     badge: 'Privacy First',
                   ),
                   _BentoCard(
@@ -1455,14 +1455,14 @@ class _LandingScreenState extends State<LandingScreen> {
                     icon: Icons.translate_rounded,
                     color: Color(0xFF06B6D4),
                     title: '20+ Global Languages',
-                    desc: 'First-class l10n support spanning English, Spanish, Arabic, Japanese, German, Hindi, and 14 other languages natively.',
+                    desc: 'Full multi-language support spanning English, Spanish, Arabic, Japanese, German, Hindi, and 14 other languages natively.',
                     badge: 'Global Ready',
                   ),
                   _BentoCard(
                     icon: Icons.manage_history_rounded,
                     color: Color(0xFFEC4899),
                     title: 'Immutable Audit Trail',
-                    desc: 'All publish attempts, timeouts, retry actions, and manual handoffs are logged in SQLite for transparent inspection.',
+                    desc: 'All publish attempts, timeouts, retry actions, and manual handoffs are logged locally for transparent inspection.',
                     badge: 'Audited',
                   ),
                 ],
@@ -1592,7 +1592,7 @@ class _LandingScreenState extends State<LandingScreen> {
                     // Table Rows
                     const _ModernCompareRow(
                       feature: 'Data Storage & Privacy',
-                      no5ocial: '100% Local SQLite',
+                      no5ocial: '100% Local Vault',
                       no5ocialHighlight: true,
                       competitor: 'Remote Cloud Servers',
                     ),
@@ -1709,7 +1709,7 @@ class _LandingScreenState extends State<LandingScreen> {
                 ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 780),
                   child: Text(
-                    'We strictly adhere to a zero-telemetry doctrine. no5ocial never harvests credentials, tracks private post ideas, or mirrors marketing media to remote databases. You can export, inspect, or wipe your SQLite database at any time from Workspace Settings.',
+                    'We strictly adhere to a privacy-first doctrine. no5ocial never harvests credentials, tracks private post ideas, or mirrors marketing media to remote databases. You can manage or reset your workspace data at any time from Workspace Settings.',
                     textAlign: TextAlign.center,
                     style: GoogleFonts.plusJakartaSans(
                       color: const Color(0xFF94A3B8),
@@ -1727,7 +1727,7 @@ class _LandingScreenState extends State<LandingScreen> {
                     _SecurityTag(label: 'Zero Remote Cookies'),
                     _SecurityTag(label: 'AES Local Storage'),
                     _SecurityTag(label: 'Short-Lived Signed URLs'),
-                    _SecurityTag(label: 'Full DB Export Anytime'),
+                    _SecurityTag(label: 'Complete Data Control'),
                   ],
                 ),
               ],
@@ -1932,7 +1932,7 @@ class _LandingScreenState extends State<LandingScreen> {
 
               const _ModernFaqAccordion(
                 question: 'Does no5ocial store my post ideas or media on remote servers?',
-                answer: 'No. All posts, campaigns, image references, and channel groups are persisted strictly in your local device SQLite database. We operate zero cloud analytics or telemetry servers.',
+                answer: 'No. All posts, campaigns, image references, and channel groups are persisted securely in your local on-device vault. We operate zero cloud analytics or tracking servers.',
               ),
               const SizedBox(height: 14),
               const _ModernFaqAccordion(
@@ -2045,7 +2045,7 @@ class _LandingScreenState extends State<LandingScreen> {
                               'assets/logo/no5ocial_white.png',
                               height: 30,
                               fit: BoxFit.contain,
-                              errorBuilder: (_, _, _) => Image.asset('assets/logo/no5ocial_N.png', height: 26),
+                              errorBuilder: (_, _, _) => Image.asset('assets/logo/no5ocial_cropped.png', height: 26),
                             ),
                           ],
                         ),
@@ -2182,7 +2182,7 @@ class _LandingScreenState extends State<LandingScreen> {
                     style: GoogleFonts.plusJakartaSans(color: const Color(0xFF64748B), fontSize: 12),
                   ),
                   Text(
-                    'Local-First SQLite Architecture • Multi-Destination Engine',
+                    'Local-First Privacy Architecture • Multi-Destination Engine',
                     style: GoogleFonts.plusJakartaSans(color: const Color(0xFF64748B), fontSize: 12),
                   ),
                 ],

@@ -23,7 +23,7 @@ class TermsScreen extends StatelessWidget {
           number: '2',
           title: 'Local-First Operation & Privacy',
           body:
-              'no5ocial operates as a local-first workspace. All your content drafts, schedules, connected platform profiles, and publishing logs are stored strictly on your local device. no5ocial does not operate remote database servers to store your private post content or personal identification.',
+              'no5ocial operates as a privacy-focused local workspace. All your content drafts, schedules, connected platform profiles, and publishing logs are stored strictly on your local device. no5ocial does not operate remote servers to store your private post content or personal identification.',
         ),
         LegalSectionCard(
           number: '3',

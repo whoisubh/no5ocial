@@ -228,7 +228,7 @@ class PlatformConfigRegistry {
       defaultFormats: ['text', 'image', 'carousel', 'video'],
       isManualOnly: false,
       requiresAdminRole: false,
-      policyNotice: 'Supports up to 500 characters, up to 10 images, and videos up to 5 minutes.',
+      policyNotice: 'Supports up to 500 characters, max 1 hashtag, up to 20 media items (carousels), and videos up to 5 minutes.',
     ),
   ];
 

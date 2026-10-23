@@ -8,7 +8,10 @@ import 'package:no5ocial/core/utils/date_formatter.dart';
 import 'package:no5ocial/presentation/state/app_state.dart';
 import 'package:no5ocial/presentation/widgets/app_sheets.dart';
 import 'package:no5ocial/presentation/widgets/passkey_management_sheet.dart';
-import 'package:no5ocial/core/services/media_hosting_service.dart';
+import 'package:no5ocial/presentation/widgets/team_management_sheet.dart';
+import 'package:no5ocial/presentation/screens/settings/monetization_settings_view.dart';
+import 'package:no5ocial/core/services/currency_service.dart';
+import 'package:no5ocial/core/services/firebase_sync_service.dart';
 
 class SettingsScreen extends StatelessWidget {
   final AppState appState;
@@ -36,7 +39,7 @@ class SettingsScreen extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Text(
-                  'Audit & Event Log',
+                  'Activity & Security Log',
                   style: AppTypography.titleLarge,
                 ),
                 IconButton(
@@ -50,7 +53,7 @@ class SettingsScreen extends StatelessWidget {
               child: events.isEmpty
                   ? const Center(
                       child: Text(
-                        'No audit events recorded yet.',
+                        'No activity recorded yet.',
                         style: AppTypography.bodySecondary,
                       ),
                     )
@@ -141,6 +144,112 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
+  void _showCurrencySelector(BuildContext context) {
+    String searchQuery = '';
+    final currencies = CurrencyService.supportedCurrencies;
+
+    AppSheets.showAdaptiveFormSheet(
+      context,
+      title: const Row(
+        children: [
+          Icon(Icons.payments_outlined, size: 20, color: AppColors.accent),
+          SizedBox(width: 8),
+          Text('Select Display Currency'),
+        ],
+      ),
+      builder: (ctx, setSheetState) {
+        final filtered = currencies.where((c) {
+          final q = searchQuery.toLowerCase();
+          return c.code.toLowerCase().contains(q) ||
+              c.name.toLowerCase().contains(q) ||
+              c.symbol.toLowerCase().contains(q);
+        }).toList();
+
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceSecondary,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.my_location_rounded, size: 14, color: AppColors.accent),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Default currency is automatically detected from your current IP location.',
+                      style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              decoration: InputDecoration(
+                hintText: 'Search currency (e.g. INR, USD, EUR)...',
+                prefixIcon: const Icon(Icons.search, size: 18),
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              onChanged: (val) => setSheetState(() => searchQuery = val.trim()),
+            ),
+            const SizedBox(height: 10),
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.45,
+              ),
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: filtered.length,
+                separatorBuilder: (_, _) => const Divider(height: 1),
+                itemBuilder: (_, idx) {
+                  final c = filtered[idx];
+                  final isSelected = appState.userCurrency == c.code;
+                  return ListTile(
+                    dense: true,
+                    leading: Text(c.flag, style: const TextStyle(fontSize: 22)),
+                    title: Row(
+                      children: [
+                        Text(
+                          '${c.code} (${c.symbol})',
+                          style: TextStyle(
+                            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                            color: isSelected ? AppColors.accent : AppColors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            c.name,
+                            style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                    trailing: isSelected
+                        ? const Icon(Icons.check_circle_rounded, size: 18, color: AppColors.accent)
+                        : null,
+                    onTap: () {
+                      appState.setUserCurrency(c.code);
+                      Navigator.of(ctx).pop();
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   void _confirmResetData(BuildContext context) {
     final l10n = context.l10n;
     showDialog(
@@ -166,12 +275,7 @@ class SettingsScreen extends StatelessWidget {
               Navigator.of(ctx).pop();
               await appState.clearAllData();
               if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(l10n.dbWipedSnack),
-                    backgroundColor: AppColors.ink,
-                  ),
-                );
+                Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
               }
             },
             style: ElevatedButton.styleFrom(
@@ -200,7 +304,15 @@ class SettingsScreen extends StatelessWidget {
               ? null
               : AppBar(
                   automaticallyImplyLeading: false,
-                  title: Text(l10n.settingsTitle),
+                  backgroundColor: appState.isDarkMode ? const Color(0xFF101522) : AppColors.surface,
+                  title: Text(
+                    'Settings',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: appState.isDarkMode ? Colors.white : AppColors.textPrimary,
+                    ),
+                  ),
                   actions: [
                     IconButton(
                       icon: Icon(
@@ -217,114 +329,285 @@ class SettingsScreen extends StatelessWidget {
             padding: const EdgeInsets.all(16),
             children: [
               // Operational Console Profile (Real Authenticated User)
-              Container(
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.border),
-                  boxShadow: AppColors.cardShadow,
-                ),
-                child: Row(
-                  children: [
-                    if (appState.localUserPhotoUrl != null &&
-                        appState.localUserPhotoUrl!.isNotEmpty)
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: Image.network(
-                          appState.localUserPhotoUrl!,
-                          width: 44,
-                          height: 44,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) => _buildInitialsAvatar(appState),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final isNarrow = constraints.maxWidth < 460;
+                  final avatar = (appState.localUserPhotoUrl != null &&
+                          appState.localUserPhotoUrl!.isNotEmpty)
+                      ? ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: Image.network(
+                            appState.localUserPhotoUrl!,
+                            width: 44,
+                            height: 44,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, _, _) => _buildInitialsAvatar(appState),
+                          ),
+                        )
+                      : _buildInitialsAvatar(appState);
+
+                  final userDetails = Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Wrap(
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: 8,
+                        runSpacing: 4,
+                        children: [
+                          Text(
+                            appState.localUserName?.isNotEmpty == true
+                                ? appState.localUserName!
+                                : 'Authenticated User',
+                            style: const TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: AppColors.successBg,
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: AppColors.successBorder),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.verified, size: 10, color: AppColors.success),
+                                SizedBox(width: 4),
+                                Text(
+                                  'Active Session',
+                                  style: TextStyle(
+                                    color: AppColors.success,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        appState.localUserEmail?.isNotEmpty == true
+                            ? appState.localUserEmail!
+                            : 'Authenticated via Google Identity',
+                        style: const TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 12,
                         ),
-                      )
-                    else
-                      _buildInitialsAvatar(appState),
-                    const SizedBox(width: 14),
-                    Expanded(
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  );
+
+                  final signOutBtn = OutlinedButton.icon(
+                    onPressed: () async {
+                      await appState.signOut();
+                      if (context.mounted) {
+                        Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+                      }
+                    },
+                    icon: const Icon(Icons.logout, size: 14, color: AppColors.error),
+                    label: const Text(
+                      'Sign Out',
+                      style: TextStyle(color: AppColors.error, fontSize: 12, fontWeight: FontWeight.w600),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: AppColors.errorBorder),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    ),
+                  );
+
+                  if (isNarrow) {
+                    return Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AppColors.border),
+                        boxShadow: AppColors.cardShadow,
+                      ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(
                             children: [
-                              Flexible(
-                                child: Text(
-                                  appState.localUserName?.isNotEmpty == true
-                                      ? appState.localUserName!
-                                      : 'Authenticated User',
-                                  style: const TextStyle(
-                                    color: AppColors.textPrimary,
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
+                              avatar,
+                              const SizedBox(width: 12),
+                              Expanded(child: userDetails),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            width: double.infinity,
+                            child: signOutBtn,
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+
+                  return Container(
+                    padding: const EdgeInsets.all(18),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppColors.border),
+                      boxShadow: AppColors.cardShadow,
+                    ),
+                    child: Row(
+                      children: [
+                        avatar,
+                        const SizedBox(width: 14),
+                        Expanded(child: userDetails),
+                        const SizedBox(width: 10),
+                        signOutBtn,
+                      ],
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 20),
+
+              _buildSectionTitle('Live Cloud DB & Workspace Channel Vault'),
+              _buildCloudSyncCard(context),
+              const SizedBox(height: 20),
+
+              _buildSectionTitle('Workspace & Team Access'),
+              AnimatedBuilder(
+                animation: appState,
+                builder: (context, _) {
+                  final isTeam = appState.isTeamMode;
+                  final currentRole = appState.currentRole;
+                  final membersCount = appState.teamMembers.length;
+                  final pendingInvitesCount = appState.pendingInvites.where((i) => i.isValid).length;
+
+                  return LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isNarrow = constraints.maxWidth < 460;
+                      final teamIcon = Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: AppColors.accent.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(Icons.groups_rounded, color: AppColors.accent, size: 20),
+                      );
+
+                      final teamDetails = Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Wrap(
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            spacing: 8,
+                            runSpacing: 4,
+                            children: [
+                              Text(
+                                isTeam ? 'Team Hierarchy' : 'Solo Workspace',
+                                style: AppTypography.titleMedium,
                               ),
-                              const SizedBox(width: 8),
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                 decoration: BoxDecoration(
-                                  color: AppColors.successBg,
-                                  borderRadius: BorderRadius.circular(6),
-                                  border: Border.all(color: AppColors.successBorder),
+                                  color: AppColors.accentLight,
+                                  borderRadius: BorderRadius.circular(4),
                                 ),
-                                child: const Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(Icons.verified, size: 10, color: AppColors.success),
-                                    SizedBox(width: 4),
-                                    Text(
-                                      'Active Session',
-                                      style: TextStyle(
-                                        color: AppColors.success,
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ],
+                                child: Text(
+                                  currentRole.label,
+                                  style: const TextStyle(
+                                    color: AppColors.accent,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w800,
+                                  ),
                                 ),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 3),
+                          const SizedBox(height: 2),
                           Text(
-                            appState.localUserEmail?.isNotEmpty == true
-                                ? appState.localUserEmail!
-                                : 'Authenticated via Google Identity',
-                            style: const TextStyle(
-                              color: AppColors.textSecondary,
-                              fontSize: 12,
-                            ),
-                            overflow: TextOverflow.ellipsis,
+                            isTeam
+                                ? '$membersCount ${membersCount == 1 ? 'member' : 'members'} · $pendingInvitesCount pending invite${pendingInvitesCount == 1 ? '' : 's'}'
+                                : 'Operating in solo mode · tap to configure hierarchy',
+                            style: AppTypography.bodySecondary.copyWith(fontSize: 12),
                           ),
                         ],
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    OutlinedButton.icon(
-                      onPressed: () async {
-                        await appState.signOut();
-                        if (context.mounted) {
-                          Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
-                        }
-                      },
-                      icon: const Icon(Icons.logout, size: 14, color: AppColors.error),
-                      label: const Text(
-                        'Sign Out',
-                        style: TextStyle(color: AppColors.error, fontSize: 12, fontWeight: FontWeight.w600),
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: AppColors.errorBorder),
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                      ),
-                    ),
-                  ],
-                ),
+                      );
+
+                      final manageBtn = ElevatedButton.icon(
+                        onPressed: () => TeamManagementSheet.show(context, appState),
+                        icon: const Icon(Icons.tune_rounded, size: 14),
+                        label: const Text('Manage'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.accent,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                        ),
+                      );
+
+                      if (isNarrow) {
+                        return Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: AppColors.surface,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppColors.border),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  teamIcon,
+                                  const SizedBox(width: 12),
+                                  Expanded(child: teamDetails),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              SizedBox(
+                                width: double.infinity,
+                                child: manageBtn,
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+
+                      return Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: AppColors.surface,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: Row(
+                          children: [
+                            teamIcon,
+                            const SizedBox(width: 12),
+                            Expanded(child: teamDetails),
+                            const SizedBox(width: 10),
+                            manageBtn,
+                          ],
+                        ),
+                      );
+                    },
+                  );
+                },
               ),
               const SizedBox(height: 20),
 
-              _buildSectionTitle('Preferences & Localization (l10n)'),
+              _buildSectionTitle('Plan, Audience & RTB Monetization'),
+              MonetizationSettingsView(appState: appState),
+              const SizedBox(height: 20),
+
+              _buildSectionTitle('Preferences & Regional Settings'),
               InkWell(
                 onTap: () => _showTimezoneSelector(context),
                 borderRadius: BorderRadius.circular(10),
@@ -348,11 +631,11 @@ class SettingsScreen extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             const Text(
-                              'Configured Timezone',
+                              'Display Timezone',
                               style: AppTypography.titleMedium,
                             ),
                             Text(
-                              'Stored as UTC; rendered as ${appState.userTimezone}',
+                              'Active timezone: ${appState.userTimezone}',
                               style: AppTypography.bodySecondary.copyWith(
                                 fontSize: 12,
                               ),
@@ -368,6 +651,59 @@ class SettingsScreen extends StatelessWidget {
                     ],
                   ),
                 ),
+              ),
+              const SizedBox(height: 10),
+
+              // Currency & Pricing Localization tile (Auto-assigned per IP location)
+              AnimatedBuilder(
+                animation: appState,
+                builder: (context, _) {
+                  final currencyInfo = CurrencyService.getByCode(appState.userCurrency);
+                  return InkWell(
+                    onTap: () => _showCurrencySelector(context),
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.payments_outlined,
+                            color: AppColors.accent,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Display Currency',
+                                  style: AppTypography.titleMedium,
+                                ),
+                                Text(
+                                  '${currencyInfo.flag} ${currencyInfo.code} (${currencyInfo.symbol}) • ${currencyInfo.name}',
+                                  style: AppTypography.bodySecondary.copyWith(
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Icon(
+                            Icons.chevron_right,
+                            size: 18,
+                            color: AppColors.textMuted,
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
               ),
               const SizedBox(height: 10),
 
@@ -511,7 +847,7 @@ class SettingsScreen extends StatelessWidget {
                                 style: AppTypography.titleMedium,
                               ),
                               Text(
-                                '${appState.registeredPasskeysCount} passkey${appState.registeredPasskeysCount == 1 ? '' : 's'} registered • Passwordless FIDO2',
+                                '${appState.registeredPasskeysCount} passkey${appState.registeredPasskeysCount == 1 ? '' : 's'} registered • Fast & secure sign-in',
                                 style: AppTypography.bodySecondary.copyWith(
                                   fontSize: 12,
                                 ),
@@ -591,12 +927,22 @@ class SettingsScreen extends StatelessWidget {
                                   localizedReason: 'Verify biometrics to enable screen lock for no5ocial',
                                 );
                                 if (authenticated) {
+                                  BiometricLockService.instance.markAuthenticated();
                                   await appState.setBiometricLockEnabled(true);
-                                } else {
                                   if (context.mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(
-                                        content: Text('Biometric verification cancelled or failed.'),
+                                        content: Text('Screen lock enabled successfully.'),
+                                        backgroundColor: AppColors.success,
+                                      ),
+                                    );
+                                  }
+                                } else {
+                                  if (context.mounted) {
+                                    final err = BiometricLockService.instance.lastError ?? 'Biometric verification cancelled or failed.';
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(err),
                                         backgroundColor: AppColors.error,
                                       ),
                                     );
@@ -604,6 +950,13 @@ class SettingsScreen extends StatelessWidget {
                                 }
                               } else {
                                 await appState.setBiometricLockEnabled(false);
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Screen lock disabled.'),
+                                    ),
+                                  );
+                                }
                               }
                             },
                     ),
@@ -749,31 +1102,27 @@ class SettingsScreen extends StatelessWidget {
                   children: [
                     _buildSecurityItem(
                       Icons.shield_outlined,
-                      'Client-Side Credential Safety',
-                      'Zero OAuth client secrets or long-lived refresh tokens stored on client.',
+                      'Enterprise Credential Protection',
+                      'Platform access tokens are encrypted locally with zero credentials stored on external servers.',
                     ),
                     const SizedBox(height: 10),
                     _buildSecurityItem(
                       Icons.lock_clock_outlined,
-                      'Publishing Idempotency & Duplicate Guards',
-                      'Durable client & server idempotency keys prevent accidental multi-publish.',
+                      'Duplicate Broadcast Protection',
+                      'Smart publication guards verify and prevent accidental duplicate posts across all channels.',
                     ),
                     const SizedBox(height: 10),
                     _buildSecurityItem(
                       Icons.visibility_off_outlined,
-                      'Secret Redaction Engine',
-                      'Bearer tokens and authorization headers redacted prior to audit serialization.',
+                      'Automated Privacy Redaction',
+                      'Authentication signatures and headers are strictly sanitized before recording.',
                     ),
                   ],
                 ),
               ),
               const SizedBox(height: 16),
 
-              _buildSectionTitle('Client-Side Media Hosting (Cloudinary / ImgBB)'),
-              _buildMediaHostingCard(context),
-              const SizedBox(height: 16),
-
-              _buildSectionTitle('Operations & Audit Logs'),
+              _buildSectionTitle('Activity & Security History'),
               InkWell(
                 onTap: () => _showAuditLog(context),
                 borderRadius: BorderRadius.circular(10),
@@ -797,11 +1146,11 @@ class SettingsScreen extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             const Text(
-                              'View Audit Events',
+                              'View Activity Logs',
                               style: AppTypography.titleMedium,
                             ),
                             Text(
-                              '${appState.auditRepository.getAllEvents().length} events recorded in audit log',
+                              '${appState.auditRepository.getAllEvents().length} events recorded in workspace history',
                               style: AppTypography.bodySecondary.copyWith(
                                 fontSize: 12,
                               ),
@@ -859,6 +1208,184 @@ class SettingsScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 24),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildCloudSyncCard(BuildContext context) {
+    return ListenableBuilder(
+      listenable: FirebaseSyncService.instance,
+      builder: (context, _) {
+        final fbSync = FirebaseSyncService.instance;
+        final isSyncing = fbSync.status == FirebaseSyncStatus.syncing;
+        final isOffline = fbSync.status == FirebaseSyncStatus.offline;
+        final isError = fbSync.status == FirebaseSyncStatus.error;
+
+        final Color statusColor = isSyncing
+            ? AppColors.accent
+            : isOffline
+                ? AppColors.warning
+                : isError
+                    ? AppColors.error
+                    : AppColors.success;
+
+        final String statusTitle = isSyncing
+            ? 'Synchronizing...'
+            : isOffline
+                ? 'Offline (Local-First)'
+                : isError
+                    ? 'Sync Error'
+                    : 'Cloud DB Synchronized';
+
+        final IconData statusIcon = isSyncing
+            ? Icons.sync
+            : isOffline
+                ? Icons.cloud_off
+                : isError
+                    ? Icons.error_outline
+                    : Icons.cloud_done;
+
+        return Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.border),
+            boxShadow: AppColors.cardShadow,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: statusColor.withAlpha(25),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(statusIcon, color: statusColor, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Cloud Firestore & SQLite Live Channel Vault',
+                          style: AppTypography.titleMedium.copyWith(fontSize: 14),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Database state: ${fbSync.formattedLastSync}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: statusColor,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: statusColor.withAlpha(20),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: statusColor.withAlpha(80)),
+                    ),
+                    child: Text(
+                      statusTitle,
+                      style: TextStyle(
+                        color: statusColor,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Your user account, linked channels, groups, and brand configurations are fully managed in the Cloud DB in real time. Whenever you connect a channel or organize groups, changes write directly to the database so your channel and group details are never lost or forgotten across devices.',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textSecondary,
+                  height: 1.4,
+                ),
+              ),
+              if (fbSync.lastError != null && isError) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.errorBg,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: AppColors.errorBorder),
+                  ),
+                  child: Text(
+                    fbSync.lastError!,
+                    style: const TextStyle(fontSize: 11, color: AppColors.error),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: isSyncing
+                          ? null
+                          : () async {
+                              final res = await appState.syncWithCloud(force: false);
+                              if (context.mounted && res != null) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(res.success
+                                        ? 'Cloud DB synchronized (${res.pulledCount} pulled, ${res.pushedCount} pushed).'
+                                        : 'Sync notice: ${res.errorMessage}'),
+                                    backgroundColor: res.success ? AppColors.success : AppColors.warning,
+                                  ),
+                                );
+                              }
+                            },
+                      icon: const Icon(Icons.sync, size: 16),
+                      label: const Text('Live Sync DB', style: TextStyle(fontSize: 12)),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: isSyncing
+                          ? null
+                          : () async {
+                              final res = await appState.syncWithCloud(force: true);
+                              if (context.mounted && res != null) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(res.success
+                                        ? 'Workspace hydrated from Cloud DB (${res.pulledCount} items active).'
+                                        : 'Fetch notice: ${res.errorMessage}'),
+                                    backgroundColor: res.success ? AppColors.success : AppColors.warning,
+                                  ),
+                                );
+                              }
+                            },
+                      icon: const Icon(Icons.cloud_download_outlined, size: 16),
+                      label: const Text('Force Fetch from DB', style: TextStyle(fontSize: 12)),
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
         );
@@ -932,225 +1459,5 @@ class SettingsScreen extends StatelessWidget {
       ),
     );
   }
-
-  Widget _buildMediaHostingCard(BuildContext context) {
-    return FutureBuilder<MediaHostingStrategy>(
-      future: MediaHostingService.instance.getStrategy(),
-      builder: (context, snapshot) {
-        final strategy = snapshot.data ?? MediaHostingStrategy.r2Primary;
-        final strategyLabel = switch (strategy) {
-          MediaHostingStrategy.r2Primary => 'Cloudflare R2 (10GB Free Lifetime)',
-          MediaHostingStrategy.balanced => 'Smart Balanced (Cloudinary + ImgBB)',
-          MediaHostingStrategy.cloudinary => 'Cloudinary Only (Photos & Videos)',
-          MediaHostingStrategy.imgbb => 'ImgBB (Photos) + Cloudinary (Videos)',
-        };
-
-        return Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: AppColors.border),
-          ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: AppColors.accent.withAlpha(20),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(Icons.cloud_sync_outlined, color: AppColors.accent, size: 20),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      strategyLabel,
-                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-                    ),
-                    const SizedBox(height: 2),
-                    const Text(
-                      'Automated load balancing & format validation (max 15MB img, 100MB vid)',
-                      style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
-                    ),
-                  ],
-                ),
-              ),
-              TextButton.icon(
-                onPressed: () => _showMediaHostingConfigDialog(context),
-                icon: const Icon(Icons.tune, size: 14),
-                label: const Text('Configure'),
-                style: TextButton.styleFrom(
-                  foregroundColor: AppColors.accent,
-                  visualDensity: VisualDensity.compact,
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  void _showMediaHostingConfigDialog(BuildContext context) async {
-    final currentStrategy = await MediaHostingService.instance.getStrategy();
-    final cloudinaryConfig = await MediaHostingService.instance.getCloudinaryConfig();
-    final imgbbKey = await MediaHostingService.instance.getImgbbApiKey();
-
-    if (!context.mounted) return;
-
-    MediaHostingStrategy selectedStrategy = currentStrategy;
-    final cloudNameCtrl = TextEditingController(text: cloudinaryConfig['cloudName']);
-    final uploadPresetCtrl = TextEditingController(text: cloudinaryConfig['uploadPreset']);
-    final imgbbKeyCtrl = TextEditingController(text: imgbbKey ?? '');
-
-    showDialog(
-      context: context,
-      builder: (dCtx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          backgroundColor: AppColors.surface,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Row(
-            children: [
-              Icon(Icons.cloud_sync_outlined, color: AppColors.accent, size: 22),
-              SizedBox(width: 10),
-              Text('Media Hosting Manager', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-            ],
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Text(
-                  'Intelligently distributes uploads across Cloudinary and ImgBB to preserve free quota and optimize bandwidth.',
-                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                ),
-                const SizedBox(height: 16),
-                SegmentedButton<MediaHostingStrategy>(
-                  segments: const [
-                    ButtonSegment(
-                      value: MediaHostingStrategy.r2Primary,
-                      label: Text('Cloudflare R2'),
-                      icon: Icon(Icons.cloud_done, size: 14),
-                    ),
-                    ButtonSegment(
-                      value: MediaHostingStrategy.balanced,
-                      label: Text('Balanced'),
-                      icon: Icon(Icons.balance, size: 14),
-                    ),
-                    ButtonSegment(
-                      value: MediaHostingStrategy.cloudinary,
-                      label: Text('Cloudinary'),
-                      icon: Icon(Icons.cloud_outlined, size: 14),
-                    ),
-                    ButtonSegment(
-                      value: MediaHostingStrategy.imgbb,
-                      label: Text('ImgBB'),
-                      icon: Icon(Icons.image_outlined, size: 14),
-                    ),
-                  ],
-                  selected: {selectedStrategy},
-                  onSelectionChanged: (set) {
-                    setDialogState(() => selectedStrategy = set.first);
-                  },
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Cloudinary Configuration (Videos & Photos)',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: cloudNameCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Cloud Name *',
-                    hintText: 'e.g. no5ocial',
-                    isDense: true,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: uploadPresetCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Unsigned Preset *',
-                    hintText: 'e.g. no5ocial_unsigned',
-                    isDense: true,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'ImgBB Configuration (Photos load-balancing)',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: imgbbKeyCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'ImgBB Free API Key',
-                    hintText: 'Paste API key from api.imgbb.com',
-                    isDense: true,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceSecondary,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppColors.border),
-                  ),
-                  child: const Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '🛡️ Anti-Misuse Policies Active:',
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
-                      ),
-                      SizedBox(height: 4),
-                      Text('• Images: Max 15MB (JPG, PNG, WEBP, GIF)', style: TextStyle(fontSize: 10.5, color: AppColors.textSecondary)),
-                      Text('• Videos: Max 100MB (MP4, MOV, WEBM)', style: TextStyle(fontSize: 10.5, color: AppColors.textSecondary)),
-                      Text('• Client Rate Limit: Max 20 uploads/minute', style: TextStyle(fontSize: 10.5, color: AppColors.textSecondary)),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dCtx).pop(),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                await MediaHostingService.instance.setStrategy(selectedStrategy);
-                await MediaHostingService.instance.setCloudinaryConfig(
-                  cloudName: cloudNameCtrl.text.trim().isNotEmpty
-                      ? cloudNameCtrl.text.trim()
-                      : MediaHostingService.defaultCloudName,
-                  uploadPreset: uploadPresetCtrl.text.trim().isNotEmpty
-                      ? uploadPresetCtrl.text.trim()
-                      : MediaHostingService.defaultUploadPreset,
-                );
-                await MediaHostingService.instance.setImgbbApiKey(imgbbKeyCtrl.text.trim());
-
-                if (dCtx.mounted) Navigator.of(dCtx).pop();
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Media hosting strategy and limits saved.')),
-                  );
-                }
-              },
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.accent, foregroundColor: Colors.white),
-              child: const Text('Save Settings'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
+

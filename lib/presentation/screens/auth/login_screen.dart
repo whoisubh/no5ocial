@@ -378,7 +378,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         height: 48,
                         fit: BoxFit.contain,
                         errorBuilder: (_, _, _) => Image.asset(
-                          'assets/logo/no5ocial_N.png',
+                          'assets/logo/no5ocial_cropped.png',
                           height: 40,
                         ),
                       ),

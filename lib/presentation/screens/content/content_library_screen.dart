@@ -4,6 +4,7 @@ import 'package:no5ocial/core/extensions/l10n_extension.dart';
 import 'package:no5ocial/core/theme/app_colors.dart';
 import 'package:no5ocial/core/theme/app_typography.dart';
 import 'package:no5ocial/core/utils/date_formatter.dart';
+import 'package:no5ocial/domain/enums/platform_type.dart';
 import 'package:no5ocial/domain/enums/publish_status.dart';
 import 'package:no5ocial/domain/models/content_post.dart';
 import 'package:no5ocial/presentation/screens/composer/composer_screen.dart';
@@ -84,7 +85,15 @@ class ContentLibraryScreen extends StatelessWidget {
               ? null
               : AppBar(
                   automaticallyImplyLeading: false,
-                  title: Text(l10n.contentLibraryTitle),
+                  backgroundColor: appState.isDarkMode ? const Color(0xFF101522) : AppColors.surface,
+                  title: Text(
+                    'Content',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: appState.isDarkMode ? Colors.white : AppColors.textPrimary,
+                    ),
+                  ),
                   actions: [
                     IconButton(
                       icon: const Icon(Icons.add),
@@ -255,6 +264,19 @@ class ContentLibraryScreen extends StatelessWidget {
     final brand = appState.getBrandById(post.brandId);
     final jobs = appState.getJobsForPost(post.id);
 
+    final hasYouTubeTarget = post.destinationAccountIds.any((id) {
+      final acc = appState.getAccountById(id);
+      return acc?.platform == PlatformType.youtube;
+    });
+    final displayTitle = post.title.trim().isNotEmpty && post.title.trim() != 'Untitled Post'
+        ? post.title.trim()
+        : (post.defaultCaption.trim().isNotEmpty
+            ? post.defaultCaption.trim().split('\n').first
+            : 'Post (${post.createdAtUtc.toLocal().toString().substring(0, 10)})');
+
+    final isCaptionDistinct = post.defaultCaption.trim().isNotEmpty &&
+        post.defaultCaption.trim() != displayTitle;
+
     return InkWell(
       onTap: () => _openComposer(context, post),
       borderRadius: BorderRadius.circular(12),
@@ -305,17 +327,40 @@ class ContentLibraryScreen extends StatelessWidget {
             const SizedBox(height: 8),
 
             // Title & Caption snippet
-            Text(
-              post.title,
-              style: AppTypography.titleMedium.copyWith(fontSize: 14),
+            Row(
+              children: [
+                if (hasYouTubeTarget) ...[
+                  Container(
+                    margin: const EdgeInsets.only(right: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withAlpha(20),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: Colors.red.withAlpha(60)),
+                    ),
+                    child: const Text('YouTube',
+                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.red)),
+                  ),
+                ],
+                Expanded(
+                  child: Text(
+                    displayTitle,
+                    style: AppTypography.titleMedium.copyWith(fontSize: 14),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 4),
-            Text(
-              post.defaultCaption,
-              style: AppTypography.bodySecondary.copyWith(fontSize: 12),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
+            if (isCaptionDistinct) ...[
+              const SizedBox(height: 4),
+              Text(
+                post.defaultCaption,
+                style: AppTypography.bodySecondary.copyWith(fontSize: 12),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
             const SizedBox(height: 10),
 
             // Attached destinations chip row

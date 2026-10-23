@@ -15,7 +15,6 @@ import 'package:no5ocial/core/services/oauth_callback_service.dart';
 import 'package:no5ocial/presentation/widgets/app_sheets.dart';
 import 'package:no5ocial/presentation/widgets/dialogs/entity_dialogs.dart';
 import 'package:no5ocial/presentation/widgets/entity_badges.dart';
-import 'package:no5ocial/presentation/widgets/platform_icon_chip.dart';
 import 'package:no5ocial/presentation/widgets/platform_logo.dart';
 
 class AccountsScreen extends StatefulWidget {
@@ -78,7 +77,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
   }
 
   Future<void> _showChangeGroupSheet(BuildContext context, SocialAccount account, Brand brand) async {
-    final availableGroups = widget.appState.getGroupsByBrand(brand.id);
+    final availableGroups = widget.appState.groups;
     final currentGroup = widget.appState.getGroupForAccount(account.id);
     String selectedValue = currentGroup?.id ?? 'standalone';
     final newGroupNameCtrl = TextEditingController();
@@ -103,14 +102,14 @@ class _AccountsScreenState extends State<AccountsScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'Assign "${account.displayName}" (${account.handle}) to a product group for 1-click group publishing, or keep it as a standalone channel under ${brand.name}.',
+              'Assign "${account.displayName}" (${account.handle}) to a broadcast group for 1-click group publishing, or keep it standalone under ${brand.name}.',
               style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.3),
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
               initialValue: selectedValue,
               decoration: const InputDecoration(
-                labelText: 'Product / Campaign Group (Optional)',
+                labelText: 'Channel Group (Optional)',
                 prefixIcon: Icon(Icons.folder_outlined, size: 18),
               ),
               items: [
@@ -124,16 +123,25 @@ class _AccountsScreenState extends State<AccountsScreen> {
                     ],
                   ),
                 ),
-                ...availableGroups.map((g) => DropdownMenuItem(
-                  value: g.id,
-                  child: Row(
-                    children: [
-                      const Icon(Icons.folder_special_outlined, size: 16, color: AppColors.accent),
-                      const SizedBox(width: 8),
-                      Text('Group: ${g.name} (${g.accountIds.length} channels)'),
-                    ],
-                  ),
-                )),
+                ...availableGroups.map((g) {
+                  final gBrand = widget.appState.getBrandById(g.brandId);
+                  final isSameBrand = g.brandId == brand.id;
+                  return DropdownMenuItem(
+                    value: g.id,
+                    child: Row(
+                      children: [
+                        const Icon(Icons.folder_special_outlined, size: 16, color: AppColors.accent),
+                        const SizedBox(width: 8),
+                        Text(
+                          isSameBrand
+                              ? 'Group: ${g.name} (${g.accountIds.length} channels)'
+                              : 'Group: ${g.name} [${gBrand?.name ?? 'Other'}] (${g.accountIds.length})',
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  );
+                }),
                 const DropdownMenuItem(
                   value: '__new__',
                   child: Row(
@@ -254,18 +262,31 @@ class _AccountsScreenState extends State<AccountsScreen> {
           children: [
             Row(
               children: [
-                PlatformIconChip(account: account, isCompact: false),
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: PlatformLogo.getBrandColor(account.platform).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: PlatformLogo.getBrandColor(account.platform).withValues(alpha: 0.25),
+                    ),
+                  ),
+                  child: Center(
+                    child: PlatformLogo(platform: account.platform, size: 22),
+                  ),
+                ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        account.displayName,
+                        account.displayName.isNotEmpty ? account.displayName : account.handle,
                         style: AppTypography.titleMedium.copyWith(fontSize: 16),
                       ),
                       Text(
-                        'Company: ${brand?.name ?? "Independent"}',
+                        '${account.handle.startsWith('@') ? account.handle : "@${account.handle}"} • ${brand?.name ?? "Independent"}',
                         style: AppTypography.bodySecondary,
                       ),
                     ],
@@ -283,9 +304,38 @@ class _AccountsScreenState extends State<AccountsScreen> {
 
             _buildDetailRow('Platform', account.platform.displayName),
             _buildDetailRow('Target Sub-type', account.subtypeLabel),
-            _buildDetailRow(
-              'Group / Bundle',
-              widget.appState.getGroupForAccount(account.id)?.name ?? 'None (Standalone under Company)',
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  const SizedBox(
+                    width: 140,
+                    child: Text(
+                      'Group / Bundle',
+                      style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: AppColors.textSecondary),
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      widget.appState.getGroupForAccount(account.id)?.name ?? 'None (Standalone)',
+                      style: const TextStyle(fontSize: 13, color: AppColors.textPrimary),
+                    ),
+                  ),
+                  TextButton.icon(
+                    onPressed: () {
+                      Navigator.of(ctx).pop();
+                      _showChangeGroupSheet(context, account, brand ?? widget.appState.brands.first);
+                    },
+                    icon: const Icon(Icons.edit_outlined, size: 14),
+                    label: const Text('Assign Group', style: TextStyle(fontSize: 12)),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ),
+                ],
+              ),
             ),
             _buildDetailRow('Handle', account.handle),
             _buildDetailRow('Status', account.connectionStatus.label),
@@ -405,11 +455,19 @@ class _AccountsScreenState extends State<AccountsScreen> {
               ? null
               : AppBar(
                   automaticallyImplyLeading: false,
+                  backgroundColor: widget.appState.isDarkMode ? const Color(0xFF101522) : AppColors.surface,
                   title: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(l10n.registryTitle),
+                      Text(
+                        'Channels',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: widget.appState.isDarkMode ? Colors.white : AppColors.textPrimary,
+                        ),
+                      ),
                       Text(
                         '${allAccounts.length} Connected • ${brands.length} Workspace${brands.length == 1 ? '' : 's'}',
                         style: const TextStyle(
@@ -668,7 +726,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
                   overflow: TextOverflow.ellipsis,
                 ),
                 Text(
-                  '#${brand.slug} • ${allAccounts.length} channel${allAccounts.length == 1 ? '' : 's'} connected',
+                  '${allAccounts.length} channel${allAccounts.length == 1 ? '' : 's'} connected',
                   style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
                 ),
               ],
@@ -756,24 +814,29 @@ class _AccountsScreenState extends State<AccountsScreen> {
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
               icon,
-              size: 14,
+              size: 13,
               color: isSelected ? AppColors.accent : AppColors.textSecondary,
             ),
-            const SizedBox(width: 5),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                color: isSelected ? AppColors.textPrimary : AppColors.textSecondary,
+            const SizedBox(width: 4),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                  color: isSelected ? AppColors.textPrimary : AppColors.textSecondary,
+                ),
               ),
             ),
             const SizedBox(width: 4),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
               decoration: BoxDecoration(
                 color: isSelected ? AppColors.accentLight : AppColors.surfaceMuted,
                 borderRadius: BorderRadius.circular(10),
@@ -781,7 +844,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
               child: Text(
                 '$count',
                 style: TextStyle(
-                  fontSize: 10,
+                  fontSize: 9.5,
                   fontWeight: FontWeight.w700,
                   color: isSelected ? AppColors.accent : AppColors.textSecondary,
                 ),
@@ -848,7 +911,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
                 ),
                 padding: const EdgeInsets.all(8),
                 child: Image.asset(
-                  'assets/logo/no5ocial_N.png',
+                  'assets/logo/no5ocial_cropped.png',
                   fit: BoxFit.contain,
                   errorBuilder: (_, _, _) =>
                       const Icon(Icons.hub, color: AppColors.accent),
@@ -986,7 +1049,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                            content: Text('Demo sample brands purged from SQLite database.'),
+                            content: Text('Demo sample brands removed.'),
                             backgroundColor: AppColors.ink,
                           ),
                         );
@@ -1126,37 +1189,14 @@ class _AccountsScreenState extends State<AccountsScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Row(
-                        children: [
-                          Flexible(
-                            child: Text(
-                              brand.name,
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.textPrimary,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: AppColors.surface,
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(color: AppColors.border),
-                            ),
-                            child: Text(
-                              '#${brand.slug}',
-                              style: const TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.accent,
-                              ),
-                            ),
-                          ),
-                        ],
+                      Text(
+                        brand.name,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textPrimary,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 2),
                       Row(
@@ -1170,18 +1210,21 @@ class _AccountsScreenState extends State<AccountsScreen> {
                             ),
                           ),
                           const SizedBox(width: 6),
-                          Text(
-                            '${brandAccounts.length} connected channel${brandAccounts.length == 1 ? '' : 's'}',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: brandAccounts.isNotEmpty ? AppColors.success : AppColors.textSecondary,
-                              fontWeight: FontWeight.w600,
+                          Flexible(
+                            child: Text(
+                              '${brandAccounts.length} connected channel${brandAccounts.length == 1 ? '' : 's'}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: brandAccounts.isNotEmpty ? AppColors.success : AppColors.textSecondary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                           if (brand.websiteUrl != null && brand.websiteUrl!.isNotEmpty) ...[
-                            const SizedBox(width: 8),
+                            const SizedBox(width: 6),
                             const Text('•', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
-                            const SizedBox(width: 8),
+                            const SizedBox(width: 6),
                             Flexible(
                               child: Text(
                                 brand.websiteUrl!,
@@ -1365,13 +1408,36 @@ class _AccountsScreenState extends State<AccountsScreen> {
                 final acc = brandAccounts[aIdx];
                 final accountGroup = widget.appState.getGroupForAccount(acc.id);
 
+                final hasDistinctName = acc.displayName.isNotEmpty &&
+                    acc.displayName.toLowerCase() != acc.handle.toLowerCase() &&
+                    acc.displayName.toLowerCase() != '@${acc.handle.toLowerCase()}';
+                final titleText = hasDistinctName
+                    ? acc.displayName
+                    : (acc.handle.startsWith('@') ? acc.handle : '@${acc.handle}');
+                final subtitleText = hasDistinctName
+                    ? '${acc.handle.startsWith('@') ? acc.handle : "@${acc.handle}"} • ${acc.subtypeLabel}'
+                    : acc.subtypeLabel;
+
                 return InkWell(
                   onTap: () => _showAccountDetails(context, acc, brand),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     child: Row(
                       children: [
-                        PlatformIconChip(account: acc, isCompact: false),
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: PlatformLogo.getBrandColor(acc.platform).withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: PlatformLogo.getBrandColor(acc.platform).withValues(alpha: 0.25),
+                            ),
+                          ),
+                          child: Center(
+                            child: PlatformLogo(platform: acc.platform, size: 20),
+                          ),
+                        ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Column(
@@ -1381,63 +1447,61 @@ class _AccountsScreenState extends State<AccountsScreen> {
                                 children: [
                                   Flexible(
                                     child: Text(
-                                      acc.displayName.isNotEmpty ? acc.displayName : acc.handle,
+                                      titleText,
                                       style: const TextStyle(
                                         fontSize: 14,
-                                        fontWeight: FontWeight.w700,
+                                        fontWeight: FontWeight.w600,
                                         color: AppColors.textPrimary,
                                       ),
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
-                                  const SizedBox(width: 6),
+                                  const SizedBox(width: 8),
                                   _buildConnectionChip(acc.connectionStatus, acc.isManualOnly),
                                 ],
                               ),
-                              const SizedBox(height: 4),
+                              const SizedBox(height: 3),
                               Row(
                                 children: [
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-                                    decoration: BoxDecoration(
-                                      color: accountGroup != null
-                                          ? AppColors.accent.withValues(alpha: 0.12)
-                                          : AppColors.surfaceSecondary,
-                                      borderRadius: BorderRadius.circular(4),
-                                      border: Border.all(
-                                        color: accountGroup != null
-                                            ? AppColors.accent.withValues(alpha: 0.3)
-                                            : AppColors.border,
-                                      ),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(
-                                          accountGroup != null ? Icons.folder_special : Icons.hub_outlined,
-                                          size: 10,
-                                          color: accountGroup != null ? AppColors.accent : AppColors.textSecondary,
-                                        ),
-                                        const SizedBox(width: 3),
-                                        Text(
-                                          accountGroup != null ? 'Group: ${accountGroup.name}' : 'Standalone',
-                                          style: TextStyle(
-                                            fontSize: 10,
-                                            fontWeight: FontWeight.w600,
-                                            color: accountGroup != null ? AppColors.accent : AppColors.textSecondary,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Expanded(
+                                  Flexible(
                                     child: Text(
-                                      '${acc.subtypeLabel} • ${acc.handle.startsWith('@') ? acc.handle : "@${acc.handle}"}',
-                                      style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                                      subtitleText,
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: AppColors.textSecondary,
+                                      ),
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
+                                  if (accountGroup != null) ...[
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.accent.withValues(alpha: 0.1),
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(
+                                            Icons.folder_outlined,
+                                            size: 10,
+                                            color: AppColors.accent,
+                                          ),
+                                          const SizedBox(width: 3),
+                                          Text(
+                                            accountGroup.name,
+                                            style: const TextStyle(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w600,
+                                              color: AppColors.accent,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
                                 ],
                               ),
                             ],
@@ -1883,42 +1947,72 @@ class _AccountsScreenState extends State<AccountsScreen> {
           borderRadius: BorderRadius.circular(4),
           border: Border.all(color: AppColors.border),
         ),
-        child: Text(
+        child: const Text(
           'Manual',
-          style: AppTypography.labelSmall.copyWith(
+          style: TextStyle(
             color: AppColors.textSecondary,
             fontSize: 10,
+            fontWeight: FontWeight.w500,
           ),
         ),
       );
     }
 
     final isConnected = status == ConnectionStatus.connected;
+    if (isConnected) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          color: AppColors.success.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 5,
+              height: 5,
+              decoration: const BoxDecoration(
+                color: AppColors.success,
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: 4),
+            const Text(
+              'Active',
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                color: AppColors.success,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: isConnected ? AppColors.successBg : AppColors.warningBg,
+        color: AppColors.warningBg,
         borderRadius: BorderRadius.circular(4),
-        border: Border.all(
-          color: isConnected
-              ? AppColors.successBorder
-              : AppColors.warningBorder,
-        ),
+        border: Border.all(color: AppColors.warningBorder),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            isConnected ? Icons.check : Icons.warning_amber_rounded,
+          const Icon(
+            Icons.warning_amber_rounded,
             size: 10,
-            color: isConnected ? AppColors.success : AppColors.warning,
+            color: AppColors.warning,
           ),
           const SizedBox(width: 3),
           Text(
             status.label,
-            style: AppTypography.labelSmall.copyWith(
-              color: isConnected ? AppColors.success : AppColors.warning,
+            style: const TextStyle(
+              color: AppColors.warning,
               fontSize: 10,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ],

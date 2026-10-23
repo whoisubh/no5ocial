@@ -39,16 +39,16 @@ class EntityDialogs {
           final availableHeight = MediaQuery.of(bottomSheetCtx).size.height - bottomInset;
           return Padding(
             padding: EdgeInsets.only(bottom: bottomInset),
-            child: Container(
-              constraints: BoxConstraints(
-                maxHeight: availableHeight * 0.88,
-              ),
-              decoration: const BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
-              ),
-              child: SafeArea(
-                top: false,
+            child: Material(
+              color: AppColors.surface,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+              clipBehavior: Clip.antiAlias,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: availableHeight * 0.88,
+                ),
+                child: SafeArea(
+                  top: false,
                 child: StatefulBuilder(
                   builder: (ctx, setModalState) {
                     return SingleChildScrollView(
@@ -96,7 +96,8 @@ class EntityDialogs {
                 ),
               ),
             ),
-          );
+          ),
+        );
         },
       );
     } else {
@@ -206,7 +207,7 @@ class EntityDialogs {
             ),
 
             const SizedBox(height: 20),
-            // Privacy Guaranteed Banner
+            // Organization details header
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
@@ -216,11 +217,11 @@ class EntityDialogs {
               ),
               child: const Row(
                 children: [
-                  Icon(Icons.lock_outline, size: 14, color: AppColors.accent),
+                  Icon(Icons.tune_outlined, size: 14, color: AppColors.accent),
                   SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Personalization Survey — 100% On-Device & Zero Third-Party Leaks',
+                      'Organization Details (Optional)',
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
@@ -659,27 +660,27 @@ class EntityDialogs {
 
             if (isIntegrated) ...[
               Container(
-                padding: const EdgeInsets.all(10),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 decoration: BoxDecoration(
-                  color: AppColors.success.withAlpha(20),
+                  color: AppColors.success.withAlpha(15),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: AppColors.success.withAlpha(60)),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.verified, color: AppColors.success, size: 18),
-                    const SizedBox(width: 8),
+                    const Icon(Icons.check_circle_rounded, color: AppColors.success, size: 20),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'OAuth Verified: ${apiVerifiedTitle ?? selectedSubtype.name}',
-                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+                            apiVerifiedTitle ?? selectedSubtype.name,
+                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
                           ),
                           Text(
-                            'Account ID: ${externalAccountId ?? 'ext_oauth'} • Handle: ${apiVerifiedHandle ?? '@official'}',
-                            style: const TextStyle(fontSize: 10.5, color: AppColors.textSecondary),
+                            '${apiVerifiedHandle ?? '@official'} · Connected',
+                            style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
                           ),
                         ],
                       ),
@@ -852,6 +853,8 @@ class EntityDialogs {
     final nameCtrl = TextEditingController(text: existingGroup?.name ?? '');
     final descCtrl = TextEditingController(text: existingGroup?.description ?? '');
     final Set<String> selectedAccountIds = Set.from(existingGroup?.accountIds ?? []);
+    // Null filter means show all workspace accounts
+    String? filterBrandId;
 
     _showAdaptiveModal(
       context,
@@ -863,23 +866,30 @@ class EntityDialogs {
         ],
       ),
       contentBuilder: (ctx, setDialogState, isMobile) {
-        final eligibleAccounts = appState.accounts
-            .where((a) => a.brandId == selectedBrandId)
-            .toList();
+        final allAccounts = appState.accounts;
+        final displayedAccounts = filterBrandId == null
+            ? allAccounts
+            : allAccounts.where((a) => a.brandId == filterBrandId).toList();
+
+        final allFilteredSelected = displayedAccounts.isNotEmpty &&
+            displayedAccounts.every((a) => selectedAccountIds.contains(a.id));
 
         return Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const Text(
-              'Group multiple profiles for the same company or product across different platforms (e.g. IG + X + LinkedIn + YouTube). When composing, select the group to auto-target all bundled profiles at once!',
+              'Bundle multiple channels across platforms and products into a 1-tap broadcast group. When creating posts, picking this group auto-targets all assigned channels simultaneously!',
               style: AppTypography.bodySecondary,
             ),
             const SizedBox(height: 16),
+
+            // Owning Company / Brand
             DropdownButtonFormField<String>(
               initialValue: selectedBrandId,
               decoration: const InputDecoration(
-                labelText: 'Company / Brand *',
+                labelText: 'Primary Company / Workspace *',
+                prefixIcon: Icon(Icons.business_rounded, size: 18),
               ),
               items: brands.map((b) => DropdownMenuItem(
                 value: b.id,
@@ -903,34 +913,136 @@ class EntityDialogs {
                 if (val != null) {
                   setDialogState(() {
                     selectedBrandId = val;
-                    selectedAccountIds.clear();
                   });
                 }
               },
             ),
             const SizedBox(height: 14),
+
             TextField(
               controller: nameCtrl,
               decoration: const InputDecoration(
                 labelText: 'Group Name *',
-                hintText: 'e.g. Flagship Launch Squad or Creator Memes',
+                hintText: 'e.g. Flagship Launch Squad or Multi-Network Comms',
+                prefixIcon: Icon(Icons.drive_file_rename_outline, size: 18),
               ),
             ),
             const SizedBox(height: 14),
+
             TextField(
               controller: descCtrl,
               decoration: const InputDecoration(
                 labelText: 'Description (Optional)',
-                hintText: 'e.g. All primary multi-platform channels for Product X',
+                hintText: 'e.g. All primary social handles bundled for coordinated publishing',
+                prefixIcon: Icon(Icons.notes_rounded, size: 18),
               ),
             ),
-            const SizedBox(height: 16),
-            Text(
-              'Bundle Connected Channels (${selectedAccountIds.length} selected):',
-              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+            const SizedBox(height: 18),
+
+            // Channel Assignment Header with Select All Action
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Assign Channels (${selectedAccountIds.length} of ${allAccounts.length} selected):',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.ink),
+                  ),
+                ),
+                if (displayedAccounts.isNotEmpty)
+                  TextButton(
+                    onPressed: () {
+                      setDialogState(() {
+                        if (allFilteredSelected) {
+                          for (final a in displayedAccounts) {
+                            selectedAccountIds.remove(a.id);
+                          }
+                        } else {
+                          for (final a in displayedAccounts) {
+                            selectedAccountIds.add(a.id);
+                          }
+                        }
+                      });
+                    },
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    child: Text(
+                      allFilteredSelected ? 'Clear Filtered' : 'Select All Filtered',
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.accent),
+                    ),
+                  ),
+              ],
             ),
             const SizedBox(height: 8),
-            if (eligibleAccounts.isEmpty)
+
+            // Quick Brand Filter Chips
+            if (brands.length > 1 && allAccounts.isNotEmpty) ...[
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    ChoiceChip(
+                      label: Text('All Channels (${allAccounts.length})'),
+                      selected: filterBrandId == null,
+                      onSelected: (val) {
+                        if (val) setDialogState(() => filterBrandId = null);
+                      },
+                      labelStyle: TextStyle(
+                        fontSize: 11,
+                        fontWeight: filterBrandId == null ? FontWeight.bold : FontWeight.normal,
+                      ),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    const SizedBox(width: 6),
+                    ...brands.map((b) {
+                      final count = allAccounts.where((a) => a.brandId == b.id).length;
+                      final isSelected = filterBrandId == b.id;
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 6),
+                        child: ChoiceChip(
+                          label: Text('${b.name} ($count)'),
+                          selected: isSelected,
+                          onSelected: (val) {
+                            setDialogState(() => filterBrandId = val ? b.id : null);
+                          },
+                          labelStyle: TextStyle(
+                            fontSize: 11,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                          ),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      );
+                    }),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+
+            // Channels List
+            if (allAccounts.isEmpty)
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceSecondary,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.info_outline, size: 18, color: AppColors.textSecondary),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'No connected social accounts found in this workspace yet. Connect social profiles in Accounts first!',
+                        style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else if (displayedAccounts.isEmpty)
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
@@ -938,53 +1050,119 @@ class EntityDialogs {
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: AppColors.border),
                 ),
-                child: const Text(
-                  'No connected channels found for this company. Connect channels first or select another company.',
-                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                child: Row(
+                  children: [
+                    const Icon(Icons.filter_alt_off_outlined, size: 16, color: AppColors.textSecondary),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        'No connected accounts for this specific filter.',
+                        style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () => setDialogState(() => filterBrandId = null),
+                      child: const Text('Show All', style: TextStyle(fontSize: 12)),
+                    ),
+                  ],
                 ),
               )
             else
-              Container(
-                constraints: const BoxConstraints(maxHeight: 200),
-                decoration: BoxDecoration(
-                  border: Border.all(color: AppColors.border),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: ListView.separated(
-                  shrinkWrap: true,
-                  itemCount: eligibleAccounts.length,
-                  separatorBuilder: (_, _) => const Divider(height: 1),
-                  itemBuilder: (c, idx) {
-                    final acc = eligibleAccounts[idx];
-                    final isChecked = selectedAccountIds.contains(acc.id);
-                    return CheckboxListTile(
-                      dense: true,
-                      value: isChecked,
-                      title: Row(
-                        children: [
-                          PlatformLogo(platform: acc.platform, size: 16),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              '${acc.displayName} (${acc.handle})',
-                              style: AppTypography.bodyMedium,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
+              Material(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(10),
+                clipBehavior: Clip.antiAlias,
+                child: Container(
+                  constraints: const BoxConstraints(maxHeight: 240),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: displayedAccounts.length,
+                    separatorBuilder: (_, _) => const Divider(height: 1),
+                    itemBuilder: (c, idx) {
+                      final acc = displayedAccounts[idx];
+                      final isChecked = selectedAccountIds.contains(acc.id);
+                      final accBrand = appState.getBrandById(acc.brandId);
+                      final existingGroupForAcc = appState.getGroupForAccount(acc.id);
+                      final isInAnotherGroup = existingGroupForAcc != null &&
+                          existingGroupForAcc.id != existingGroup?.id;
+
+                      return Material(
+                        color: isChecked ? AppColors.accent.withAlpha(15) : Colors.transparent,
+                        child: CheckboxListTile(
+                          dense: true,
+                          value: isChecked,
+                          activeColor: AppColors.accent,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                          secondary: PlatformLogo(platform: acc.platform, size: 22),
+                          title: Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  acc.displayName.isNotEmpty ? acc.displayName : acc.handle,
+                                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              if (accBrand != null) ...[
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.accent.withAlpha(20),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    accBrand.name,
+                                    style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: AppColors.accent),
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
-                        ],
-                      ),
-                      onChanged: (val) {
-                        setDialogState(() {
-                          if (val == true) {
-                            selectedAccountIds.add(acc.id);
-                          } else {
-                            selectedAccountIds.remove(acc.id);
-                          }
-                        });
-                      },
-                    );
-                  },
+                          subtitle: Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  acc.handle.startsWith('@') ? acc.handle : '@${acc.handle}',
+                                  style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              if (isInAnotherGroup) ...[
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                  decoration: BoxDecoration(
+                                    color: Colors.orange.withAlpha(30),
+                                    borderRadius: BorderRadius.circular(3),
+                                  ),
+                                  child: Text(
+                                    'In: ${existingGroupForAcc.name}',
+                                    style: const TextStyle(fontSize: 9.5, color: Colors.deepOrange, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                          onChanged: (val) {
+                            setDialogState(() {
+                              if (val == true) {
+                                selectedAccountIds.add(acc.id);
+                              } else {
+                                selectedAccountIds.remove(acc.id);
+                              }
+                            });
+                          },
+                        ),
+                      );
+                    },
+                  ),
                 ),
               ),
           ],
@@ -1016,11 +1194,23 @@ class EntityDialogs {
                 accountIds: selectedAccountIds.toList(),
               );
             }
+
+            // Sync account memberships: remove these accounts from other groups
+            for (final accId in selectedAccountIds) {
+              for (final otherG in appState.groups) {
+                if (otherG.id != savedGroup.id && otherG.accountIds.contains(accId)) {
+                  appState.updateGroup(otherG.copyWith(
+                    accountIds: otherG.accountIds.where((id) => id != accId).toList(),
+                  ));
+                }
+              }
+            }
+
             Navigator.of(ctx).pop();
             onSaved?.call(savedGroup);
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('Group "${savedGroup.name}" saved successfully.'),
+                content: Text('Channel group "${savedGroup.name}" saved with ${savedGroup.accountIds.length} assigned profiles.'),
                 backgroundColor: AppColors.success,
               ),
             );
@@ -1045,6 +1235,7 @@ class EntityDialogs {
   }) async {
     final tokenCtrl = TextEditingController();
     bool isSubmitting = false;
+    bool showAdvancedToken = false;
 
     _showAdaptiveModal(
       context,
@@ -1054,53 +1245,53 @@ class EntityDialogs {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              'Integrate ${platform.displayName} ${subtype.name}',
+              'Connect ${platform.displayName}',
               overflow: TextOverflow.ellipsis,
             ),
           ),
         ],
       ),
       contentBuilder: (authCtx, setAuthState, isMobile) {
-        String tokenLabel = 'Access Token / Bearer Token';
-        String tokenHint = 'Paste official OAuth token';
-        String apiDescription = '';
+        String tokenLabel = 'Access Token';
+        String tokenHint = 'Enter authorized token';
+        String description = '';
 
         switch (platform) {
           case PlatformType.youtube:
-            tokenLabel = 'Google OAuth Access Token';
-            tokenHint = 'Paste Google OAuth token';
-            apiDescription = 'Uses YouTube Data API v3 (GET /youtube/v3/channels?mine=true) to upload to standard channel.';
+            tokenLabel = 'Google Access Token';
+            tokenHint = 'Enter Google access token';
+            description = 'Connect your official YouTube channel to schedule and publish videos seamlessly.';
             break;
           case PlatformType.instagram:
-            tokenLabel = 'Meta / Instagram Graph API Access Token';
-            tokenHint = 'Paste Instagram Graph token';
-            apiDescription = 'Uses Meta Graph API (GET /me?fields=id,username) to publish to Instagram Professional account.';
+            tokenLabel = 'Instagram Access Token';
+            tokenHint = 'Enter Instagram access token';
+            description = 'Connect your Instagram Professional or Creator account to publish photos, reels, and stories.';
             break;
           case PlatformType.linkedin:
-            tokenLabel = 'LinkedIn Member / Page Access Token';
-            tokenHint = 'Paste LinkedIn token';
-            apiDescription = 'Uses LinkedIn API to publish to verified member profile or company page.';
+            tokenLabel = 'LinkedIn Access Token';
+            tokenHint = 'Enter LinkedIn access token';
+            description = 'Connect your LinkedIn company page or member profile to share company updates and articles.';
             break;
           case PlatformType.x:
-            tokenLabel = 'X / Twitter API v2 Bearer Token';
-            tokenHint = 'Paste OAuth 2.0 User Access Token';
-            apiDescription = 'Uses Twitter API v2 (GET /2/users/me) to verify handle.';
+            tokenLabel = 'X Bearer Token';
+            tokenHint = 'Enter X OAuth token';
+            description = 'Connect your official X account to publish posts, threads, and media.';
             break;
           case PlatformType.threads:
-            tokenLabel = 'Threads API Bearer Token';
-            tokenHint = 'Paste Threads API Access Token';
-            apiDescription = 'Uses Meta Threads Graph API (GET /v1.0/me?fields=id,username) to publish threads and media.';
+            tokenLabel = 'Threads Access Token';
+            tokenHint = 'Enter Threads access token';
+            description = 'Connect your Threads account to broadcast posts and media.';
             break;
           default:
-            apiDescription = 'Official API verification for ${platform.displayName}.';
+            description = 'Connect your ${platform.displayName} account to start publishing.';
         }
 
         return Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(apiDescription, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-            const SizedBox(height: 16),
+            Text(description, style: const TextStyle(fontSize: 12.5, color: AppColors.textSecondary, height: 1.4)),
+            const SizedBox(height: 18),
 
             if (platform == PlatformType.youtube) ...[
               ElevatedButton.icon(
@@ -1126,14 +1317,15 @@ class EntityDialogs {
                         }
                       },
                 icon: const Icon(Icons.account_circle, size: 18),
-                label: const Text('Sign in with Google OAuth'),
+                label: const Text('Sign in with Google'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFFF0000),
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
               OutlinedButton.icon(
                 onPressed: isSubmitting
                     ? null
@@ -1147,7 +1339,7 @@ class EntityDialogs {
                           if (!launched && authCtx.mounted) {
                             ScaffoldMessenger.of(authCtx).showSnackBar(
                               const SnackBar(
-                                content: Text('Could not open browser for YouTube OAuth.'),
+                                content: Text('Could not open browser for authorization.'),
                                 backgroundColor: AppColors.error,
                               ),
                             );
@@ -1159,24 +1351,13 @@ class EntityDialogs {
                         }
                       },
                 icon: const Icon(Icons.open_in_browser, size: 18),
-                label: const Text('Sign in via Browser (Web OAuth)'),
+                label: const Text('Authorize via Browser'),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.accent,
                   padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
               ),
-              const SizedBox(height: 12),
-              const Row(
-                children: [
-                  Expanded(child: Divider()),
-                  Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 8),
-                    child: Text('OR USE ACCESS TOKEN', style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
-                  ),
-                  Expanded(child: Divider()),
-                ],
-              ),
-              const SizedBox(height: 12),
             ] else if (platform == PlatformType.instagram) ...[
               ElevatedButton.icon(
                 onPressed: isSubmitting
@@ -1191,14 +1372,14 @@ class EntityDialogs {
                           if (!launched && authCtx.mounted) {
                             ScaffoldMessenger.of(authCtx).showSnackBar(
                               const SnackBar(
-                                content: Text('Could not open browser for Instagram OAuth.'),
+                                content: Text('Could not open browser for authorization.'),
                                 backgroundColor: AppColors.error,
                               ),
                             );
                           } else if (authCtx.mounted) {
                             ScaffoldMessenger.of(authCtx).showSnackBar(
                               const SnackBar(
-                                content: Text('Opening Instagram Login in browser to authorize your account...'),
+                                content: Text('Opening Instagram authorization in browser...'),
                                 backgroundColor: AppColors.instagram,
                               ),
                             );
@@ -1210,25 +1391,14 @@ class EntityDialogs {
                         }
                       },
                 icon: const Icon(Icons.open_in_browser, size: 18),
-                label: const Text('Sign in with Instagram (Meta OAuth)'),
+                label: const Text('Sign in with Instagram'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.instagram,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
               ),
-              const SizedBox(height: 12),
-              const Row(
-                children: [
-                  Expanded(child: Divider()),
-                  Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 8),
-                    child: Text('OR USE GRAPH API ACCESS TOKEN', style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
-                  ),
-                  Expanded(child: Divider()),
-                ],
-              ),
-              const SizedBox(height: 12),
             ] else if (platform == PlatformType.linkedin) ...[
               ElevatedButton.icon(
                 onPressed: isSubmitting
@@ -1245,14 +1415,14 @@ class EntityDialogs {
                           if (!launched && authCtx.mounted) {
                             ScaffoldMessenger.of(authCtx).showSnackBar(
                               const SnackBar(
-                                content: Text('Could not open browser for LinkedIn OAuth.'),
+                                content: Text('Could not open browser for authorization.'),
                                 backgroundColor: AppColors.error,
                               ),
                             );
                           } else if (authCtx.mounted) {
                             ScaffoldMessenger.of(authCtx).showSnackBar(
                               SnackBar(
-                                content: Text('Opening LinkedIn OAuth in browser to authorize ${isPage ? "Company Page" : "Personal Profile"}...'),
+                                content: Text('Opening LinkedIn in browser to authorize ${isPage ? "Company Page" : "Personal Profile"}...'),
                                 backgroundColor: AppColors.linkedin,
                               ),
                             );
@@ -1266,25 +1436,14 @@ class EntityDialogs {
                 icon: const Icon(Icons.open_in_browser, size: 18),
                 label: Text(subtype.id == 'linkedin_page'
                     ? 'Sign in with LinkedIn (Company Page)'
-                    : 'Sign in with LinkedIn (Member Profile)'),
+                    : 'Sign in with LinkedIn'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.linkedin,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
               ),
-              const SizedBox(height: 12),
-              const Row(
-                children: [
-                  Expanded(child: Divider()),
-                  Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 8),
-                    child: Text('OR USE REST API ACCESS TOKEN', style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
-                  ),
-                  Expanded(child: Divider()),
-                ],
-              ),
-              const SizedBox(height: 12),
             ] else if (platform == PlatformType.x) ...[
               ElevatedButton.icon(
                 onPressed: isSubmitting
@@ -1301,14 +1460,14 @@ class EntityDialogs {
                           if (!launched && authCtx.mounted) {
                             ScaffoldMessenger.of(authCtx).showSnackBar(
                               const SnackBar(
-                                content: Text('Could not open browser for X (Twitter) OAuth.'),
+                                content: Text('Could not open browser for authorization.'),
                                 backgroundColor: AppColors.error,
                               ),
                             );
                           } else if (authCtx.mounted) {
                             ScaffoldMessenger.of(authCtx).showSnackBar(
                               SnackBar(
-                                content: Text('Opening X OAuth in browser to authorize ${isPremium ? "Premium Profile" : "Standard Profile"}...'),
+                                content: Text('Opening X in browser to authorize ${isPremium ? "Premium Account" : "Account"}...'),
                                 backgroundColor: AppColors.x,
                               ),
                             );
@@ -1322,25 +1481,14 @@ class EntityDialogs {
                 icon: const Icon(Icons.open_in_browser, size: 18),
                 label: Text(subtype.id == 'x_premium'
                     ? 'Sign in with X (Premium / Verified)'
-                    : 'Sign in with X (Twitter OAuth 2.0)'),
+                    : 'Sign in with X'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.x,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
               ),
-              const SizedBox(height: 12),
-              const Row(
-                children: [
-                  Expanded(child: Divider()),
-                  Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 8),
-                    child: Text('OR USE API V2 BEARER TOKEN', style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
-                  ),
-                  Expanded(child: Divider()),
-                ],
-              ),
-              const SizedBox(height: 12),
             ] else if (platform == PlatformType.threads) ...[
               ElevatedButton.icon(
                 onPressed: isSubmitting
@@ -1355,14 +1503,14 @@ class EntityDialogs {
                           if (!launched && authCtx.mounted) {
                             ScaffoldMessenger.of(authCtx).showSnackBar(
                               const SnackBar(
-                                content: Text('Could not open browser for Threads OAuth.'),
+                                content: Text('Could not open browser for authorization.'),
                                 backgroundColor: AppColors.error,
                               ),
                             );
                           } else if (authCtx.mounted) {
                             ScaffoldMessenger.of(authCtx).showSnackBar(
                               const SnackBar(
-                                content: Text('Opening Threads OAuth in browser...'),
+                                content: Text('Opening Threads in browser...'),
                                 backgroundColor: AppColors.threads,
                               ),
                             );
@@ -1374,111 +1522,133 @@ class EntityDialogs {
                         }
                       },
                 icon: const Icon(Icons.open_in_browser, size: 18),
-                label: const Text('Sign in with Threads (Meta OAuth)'),
+                label: const Text('Sign in with Threads'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.threads,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
               ),
-              const SizedBox(height: 12),
-              const Row(
-                children: [
-                  Expanded(child: Divider()),
-                  Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 8),
-                    child: Text('OR USE THREADS ACCESS TOKEN', style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
-                  ),
-                  Expanded(child: Divider()),
-                ],
-              ),
-              const SizedBox(height: 12),
             ],
 
-            TextField(
-              controller: tokenCtrl,
-              decoration: InputDecoration(
-                labelText: tokenLabel,
-                hintText: tokenHint,
-                prefixIcon: const Icon(Icons.key, size: 16),
+            const SizedBox(height: 16),
+            InkWell(
+              onTap: () => setAuthState(() => showAdvancedToken = !showAdvancedToken),
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      showAdvancedToken ? Icons.expand_less : Icons.expand_more,
+                      size: 16,
+                      color: AppColors.textSecondary,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      showAdvancedToken ? 'Hide Custom Token' : 'Advanced: Custom Token',
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        color: AppColors.textSecondary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
+
+            if (showAdvancedToken) ...[
+              const SizedBox(height: 10),
+              TextField(
+                controller: tokenCtrl,
+                decoration: InputDecoration(
+                  labelText: tokenLabel,
+                  hintText: tokenHint,
+                  prefixIcon: const Icon(Icons.key, size: 16),
+                  isDense: true,
+                ),
+              ),
+            ],
           ],
         );
       },
       actionsBuilder: (authCtx, setAuthState, isMobile) => [
         TextButton(
           onPressed: () => Navigator.of(authCtx).pop(),
-          child: const Text('Cancel'),
+          child: Text(showAdvancedToken ? 'Cancel' : 'Close'),
         ),
-        ElevatedButton.icon(
-          onPressed: isSubmitting
-              ? null
-              : () async {
-                  final token = tokenCtrl.text.trim();
-                  if (token.isEmpty) return;
-                  setAuthState(() => isSubmitting = true);
-                  try {
-                    String name = '';
-                    String handle = '';
-                    String id = '';
+        if (showAdvancedToken)
+          ElevatedButton.icon(
+            onPressed: isSubmitting
+                ? null
+                : () async {
+                    final token = tokenCtrl.text.trim();
+                    if (token.isEmpty) return;
+                    setAuthState(() => isSubmitting = true);
+                    try {
+                      String name = '';
+                      String handle = '';
+                      String id = '';
 
-                    switch (platform) {
-                      case PlatformType.youtube:
-                        final info = await YouTubeService.instance.fetchMyChannel(accessToken: token);
-                        name = info.title;
-                        handle = info.handle;
-                        id = info.id;
-                        break;
-                      case PlatformType.instagram:
-                        final info = await InstagramService.instance.fetchProfile(accessToken: token);
-                        name = info.name;
-                        handle = info.handle;
-                        id = info.id;
-                        break;
-                      case PlatformType.linkedin:
-                        final info = await LinkedInService.instance.fetchMemberProfile(accessToken: token);
-                        name = info.name;
-                        handle = info.handle;
-                        id = info.id;
-                        break;
-                      case PlatformType.x:
-                        final info = await XService.instance.fetchUserProfile(accessToken: token);
-                        name = info.name;
-                        handle = info.handle;
-                        id = info.id;
-                        break;
-                      case PlatformType.threads:
-                        final info = await ThreadsService.instance.fetchProfile(accessToken: token);
-                        name = info.name;
-                        handle = info.handle;
-                        id = info.id;
-                        break;
-                      default:
-                        throw Exception('API token verification not supported for ${platform.displayName}.');
+                      switch (platform) {
+                        case PlatformType.youtube:
+                          final info = await YouTubeService.instance.fetchMyChannel(accessToken: token);
+                          name = info.title;
+                          handle = info.handle;
+                          id = info.id;
+                          break;
+                        case PlatformType.instagram:
+                          final info = await InstagramService.instance.fetchProfile(accessToken: token);
+                          name = info.name;
+                          handle = info.handle;
+                          id = info.id;
+                          break;
+                        case PlatformType.linkedin:
+                          final info = await LinkedInService.instance.fetchMemberProfile(accessToken: token);
+                          name = info.name;
+                          handle = info.handle;
+                          id = info.id;
+                          break;
+                        case PlatformType.x:
+                          final info = await XService.instance.fetchUserProfile(accessToken: token);
+                          name = info.name;
+                          handle = info.handle;
+                          id = info.id;
+                          break;
+                        case PlatformType.threads:
+                          final info = await ThreadsService.instance.fetchProfile(accessToken: token);
+                          name = info.name;
+                          handle = info.handle;
+                          id = info.id;
+                          break;
+                        default:
+                          throw Exception('Token verification not supported for ${platform.displayName}.');
+                      }
+
+                      onSuccess(name, handle, id, token);
+                      if (authCtx.mounted) Navigator.of(authCtx).pop();
+                    } catch (e, st) {
+                      if (authCtx.mounted) AppErrorHandler.showError(authCtx, e, stackTrace: st);
+                    } finally {
+                      if (authCtx.mounted) setAuthState(() => isSubmitting = false);
                     }
-
-                    onSuccess(name, handle, id, token);
-                    if (authCtx.mounted) Navigator.of(authCtx).pop();
-                  } catch (e, st) {
-                    if (authCtx.mounted) AppErrorHandler.showError(authCtx, e, stackTrace: st);
-                  } finally {
-                    if (authCtx.mounted) setAuthState(() => isSubmitting = false);
-                  }
-                },
-          icon: isSubmitting
-              ? const SizedBox(
-                  width: 14,
-                  height: 14,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                )
-              : const Icon(Icons.verified, size: 16),
-          label: Text(isSubmitting ? 'Verifying...' : 'Verify & Connect'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.accent,
-            foregroundColor: Colors.white,
+                  },
+            icon: isSubmitting
+                ? const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  )
+                : const Icon(Icons.check, size: 16),
+            label: Text(isSubmitting ? 'Verifying...' : 'Verify Token'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.accent,
+              foregroundColor: Colors.white,
+            ),
           ),
-        ),
       ],
     );
   }

@@ -465,29 +465,27 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsSubtitle =>
-      'Manage workspace preferences, inspect audit events, and configure workspace settings.';
+      'Manage workspace preferences, activity history, and workspace settings.';
 
   @override
-  String get dbManagementTitle => 'Database & Workspace Management';
+  String get dbManagementTitle => 'Data & Storage';
 
   @override
   String get dbManagementSub =>
-      'Manage local SQLite database records, reset workspace state, or load demonstration data.';
+      'Manage local application data and reset workspace state.';
 
   @override
-  String get wipeConfirmTitle => 'Confirm Database Wipe';
+  String get wipeConfirmTitle => 'Reset Workspace Data';
 
   @override
   String get wipeConfirmMessage =>
-      'Are you sure you want to delete ALL data? This will clear all registered brands, connected accounts, groups, drafts, and queue jobs from local SQLite.';
+      'Are you sure you want to reset all data? This will clear all registered brands, connected accounts, drafts, and scheduled posts on this device.';
 
   @override
-  String get dbWipedSnack =>
-      'Workspace database reset to clean state (0 records).';
+  String get dbWipedSnack => 'Workspace data reset successfully.';
 
   @override
-  String get demoLoadedSnack =>
-      'Sample demo brands, accounts, and groups loaded into SQLite.';
+  String get demoLoadedSnack => 'Sample workspace data loaded.';
 
   @override
   String get loginTitle => 'Welcome to no5ocial';

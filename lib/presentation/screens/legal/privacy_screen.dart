@@ -75,7 +75,7 @@ class PrivacyScreen extends StatelessWidget {
           number: '8',
           title: 'Data Storage, Retention, and Security',
           body:
-              '• 100% Local Storage: OAuth tokens, publishing queues, brand settings, and post drafts are saved strictly on your local device (browser IndexedDB / SQLite database). We operate zero remote backend database servers that cache your content or credentials.\n\n'
+              '• 100% Local Storage: Authenticated tokens, publishing queues, brand settings, and post drafts are saved strictly on your local device vault. We operate zero remote backend database servers that cache your content or credentials.\n\n'
               '• Token Protection: Access and refresh tokens are isolated and handled through secure platform storage.\n\n'
               '• Retention: Data persists only for the duration you choose to retain it in your workspace. We do not maintain off-site backups or remote archives of your personal data.',
         ),
@@ -86,7 +86,7 @@ class PrivacyScreen extends StatelessWidget {
               'You retain complete sovereignty over your data and channel permissions at all times:\n\n'
               '1. Disconnecting within no5ocial: Navigate to Workspace Settings -> Connected Channels and click "Disconnect" on any channel to immediately purge associated tokens and metadata from your device.\n\n'
               '2. Revoking Access via Google: You can revoke no5ocial\'s access to your Google Account at any time by visiting Google Account Security Settings: https://myaccount.google.com/permissions\n\n'
-              '3. Full Data Purge: You can delete all locally cached database entries, drafts, and settings with one click via Workspace Settings -> Database Management -> Reset Database, or by clearing your browser site data.',
+              '3. Full Data Purge: You can delete all locally saved drafts, accounts, and settings with one click via Workspace Settings -> Data & Storage -> Reset Workspace Data, or by clearing your application data.',
         ),
         LegalSectionCard(
           number: '10',

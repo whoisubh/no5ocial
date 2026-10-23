@@ -1,6 +1,7 @@
 /// Explicit status for ContentPost and per-destination PublishJob.
 enum PublishJobStatus {
   draft('Draft'),
+  needsApproval('Needs Approval'),
   scheduled('Scheduled'),
   publishing('Publishing'),
   published('Published'),

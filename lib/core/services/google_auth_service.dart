@@ -43,9 +43,10 @@ class GoogleAuthService {
     }
   }
 
-  /// Request access token with optional extra scopes (e.g. YouTube Data API)
+  /// Request access token with optional extra scopes (e.g. YouTube Data API, Photos, Drive)
   Future<String?> getOrRequestAccessToken({
     List<String> additionalScopes = const [],
+    bool forceRefresh = false,
   }) async {
     try {
       GoogleSignInAccount? user = client.currentUser;
@@ -63,7 +64,7 @@ class GoogleAuthService {
           hasScopes = false;
         }
 
-        if (!hasScopes) {
+        if (!hasScopes || forceRefresh) {
           try {
             final granted = await client.requestScopes(additionalScopes);
             if (!granted) {
@@ -76,6 +77,11 @@ class GoogleAuthService {
       }
 
       final activeUser = client.currentUser ?? user;
+      if (forceRefresh || additionalScopes.isNotEmpty) {
+        try {
+          await activeUser.clearAuthCache();
+        } catch (_) {}
+      }
       final auth = await activeUser.authentication;
       return auth.accessToken;
     } catch (e) {

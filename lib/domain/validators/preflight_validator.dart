@@ -124,7 +124,16 @@ abstract final class PreflightValidator {
     }
 
     // 6. Hashtag limits
-    if (platform == PlatformType.instagram && hashtagCount > platform.maxHashtags) {
+    if (platform == PlatformType.threads && hashtagCount > 1) {
+      issues.add(
+        ValidationIssue(
+          severity: ValidationSeverity.blocker,
+          code: 'TOO_MANY_HASHTAGS_THREADS',
+          message: 'Meta Threads officially permits only 1 hashtag/topic tag per post (found $hashtagCount).',
+          remedy: 'Keep only 1 main hashtag for Threads to avoid API rejection.',
+        ),
+      );
+    } else if (platform == PlatformType.instagram && hashtagCount > platform.maxHashtags) {
       issues.add(
         ValidationIssue(
           severity: ValidationSeverity.blocker,
@@ -140,14 +149,58 @@ abstract final class PreflightValidator {
           severity: ValidationSeverity.warning,
           code: 'YOUTUBE_HASHTAG_OVERFLOW',
           message:
-              'YouTube ignores all hashtags if more than 15 are included (found $hashtagCount).',
+              'YouTube ignores all hashtags if more than 15 are included in the description (found $hashtagCount).',
           remedy: 'Keep hashtags under 15 for optimal discovery.',
         ),
       );
     }
 
-    // 7. Media requirements per platform
-    if (platform == PlatformType.instagram) {
+    // 7. Media requirements and counts per platform
+    final imageAssets = attachedMedia.where((m) => m.mediaType == MediaType.image).toList();
+    final videoAssets = attachedMedia.where((m) => m.mediaType == MediaType.video).toList();
+
+    if (platform == PlatformType.x) {
+      if (effectiveCaption.trim().isEmpty && attachedMedia.isEmpty) {
+        issues.add(
+          const ValidationIssue(
+            severity: ValidationSeverity.blocker,
+            code: 'EMPTY_POST_X',
+            message: 'Post cannot be empty. X requires either text copy or media.',
+            remedy: 'Enter a caption or attach media.',
+          ),
+        );
+      }
+      if (imageAssets.isNotEmpty && videoAssets.isNotEmpty) {
+        issues.add(
+          const ValidationIssue(
+            severity: ValidationSeverity.blocker,
+            code: 'MIXED_MEDIA_X',
+            message: 'X does not support mixing photos and videos in a single tweet.',
+            remedy: 'Attach either up to 4 images OR 1 video.',
+          ),
+        );
+      }
+      if (imageAssets.length > 4) {
+        issues.add(
+          ValidationIssue(
+            severity: ValidationSeverity.blocker,
+            code: 'TOO_MANY_IMAGES_X',
+            message: 'X supports a maximum of 4 images per tweet (found ${imageAssets.length}).',
+            remedy: 'Remove ${imageAssets.length - 4} images to comply with the 4-image limit.',
+          ),
+        );
+      }
+      if (videoAssets.length > 1) {
+        issues.add(
+          ValidationIssue(
+            severity: ValidationSeverity.blocker,
+            code: 'TOO_MANY_VIDEOS_X',
+            message: 'X supports a maximum of 1 video per tweet (found ${videoAssets.length}).',
+            remedy: 'Select only 1 video asset.',
+          ),
+        );
+      }
+    } else if (platform == PlatformType.instagram) {
       if (attachedMedia.isEmpty) {
         issues.add(
           const ValidationIssue(
@@ -158,15 +211,56 @@ abstract final class PreflightValidator {
           ),
         );
       }
+      if (attachedMedia.length > 10) {
+        issues.add(
+          ValidationIssue(
+            severity: ValidationSeverity.blocker,
+            code: 'TOO_MANY_ITEMS_INSTAGRAM',
+            message: 'Instagram carousels support a maximum of 10 media items (found ${attachedMedia.length}).',
+            remedy: 'Select 10 or fewer media items.',
+          ),
+        );
+      }
+      for (final img in imageAssets) {
+        final ext = img.fileName.contains('.') ? img.fileName.split('.').last.toLowerCase() : '';
+        if (ext != 'jpg' && ext != 'jpeg') {
+          issues.add(
+            ValidationIssue(
+              severity: ValidationSeverity.warning,
+              code: 'NON_JPEG_INSTAGRAM',
+              message: 'Instagram Content Publishing API recommends JPEG format for "${img.fileName}". PNG/WEBP may fail container creation.',
+              remedy: 'Convert "${img.fileName}" to JPEG for guaranteed API publishing.',
+            ),
+          );
+        }
+      }
     } else if (platform == PlatformType.youtube) {
-      final hasVideo = attachedMedia.any((m) => m.mediaType == MediaType.video);
-      if (!hasVideo) {
+      if (videoAssets.isEmpty) {
         issues.add(
           const ValidationIssue(
             severity: ValidationSeverity.blocker,
             code: 'VIDEO_REQUIRED_YOUTUBE',
             message: 'YouTube requires a video asset. Text and image-only uploads are unsupported.',
             remedy: 'Attach a supported video file.',
+          ),
+        );
+      } else if (videoAssets.length > 1) {
+        issues.add(
+          ValidationIssue(
+            severity: ValidationSeverity.blocker,
+            code: 'TOO_MANY_VIDEOS_YOUTUBE',
+            message: 'YouTube Data API uploads 1 video per request (found ${videoAssets.length}).',
+            remedy: 'Select only 1 video asset.',
+          ),
+        );
+      }
+      if (imageAssets.isNotEmpty) {
+        issues.add(
+          const ValidationIssue(
+            severity: ValidationSeverity.warning,
+            code: 'IMAGES_IGNORED_YOUTUBE',
+            message: 'YouTube Data API does not accept images for video uploads. Images will be excluded.',
+            remedy: 'Only the video asset will be published to YouTube.',
           ),
         );
       }
@@ -189,14 +283,24 @@ abstract final class PreflightValidator {
           ),
         );
       }
-    } else if (platform == PlatformType.x) {
+    } else if (platform == PlatformType.threads) {
       if (effectiveCaption.trim().isEmpty && attachedMedia.isEmpty) {
         issues.add(
           const ValidationIssue(
             severity: ValidationSeverity.blocker,
-            code: 'EMPTY_POST_X',
-            message: 'Post cannot be empty. X requires either text copy or media.',
-            remedy: 'Enter a caption or attach media.',
+            code: 'EMPTY_POST_THREADS',
+            message: 'Threads posts require either text copy or media.',
+            remedy: 'Enter copy or attach media.',
+          ),
+        );
+      }
+      if (attachedMedia.length > 20) {
+        issues.add(
+          ValidationIssue(
+            severity: ValidationSeverity.blocker,
+            code: 'TOO_MANY_ITEMS_THREADS',
+            message: 'Threads carousel supports up to 20 media items (found ${attachedMedia.length}).',
+            remedy: 'Select 20 or fewer media items.',
           ),
         );
       }
@@ -211,14 +315,44 @@ abstract final class PreflightValidator {
           ),
         );
       }
-    } else if (platform == PlatformType.facebook || platform == PlatformType.threads) {
-      if (effectiveCaption.trim().isEmpty && attachedMedia.isEmpty) {
+      if (imageAssets.length > 20) {
         issues.add(
           ValidationIssue(
             severity: ValidationSeverity.blocker,
-            code: 'EMPTY_POST_${platform.name.toUpperCase()}',
-            message: '${platform.displayName} posts require either text copy or media.',
+            code: 'TOO_MANY_IMAGES_LINKEDIN',
+            message: 'LinkedIn supports a maximum of 20 images per post (found ${imageAssets.length}).',
+            remedy: 'Select 20 or fewer images.',
+          ),
+        );
+      }
+      if (videoAssets.length > 1) {
+        issues.add(
+          ValidationIssue(
+            severity: ValidationSeverity.blocker,
+            code: 'TOO_MANY_VIDEOS_LINKEDIN',
+            message: 'LinkedIn supports a maximum of 1 video per post (found ${videoAssets.length}).',
+            remedy: 'Select only 1 video asset.',
+          ),
+        );
+      }
+    } else if (platform == PlatformType.facebook) {
+      if (effectiveCaption.trim().isEmpty && attachedMedia.isEmpty) {
+        issues.add(
+          const ValidationIssue(
+            severity: ValidationSeverity.blocker,
+            code: 'EMPTY_POST_FACEBOOK',
+            message: 'Facebook posts require either text copy or media.',
             remedy: 'Enter copy or attach media.',
+          ),
+        );
+      }
+      if (attachedMedia.length > 10) {
+        issues.add(
+          ValidationIssue(
+            severity: ValidationSeverity.blocker,
+            code: 'TOO_MANY_ITEMS_FACEBOOK',
+            message: 'Facebook carousel supports up to 10 media items (found ${attachedMedia.length}).',
+            remedy: 'Select 10 or fewer media items.',
           ),
         );
       }
@@ -241,13 +375,14 @@ abstract final class PreflightValidator {
             ),
           );
         }
-        if (media.sizeBytes > 100 * 1024 * 1024) {
+        final maxVideoMb = platform.maxVideoSizeBytes ~/ (1024 * 1024);
+        if (platform != PlatformType.youtube && media.sizeBytes > platform.maxVideoSizeBytes) {
           issues.add(
             ValidationIssue(
               severity: ValidationSeverity.blocker,
               code: 'VIDEO_TOO_LARGE',
-              message: 'Video "${media.fileName}" (${media.formattedSize}) exceeds the 100MB limit.',
-              remedy: 'Compress video under 100MB prior to publishing.',
+              message: 'Video "${media.fileName}" (${media.formattedSize}) exceeds ${platform.displayName}\'s ${maxVideoMb}MB limit.',
+              remedy: 'Compress video under ${maxVideoMb}MB prior to publishing.',
             ),
           );
         }
@@ -262,13 +397,14 @@ abstract final class PreflightValidator {
             ),
           );
         }
-        if (media.sizeBytes > 15 * 1024 * 1024) {
+        final maxImageMb = platform.maxImageSizeMb;
+        if (maxImageMb > 0 && media.sizeBytes > maxImageMb * 1024 * 1024) {
           issues.add(
             ValidationIssue(
               severity: ValidationSeverity.blocker,
               code: 'IMAGE_TOO_LARGE',
-              message: 'Image "${media.fileName}" (${media.formattedSize}) exceeds the 15MB limit.',
-              remedy: 'Resize or compress image under 15MB.',
+              message: 'Image "${media.fileName}" (${media.formattedSize}) exceeds ${platform.displayName}\'s ${maxImageMb}MB limit.',
+              remedy: 'Resize or compress image under ${maxImageMb}MB.',
             ),
           );
         }

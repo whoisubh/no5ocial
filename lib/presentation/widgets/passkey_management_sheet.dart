@@ -268,7 +268,7 @@ class _PasskeyManagementSheetState extends State<PasskeyManagementSheet> {
           ),
           const SizedBox(height: 6),
           const Text(
-            'FIDO2 / WebAuthn passkeys authenticate directly against device biometric hardware (Windows Hello, Touch ID, Android Credential Manager). Zero passwords or tokens are stored.',
+            'Passkeys allow you to sign in instantly and securely using your device biometrics (Face ID, fingerprint, or Windows Hello). No passwords needed.',
             style: AppTypography.bodySecondary,
           ),
           const Divider(height: 24),

@@ -101,4 +101,18 @@ abstract final class AppColors {
 
   static Color textSecOf(BuildContext context) =>
       Theme.of(context).brightness == Brightness.dark ? const Color(0xFF94A3B8) : textSecondary;
+
+  static Color inkOf(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark ? Colors.white : ink;
+}
+
+extension ThemeContextExtension on BuildContext {
+  bool get isDark => Theme.of(this).brightness == Brightness.dark;
+  Color get surfaceColor => isDark ? const Color(0xFF101522) : AppColors.surface;
+  Color get surfaceSecColor => isDark ? const Color(0xFF161F30) : AppColors.surfaceSecondary;
+  Color get bgColor => isDark ? const Color(0xFF0A0D14) : AppColors.background;
+  Color get borderColor => isDark ? const Color(0xFF1E293B) : AppColors.border;
+  Color get textPrimaryColor => isDark ? Colors.white : AppColors.textPrimary;
+  Color get textSecColor => isDark ? const Color(0xFF94A3B8) : AppColors.textSecondary;
+  Color get inkColor => isDark ? Colors.white : AppColors.ink;
 }

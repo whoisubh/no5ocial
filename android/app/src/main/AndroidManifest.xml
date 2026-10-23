@@ -1,5 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
+    <uses-permission android:name="android.permission.USE_FINGERPRINT"/>
     <application
         android:label="no5ocial"
         android:name="${applicationName}"
@@ -34,6 +35,16 @@
                 <data android:scheme="no5ocial" android:host="auth" />
             </intent-filter>
         </activity>
+        <!-- AppLovin MAX SDK Key -->
+        <meta-data
+            android:name="applovin.sdk.key"
+            android:value="max_demo_sdk_key_shaadow_corp" />
+
+        <!-- Google AdMob Application ID -->
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="ca-app-pub-7142385384774533~1890140979" />
+
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

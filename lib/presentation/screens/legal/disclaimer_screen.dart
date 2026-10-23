@@ -23,19 +23,19 @@ class DisclaimerScreen extends StatelessWidget {
           number: '2',
           title: 'API Availability and Rate Limits',
           body:
-              'Third-party social network APIs are subject to change, downtime, rate limiting, and deprecations at the discretion of the platforms. While no5ocial provides robust preflight validation, idempotency guards, and retry mechanics, uninterrupted service across external networks cannot be guaranteed.',
+              'Third-party social network APIs are subject to change, downtime, rate limiting, and deprecations at the discretion of the platforms. While no5ocial provides robust preflight validation, duplicate guards, and retry mechanics, uninterrupted service across external networks cannot be guaranteed.',
         ),
         LegalSectionCard(
           number: '3',
           title: 'Local State & Backups',
           body:
-              'Because no5ocial utilizes local-first client storage, clearing your browser cache or application data without exporting will remove your local draft database. Ensure essential campaign copies are maintained in your external content records.',
+              'Because no5ocial utilizes local-first client storage, clearing your application data will remove your locally saved drafts and schedules. Ensure essential campaign copies are maintained in your external content records.',
         ),
         LegalSectionCard(
           number: '4',
-          title: 'Simulated and Demonstration Environments',
+          title: 'Preview & Demonstration Environments',
           body:
-              'Certain integration modules and mock adapters may run in simulated mode for testing and security verification. Simulated posts will not alter live platform feeds unless connected via official production OAuth workflows.',
+              'Certain features and channel previews may operate in test mode until live credentials are connected. Test actions will not alter live platform feeds unless connected via official OAuth workflows.',
         ),
       ],
     );

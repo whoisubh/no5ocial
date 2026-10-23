@@ -130,12 +130,21 @@ abstract final class AppTheme {
         indicatorColor: AppColors.accentLight,
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
-            return AppTypography.labelSmall.copyWith(
-              color: AppColors.accent,
+            return const TextStyle(
+              inherit: false,
+              fontFamily: 'PlusJakartaSans',
+              fontSize: 11,
               fontWeight: FontWeight.w700,
+              color: AppColors.accent,
             );
           }
-          return AppTypography.labelSmall.copyWith(color: AppColors.textSecondary);
+          return const TextStyle(
+            inherit: false,
+            fontFamily: 'PlusJakartaSans',
+            fontSize: 11,
+            fontWeight: FontWeight.w500,
+            color: AppColors.textSecondary,
+          );
         }),
         iconTheme: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
@@ -281,12 +290,20 @@ abstract final class AppTheme {
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
             return const TextStyle(
+              inherit: false,
+              fontFamily: 'PlusJakartaSans',
               color: Color(0xFF60A5FA),
               fontWeight: FontWeight.w700,
               fontSize: 11,
             );
           }
-          return const TextStyle(color: Color(0xFF94A3B8), fontSize: 11);
+          return const TextStyle(
+            inherit: false,
+            fontFamily: 'PlusJakartaSans',
+            color: Color(0xFF94A3B8),
+            fontWeight: FontWeight.w500,
+            fontSize: 11,
+          );
         }),
         iconTheme: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {

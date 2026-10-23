@@ -8,6 +8,10 @@ import 'package:no5ocial/data/repositories/post_repository.dart';
 import 'package:no5ocial/domain/adapters/fake_publishing_adapter.dart';
 import 'package:no5ocial/l10n/app_localizations.dart';
 import 'package:no5ocial/presentation/navigation/main_scaffold.dart';
+import 'package:no5ocial/presentation/screens/accounts/accounts_screen.dart';
+import 'package:no5ocial/presentation/screens/calendar/calendar_screen.dart';
+import 'package:no5ocial/presentation/screens/content/content_library_screen.dart';
+import 'package:no5ocial/presentation/screens/settings/settings_screen.dart';
 import 'package:no5ocial/presentation/state/app_state.dart';
 
 void main() {
@@ -38,7 +42,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Verify main console title in desktop top bar
-    expect(find.text('Publishing Operations Console'), findsOneWidget);
+    expect(find.text('Shaadow Workspace'), findsOneWidget);
 
     // Verify operational metrics cards
     expect(find.text('Drafts'), findsOneWidget);
@@ -48,22 +52,22 @@ void main() {
     // Navigate to Content Library via desktop sidebar
     await tester.tap(find.byIcon(Icons.folder_outlined));
     await tester.pumpAndSettle();
-    expect(find.text('Multi-Platform Content Library'), findsOneWidget);
+    expect(find.byType(ContentLibraryScreen), findsOneWidget);
 
     // Navigate to Calendar
     await tester.tap(find.byIcon(Icons.calendar_month_outlined));
     await tester.pumpAndSettle();
-    expect(find.text('Scheduled Editorial Calendar'), findsOneWidget);
+    expect(find.byType(CalendarScreen), findsOneWidget);
 
     // Navigate to Accounts
     await tester.tap(find.byIcon(Icons.supervised_user_circle_outlined));
     await tester.pumpAndSettle();
-    expect(find.text('Brand & Channel Registry'), findsOneWidget);
+    expect(find.byType(AccountsScreen), findsOneWidget);
     expect(find.text('Shaadow'), findsWidgets);
 
     // Navigate to Settings
     await tester.tap(find.byIcon(Icons.tune_outlined));
     await tester.pumpAndSettle();
-    expect(find.text('Workspace Settings'), findsWidgets);
+    expect(find.byType(SettingsScreen), findsOneWidget);
   });
 }

@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:no5ocial/core/services/google_auth_service.dart';
 import 'package:no5ocial/core/services/session_service.dart';
 import 'package:no5ocial/core/utils/input_validator.dart';
+import 'package:no5ocial/domain/enums/workspace_mode.dart';
 import 'package:no5ocial/presentation/state/app_state.dart';
 
 class OnboardingScreen extends StatefulWidget {
@@ -26,6 +27,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   final _companyDescCtrl = TextEditingController();
   final _formKeyCompany = GlobalKey<FormState>();
 
+  String _selectedCompanySize = 'Just me (1 person)';
+  WorkspaceMode _selectedWorkspaceMode = WorkspaceMode.solo;
+
+  static const List<String> _companySizes = [
+    'Just me (1 person)',
+    '2–10 team members',
+    '11–50 employees',
+    '50+ employees',
+  ];
+
   @override
   void dispose() {
     _companyNameCtrl.dispose();
@@ -44,7 +55,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       name: _companyNameCtrl.text.trim(),
       websiteUrl: _websiteCtrl.text.trim().isEmpty ? null : _websiteCtrl.text.trim(),
       description: _companyDescCtrl.text.trim().isEmpty ? null : _companyDescCtrl.text.trim(),
+      companySize: _selectedCompanySize,
     );
+
+    await widget.appState.setWorkspaceMode(_selectedWorkspaceMode);
+    await widget.appState.initOrgMembers();
+    await widget.appState.ensureDefaultOrgOwner();
 
     widget.appState.hasCompletedOnboarding = true;
     await SessionService.instance.setCompletedOnboarding(true);
@@ -59,6 +75,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   Future<void> _skipToDashboard() async {
     await widget.appState.ensureDefaultBrandExists();
+    await widget.appState.setWorkspaceMode(_selectedWorkspaceMode);
+    await widget.appState.initOrgMembers();
+    await widget.appState.ensureDefaultOrgOwner();
     widget.appState.hasCompletedOnboarding = true;
     await SessionService.instance.setCompletedOnboarding(true);
     if (mounted) {
@@ -129,7 +148,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                             height: 30,
                             fit: BoxFit.contain,
                             errorBuilder: (_, _, _) => Image.asset(
-                              'assets/logo/no5ocial_N.png',
+                              'assets/logo/no5ocial_cropped.png',
                               height: 24,
                             ),
                           ),
@@ -217,6 +236,84 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             validator: InputValidator.validateBrandName,
           ),
           const SizedBox(height: 18),
+
+          // Company Size
+          Text(
+            'Company Size *',
+            style: TextStyle(
+              color: isDark ? Colors.white70 : const Color(0xFF334155),
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          DropdownButtonFormField<String>(
+            initialValue: _selectedCompanySize,
+            dropdownColor: isDark ? const Color(0xFF161D2E) : Colors.white,
+            style: TextStyle(
+              color: isDark ? Colors.white : const Color(0xFF0F172A),
+              fontSize: 14,
+            ),
+            decoration: _inputDecoration(
+              isDark: isDark,
+              hintText: 'Select company size',
+              prefixIcon: Icons.people_outline_rounded,
+            ),
+            items: _companySizes.map((size) {
+              return DropdownMenuItem<String>(
+                value: size,
+                child: Text(size),
+              );
+            }).toList(),
+            onChanged: (val) {
+              if (val == null) return;
+              setState(() {
+                _selectedCompanySize = val;
+                // Intelligently recommend workspace mode based on company size
+                if (val.startsWith('Just me')) {
+                  _selectedWorkspaceMode = WorkspaceMode.solo;
+                } else {
+                  _selectedWorkspaceMode = WorkspaceMode.team;
+                }
+              });
+            },
+          ),
+          const SizedBox(height: 20),
+
+          // Workspace Management Mode
+          Text(
+            'How is this workspace managed? *',
+            style: TextStyle(
+              color: isDark ? Colors.white70 : const Color(0xFF334155),
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Select whether you solely manage this workspace or collaborate with a team role hierarchy.',
+            style: TextStyle(
+              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+              fontSize: 12,
+            ),
+          ),
+          const SizedBox(height: 10),
+          _buildWorkspaceModeOption(
+            isDark: isDark,
+            mode: WorkspaceMode.solo,
+            title: 'Just Me (Solo Mode)',
+            description: 'You solely manage all content, channels, and scheduling yourself.',
+            icon: Icons.person_outline_rounded,
+          ),
+          const SizedBox(height: 10),
+          _buildWorkspaceModeOption(
+            isDark: isDark,
+            mode: WorkspaceMode.team,
+            title: 'Team & Role Hierarchy (Team Mode)',
+            description: 'Collaborate with team members and assign granular roles (Owner, Manager, Social Media Manager, Uploader, Analyst).',
+            icon: Icons.groups_outlined,
+          ),
+          const SizedBox(height: 20),
 
           // Website URL
           Text(
@@ -310,6 +407,104 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildWorkspaceModeOption({
+    required bool isDark,
+    required WorkspaceMode mode,
+    required String title,
+    required String description,
+    required IconData icon,
+  }) {
+    final isSelected = _selectedWorkspaceMode == mode;
+    final primaryColor = const Color(0xFF3865F6);
+
+    return InkWell(
+      onTap: () {
+        setState(() {
+          _selectedWorkspaceMode = mode;
+        });
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? (isDark ? const Color(0xFF162344) : const Color(0xFFEFF4FF))
+              : (isDark ? const Color(0xFF161D2E) : const Color(0xFFF8FAFC)),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected
+                ? primaryColor
+                : (isDark ? const Color(0xFF222C40) : const Color(0xFFCBD5E1)),
+            width: isSelected ? 1.6 : 1.0,
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? primaryColor.withValues(alpha: 0.15)
+                    : (isDark ? const Color(0xFF1E283D) : const Color(0xFFE2E8F0)),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                icon,
+                size: 20,
+                color: isSelected ? primaryColor : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          color: isSelected
+                              ? (isDark ? Colors.white : const Color(0xFF0F172A))
+                              : (isDark ? const Color(0xFFE2E8F0) : const Color(0xFF334155)),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const Spacer(),
+                      Container(
+                        width: 18,
+                        height: 18,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: isSelected ? primaryColor : (isDark ? Colors.white38 : const Color(0xFFCBD5E1)),
+                            width: isSelected ? 5.5 : 1.5,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    description,
+                    style: TextStyle(
+                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                      fontSize: 12,
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

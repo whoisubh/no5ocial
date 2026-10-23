@@ -7,6 +7,7 @@ import 'package:no5ocial/core/services/passkey_service.dart';
 import 'package:no5ocial/core/services/session_service.dart';
 import 'package:no5ocial/core/utils/input_validator.dart';
 import 'package:no5ocial/core/utils/string_sanitizer.dart';
+import 'package:no5ocial/core/services/currency_service.dart';
 import 'package:no5ocial/data/database/app_database.dart';
 import 'package:no5ocial/data/repositories/account_repository.dart';
 import 'package:no5ocial/data/repositories/audit_repository.dart';
@@ -29,6 +30,12 @@ import 'package:no5ocial/domain/models/publish_attempt.dart';
 import 'package:no5ocial/domain/models/publish_job.dart';
 import 'package:no5ocial/domain/models/social_account.dart';
 import 'package:no5ocial/domain/validators/preflight_validator.dart';
+import 'package:no5ocial/data/repositories/org_member_repository.dart';
+import 'package:no5ocial/domain/enums/org_role.dart';
+import 'package:no5ocial/domain/enums/workspace_mode.dart';
+import 'package:no5ocial/domain/models/org_invite.dart';
+import 'package:no5ocial/domain/models/org_member.dart';
+import 'package:no5ocial/core/services/firebase_sync_service.dart';
 
 class AppState extends ChangeNotifier {
   final BrandRepository brandRepository;
@@ -37,6 +44,7 @@ class AppState extends ChangeNotifier {
   final JobRepository jobRepository;
   final AuditRepository auditRepository;
   final GroupRepository groupRepository;
+  final OrgMemberRepository orgMemberRepository;
   final PublishingAdapter? publishingAdapter;
 
   final _uuid = const Uuid();
@@ -47,6 +55,37 @@ class AppState extends ChangeNotifier {
   String searchQuery = '';
   String userTimezone = 'Local (UTC+5:30)';
   Locale currentLocale = const Locale('en');
+
+  // Currency settings (Auto-assigned per current IP location by default)
+  String _userCurrency = 'USD';
+  String _userCurrencySymbol = '\$';
+  String get userCurrency => _userCurrency;
+  String get userCurrencySymbol => _userCurrencySymbol;
+
+  Future<void> initCurrency() async {
+    try {
+      final info = await CurrencyService.instance.getOrDetectCurrency();
+      _userCurrency = info.code;
+      _userCurrencySymbol = info.symbol;
+      notifyListeners();
+    } catch (e) {
+      debugPrint('AppState: Error initializing currency: $e');
+    }
+  }
+
+  Future<void> setUserCurrency(String code) async {
+    final info = CurrencyService.getByCode(code);
+    _userCurrency = info.code;
+    _userCurrencySymbol = info.symbol;
+    notifyListeners();
+    await CurrencyService.instance.saveCurrency(info.code);
+    if (localUserId != null && localUserId!.isNotEmpty) {
+      FirebaseSyncService.instance.pushSettings(localUserId!, {
+        'user_currency': info.code,
+        'user_currency_symbol': info.symbol,
+      });
+    }
+  }
 
   // Theme settings (Default to light mode)
   ThemeMode _themeMode = ThemeMode.light;
@@ -68,7 +107,13 @@ class AppState extends ChangeNotifier {
 
   Future<void> _saveThemeMode() async {
     try {
-      await AppDatabase.instance.setSetting('theme_mode', _themeMode == ThemeMode.dark ? 'dark' : 'light');
+      final modeStr = _themeMode == ThemeMode.dark ? 'dark' : 'light';
+      await AppDatabase.instance.setSetting('theme_mode', modeStr);
+      if (localUserId != null && localUserId!.isNotEmpty) {
+        FirebaseSyncService.instance.pushSettings(localUserId!, {
+          'theme_mode': modeStr,
+        });
+      }
     } catch (e) {
       debugPrint('Error saving theme mode: $e');
     }
@@ -83,6 +128,38 @@ class AppState extends ChangeNotifier {
       }
     } catch (e) {
       debugPrint('Error loading theme mode: $e');
+    }
+  }
+
+  // Workspace Mode (Solo vs Team Hierarchy)
+  WorkspaceMode _workspaceMode = WorkspaceMode.solo;
+  WorkspaceMode get workspaceMode => _workspaceMode;
+  bool get isTeamMode => _workspaceMode.isTeam;
+
+  Future<void> setWorkspaceMode(WorkspaceMode mode) async {
+    _workspaceMode = mode;
+    notifyListeners();
+    try {
+      await AppDatabase.instance.setSetting('workspace_mode', mode.name);
+      if (localUserId != null && localUserId!.isNotEmpty) {
+        FirebaseSyncService.instance.pushSettings(localUserId!, {
+          'workspace_mode': mode.name,
+        });
+      }
+    } catch (e) {
+      debugPrint('Error saving workspace mode: $e');
+    }
+  }
+
+  Future<void> loadSavedWorkspaceMode() async {
+    try {
+      final saved = await AppDatabase.instance.getSetting('workspace_mode');
+      if (saved != null) {
+        _workspaceMode = WorkspaceMode.fromString(saved);
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('Error loading workspace mode: $e');
     }
   }
 
@@ -154,6 +231,7 @@ class AppState extends ChangeNotifier {
         rawData: rawData,
       );
       await SessionService.instance.setCompletedOnboarding(true);
+      await syncWithCloud(force: true);
       await ensureDefaultBrandExists();
     } catch (e) {
       debugPrint('Error saving session to SessionService: $e');
@@ -204,6 +282,48 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  /// Bidirectional synchronization with Firebase Cloud Firestore.
+  /// Pulls remote workspace documents (brands, accounts, posts, groups, settings)
+  Future<FirebaseSyncResult?> syncWithCloud({bool force = false}) async {
+    final uid = (localUserId != null && localUserId!.isNotEmpty)
+        ? localUserId!
+        : (localUserEmail != null && localUserEmail!.isNotEmpty)
+            ? localUserEmail!.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_')
+            : 'default_workspace';
+    try {
+      final res = await FirebaseSyncService.instance.syncUserWorkspace(
+        uid,
+        forceHydration: force,
+      );
+      if (res.success) {
+        if (brandRepository is SqliteBrandRepository) {
+          await (brandRepository as SqliteBrandRepository).init();
+        }
+        if (accountRepository is SqliteAccountRepository) {
+          await (accountRepository as SqliteAccountRepository).init();
+        }
+        if (postRepository is SqlitePostRepository) {
+          await (postRepository as SqlitePostRepository).init();
+        }
+        if (jobRepository is SqliteJobRepository) {
+          await (jobRepository as SqliteJobRepository).init();
+        }
+        if (groupRepository is SqliteGroupRepository) {
+          await (groupRepository as SqliteGroupRepository).init();
+        }
+        await loadSavedThemeMode();
+        await loadSavedWorkspaceMode();
+        await initOrgMembers();
+        await initCurrency();
+        notifyListeners();
+      }
+      return res;
+    } catch (e) {
+      debugPrint('AppState.syncWithCloud error: $e');
+      return null;
+    }
+  }
+
   Future<void> loadSavedUserProfile() async {
     try {
       // 1. First attempt to load from persistent SessionService (localStorage / XML prefs)
@@ -230,6 +350,7 @@ class AppState extends ChangeNotifier {
 
         await loadSecuritySettings();
         hasCompletedOnboarding = await SessionService.instance.hasCompletedOnboarding();
+        await syncWithCloud();
         if (brands.isEmpty) {
           final cachedBrands = await SessionService.instance.getBrandsCache();
           for (final b in cachedBrands) {
@@ -278,6 +399,7 @@ class AppState extends ChangeNotifier {
 
         await loadSecuritySettings();
         hasCompletedOnboarding = await SessionService.instance.hasCompletedOnboarding();
+        await syncWithCloud();
         if (brands.isEmpty) {
           final cachedBrands = await SessionService.instance.getBrandsCache();
           for (final b in cachedBrands) {
@@ -300,6 +422,8 @@ class AppState extends ChangeNotifier {
       hasCompletedOnboarding = true;
       await SessionService.instance.saveBrandsCache(brands);
       await SessionService.instance.setCompletedOnboarding(true);
+      await initOrgMembers();
+      await ensureDefaultOrgOwner();
       return;
     }
 
@@ -310,6 +434,8 @@ class AppState extends ChangeNotifier {
       }
       hasCompletedOnboarding = true;
       await SessionService.instance.setCompletedOnboarding(true);
+      await initOrgMembers();
+      await ensureDefaultOrgOwner();
       notifyListeners();
       return;
     }
@@ -325,6 +451,8 @@ class AppState extends ChangeNotifier {
       hasCompletedOnboarding = true;
       await SessionService.instance.saveBrandsCache([brand]);
       await SessionService.instance.setCompletedOnboarding(true);
+      await initOrgMembers();
+      await ensureDefaultOrgOwner();
       notifyListeners();
     }
   }
@@ -368,8 +496,10 @@ class AppState extends ChangeNotifier {
     required this.jobRepository,
     required this.auditRepository,
     GroupRepository? groupRepository,
+    OrgMemberRepository? orgMemberRepository,
     this.publishingAdapter,
-  }) : groupRepository = groupRepository ?? InMemoryGroupRepository();
+  })  : groupRepository = groupRepository ?? InMemoryGroupRepository(),
+        orgMemberRepository = orgMemberRepository ?? SqliteOrgMemberRepository();
 
   // Accessors
   List<Brand> get brands => brandRepository.getAllBrands();
@@ -467,6 +597,221 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  // --- Role-Based Access Control (RBAC) & Team Management ---
+
+  String? get activeBrandId => selectedBrandFilterId ?? (brands.isNotEmpty ? brands.first.id : null);
+
+  Brand? get activeBrand =>
+      brands.cast<Brand?>().firstWhere((b) => b?.id == activeBrandId, orElse: () => (brands.isNotEmpty ? brands.first : null));
+
+  /// Current user's role in the active organization/workspace
+  OrgRole get currentRole {
+    if (_workspaceMode == WorkspaceMode.solo) return OrgRole.owner;
+    final orgId = activeBrandId;
+    final uid = localUserId;
+    if (orgId == null || uid == null) return OrgRole.owner;
+    final member = orgMemberRepository.getMemberByUser(orgId, uid);
+    return member?.role ?? OrgRole.owner;
+  }
+
+  /// Whether current role can publish posts directly to live social platforms
+  bool get canPublishDirectly => currentRole.canPublishDirectly;
+
+  /// Whether current role can upload media and create drafts
+  bool get canCreateDrafts => currentRole.canCreateDrafts;
+
+  /// Whether current role can edit drafts created by other members
+  bool get canEditOthersDrafts => currentRole.canEditOthersDrafts;
+
+  /// Whether current role can approve draft submissions from Uploaders
+  bool get canApproveSubmissions => currentRole.canApproveSubmissions;
+
+  /// Whether current role can link, reconnect, or manage channels and groups
+  bool get canManageChannels => currentRole.canManageChannels;
+
+  /// Whether current role can invite and remove team members (up to SMM)
+  bool get canInviteMembers => currentRole.canInviteMembers;
+
+  /// Whether current role can invite or promote other Managers
+  bool get canInviteManagers => currentRole.canInviteManagers;
+
+  /// Whether current role can create or delete brands/companies
+  bool get canManageBrands => currentRole.canManageBrands;
+
+  /// Whether current role can delete the organization or transfer ownership
+  bool get canDeleteOrg => currentRole.canDeleteOrg;
+
+  /// Whether current role is restricted to read-only metrics and calendar viewing
+  bool get isReadOnly => currentRole.isReadOnly;
+
+  List<OrgMember> get teamMembers {
+    final orgId = activeBrandId;
+    if (orgId == null) return const [];
+    return orgMemberRepository.getMembers(orgId);
+  }
+
+  List<OrgInvite> get pendingInvites {
+    final orgId = activeBrandId;
+    if (orgId == null) return const [];
+    return orgMemberRepository.getInvites(orgId);
+  }
+
+  Future<void> initOrgMembers() async {
+    final orgId = activeBrandId;
+    if (orgId != null && orgMemberRepository is SqliteOrgMemberRepository) {
+      await (orgMemberRepository as SqliteOrgMemberRepository).init(orgId);
+      notifyListeners();
+    }
+  }
+
+  /// Automatically provisions the owner membership for the first user
+  Future<void> ensureDefaultOrgOwner() async {
+    final orgId = activeBrandId;
+    final uid = localUserId;
+    final email = localUserEmail;
+    final name = (localUserName != null && localUserName!.isNotEmpty) ? localUserName! : 'Workspace Lead';
+    if (orgId == null || uid == null || email == null) return;
+
+    final existing = orgMemberRepository.getMemberByUser(orgId, uid);
+    if (existing == null) {
+      final owner = OrgMember(
+        id: _uuid.v4(),
+        orgId: orgId,
+        userId: uid,
+        userEmail: email,
+        userName: name,
+        userPhotoUrl: localUserPhotoUrl,
+        role: OrgRole.owner,
+        joinedAtUtc: DateTime.now().toUtc(),
+      );
+      orgMemberRepository.saveMember(owner);
+      notifyListeners();
+    }
+  }
+
+  /// Fetch an invite by its unique token
+  Future<OrgInvite?> getInviteByToken(String token) async {
+    if (token.trim().isEmpty) return null;
+    return await orgMemberRepository.findInviteByToken(token.trim());
+  }
+
+  /// Invites a new team member with an assigned role and optional brand scoping.
+  /// Returns the newly created OrgInvite so the inviter can copy or share the link.
+  Future<OrgInvite?> inviteMember({
+    required String email,
+    required OrgRole role,
+    List<String>? brandScope,
+  }) async {
+    final orgId = activeBrandId;
+    final uid = localUserId ?? 'local_owner';
+    if (orgId == null) return null;
+
+    final invite = OrgInvite(
+      id: _uuid.v4(),
+      orgId: orgId,
+      token: _uuid.v4().replaceAll('-', ''),
+      invitedEmail: email.trim().toLowerCase(),
+      invitedRole: role,
+      brandScope: brandScope,
+      invitedByUserId: uid,
+      createdAtUtc: DateTime.now().toUtc(),
+      expiresAtUtc: DateTime.now().toUtc().add(const Duration(days: 7)),
+      status: InviteStatus.pending,
+    );
+
+    orgMemberRepository.saveInvite(invite);
+    notifyListeners();
+    return invite;
+  }
+
+  /// Accepts an invitation, joins the user to the organization with their assigned role,
+  /// and switches active workspace to the invited brand.
+  Future<bool> acceptInvite({
+    required OrgInvite invite,
+    required String userId,
+    required String userEmail,
+    required String userName,
+    String? userPhotoUrl,
+  }) async {
+    if (invite.invitedEmail.trim().toLowerCase() != userEmail.trim().toLowerCase()) {
+      return false;
+    }
+    if (!invite.isValid) {
+      return false;
+    }
+
+    final newMember = OrgMember(
+      id: _uuid.v4(),
+      orgId: invite.orgId,
+      userId: userId,
+      userEmail: userEmail.trim().toLowerCase(),
+      userName: userName,
+      userPhotoUrl: userPhotoUrl,
+      role: invite.invitedRole,
+      brandScope: invite.brandScope,
+      invitedByUserId: invite.invitedByUserId,
+      joinedAtUtc: DateTime.now().toUtc(),
+      isActive: true,
+    );
+
+    orgMemberRepository.saveMember(newMember);
+    orgMemberRepository.updateInviteStatus(invite.id, InviteStatus.accepted);
+
+    // If invited user does not have this brand loaded in local list yet, fetch from database
+    final existingBrand = brands.cast<Brand?>().firstWhere((b) => b?.id == invite.orgId, orElse: () => null);
+    if (existingBrand == null) {
+      final brandFromDb = await AppDatabase.instance.getBrand(invite.orgId);
+      if (brandFromDb != null) {
+        brandRepository.saveBrand(brandFromDb);
+        await SessionService.instance.saveBrandsCache(brands);
+      }
+    }
+
+    setBrandFilter(invite.orgId);
+    await initOrgMembers();
+
+    auditRepository.recordEvent(
+      AuditEvent(
+        id: _uuid.v4(),
+        actor: userEmail,
+        eventType: 'TEAM_INVITE_ACCEPTED',
+        entityType: 'ORG_MEMBER',
+        entityId: newMember.id,
+        description: 'Accepted invitation as ${invite.invitedRole.label}',
+        metadataSanitized: {
+          'invite_id': invite.id,
+          'role': invite.invitedRole.name,
+        },
+        createdAtUtc: DateTime.now().toUtc(),
+      ),
+    );
+
+    notifyListeners();
+    return true;
+  }
+
+  Future<void> revokeInvite(String inviteId) async {
+    orgMemberRepository.updateInviteStatus(inviteId, InviteStatus.revoked);
+    notifyListeners();
+  }
+
+  Future<void> removeTeamMember(String memberId) async {
+    orgMemberRepository.removeMember(memberId);
+    notifyListeners();
+  }
+
+  Future<void> updateMemberRole(String memberId, OrgRole newRole) async {
+    final orgId = activeBrandId;
+    if (orgId == null) return;
+    final members = orgMemberRepository.getMembers(orgId);
+    final target = members.cast<OrgMember?>().firstWhere((m) => m?.id == memberId, orElse: () => null);
+    if (target != null) {
+      final updated = target.copyWith(role: newRole);
+      orgMemberRepository.saveMember(updated);
+      notifyListeners();
+    }
+  }
+
   // --- Core CRUD Operations ---
 
   /// Creates or updates a ContentPost along with its per-destination variants.
@@ -480,6 +825,7 @@ class AppState extends ChangeNotifier {
     List<String> tags = const [],
     String? campaign,
     DateTime? scheduledAtUtc,
+    PublishJobStatus? status,
     Map<String, String>? captionOverridesByAccount,
   }) {
     final now = DateTime.now().toUtc();
@@ -494,15 +840,19 @@ class AppState extends ChangeNotifier {
       mediaAssetIds: mediaAssetIds,
       tags: tags,
       campaign: campaign,
-      status: scheduledAtUtc != null
-          ? PublishJobStatus.scheduled
-          : PublishJobStatus.draft,
+      status: status ??
+          (scheduledAtUtc != null
+              ? PublishJobStatus.scheduled
+              : PublishJobStatus.draft),
       scheduledAtUtc: scheduledAtUtc,
       createdAtUtc: now,
       updatedAtUtc: now,
     );
 
     postRepository.savePost(post);
+    if (localUserId != null && localUserId!.isNotEmpty) {
+      FirebaseSyncService.instance.pushPost(localUserId!, post);
+    }
 
     // Save or update variants
     for (final accId in destinationAccountIds) {
@@ -871,6 +1221,10 @@ class AppState extends ChangeNotifier {
 
   void updateAccountConnection(String accountId, ConnectionStatus status) {
     accountRepository.updateConnectionStatus(accountId, status);
+    final updated = accountRepository.getAccountById(accountId);
+    if (updated != null && localUserId != null && localUserId!.isNotEmpty) {
+      FirebaseSyncService.instance.pushSocialAccount(localUserId!, updated);
+    }
     _recordAudit(
       eventType: 'ACCOUNT_STATUS_CHANGED',
       entityType: 'SocialAccount',
@@ -882,6 +1236,9 @@ class AppState extends ChangeNotifier {
 
   void updateAccount(SocialAccount account) {
     accountRepository.saveAccount(account);
+    if (localUserId != null && localUserId!.isNotEmpty) {
+      FirebaseSyncService.instance.pushSocialAccount(localUserId!, account);
+    }
     _recordAudit(
       eventType: 'ACCOUNT_UPDATED',
       entityType: 'SocialAccount',
@@ -947,6 +1304,9 @@ class AppState extends ChangeNotifier {
     );
     brandRepository.saveBrand(brand);
     SessionService.instance.saveBrandsCache(brands);
+    if (localUserId != null && localUserId!.isNotEmpty) {
+      FirebaseSyncService.instance.pushBrand(localUserId!, brand);
+    }
     _recordAudit(
       eventType: 'BRAND_CREATED',
       entityType: 'Brand',
@@ -960,6 +1320,9 @@ class AppState extends ChangeNotifier {
   void updateBrand(Brand brand) {
     brandRepository.saveBrand(brand);
     SessionService.instance.saveBrandsCache(brands);
+    if (localUserId != null && localUserId!.isNotEmpty) {
+      FirebaseSyncService.instance.pushBrand(localUserId!, brand);
+    }
     _recordAudit(
       eventType: 'BRAND_UPDATED',
       entityType: 'Brand',
@@ -973,6 +1336,9 @@ class AppState extends ChangeNotifier {
     final b = brandRepository.getBrandById(brandId);
     brandRepository.deleteBrand(brandId);
     SessionService.instance.saveBrandsCache(brands);
+    if (localUserId != null && localUserId!.isNotEmpty) {
+      FirebaseSyncService.instance.deleteBrand(localUserId!, brandId);
+    }
     _recordAudit(
       eventType: 'BRAND_DELETED',
       entityType: 'Brand',
@@ -1022,6 +1388,9 @@ class AppState extends ChangeNotifier {
       isManualOnly: isManualOnly,
     );
     accountRepository.saveAccount(account);
+    if (localUserId != null && localUserId!.isNotEmpty) {
+      FirebaseSyncService.instance.pushSocialAccount(localUserId!, account);
+    }
 
     // If user requested placing this account into an existing or new channel group
     if (targetGroupId != null && targetGroupId.isNotEmpty) {
@@ -1081,6 +1450,17 @@ class AppState extends ChangeNotifier {
   void deleteAccount(String accountId) {
     final acc = accountRepository.getAccountById(accountId);
     accountRepository.deleteAccount(accountId);
+    if (localUserId != null && localUserId!.isNotEmpty) {
+      FirebaseSyncService.instance.deleteSocialAccount(localUserId!, accountId);
+    }
+    for (final g in groups) {
+      if (g.accountIds.contains(accountId)) {
+        final updatedGroup = g.copyWith(
+          accountIds: g.accountIds.where((id) => id != accountId).toList(),
+        );
+        updateGroup(updatedGroup);
+      }
+    }
     _recordAudit(
       eventType: 'ACCOUNT_DISCONNECTED',
       entityType: 'SocialAccount',
@@ -1106,6 +1486,9 @@ class AppState extends ChangeNotifier {
       createdAtUtc: DateTime.now().toUtc(),
     );
     groupRepository.saveGroup(group);
+    if (localUserId != null && localUserId!.isNotEmpty) {
+      FirebaseSyncService.instance.pushGroup(localUserId!, group);
+    }
     _recordAudit(
       eventType: 'CHANNEL_GROUP_CREATED',
       entityType: 'ChannelGroup',
@@ -1118,6 +1501,9 @@ class AppState extends ChangeNotifier {
 
   void updateGroup(ChannelGroup group) {
     groupRepository.saveGroup(group);
+    if (localUserId != null && localUserId!.isNotEmpty) {
+      FirebaseSyncService.instance.pushGroup(localUserId!, group);
+    }
     _recordAudit(
       eventType: 'CHANNEL_GROUP_UPDATED',
       entityType: 'ChannelGroup',
@@ -1130,6 +1516,9 @@ class AppState extends ChangeNotifier {
   void deleteGroup(String groupId) {
     final g = groupRepository.getGroupById(groupId);
     groupRepository.deleteGroup(groupId);
+    if (localUserId != null && localUserId!.isNotEmpty) {
+      FirebaseSyncService.instance.deleteGroup(localUserId!, groupId);
+    }
     _recordAudit(
       eventType: 'CHANNEL_GROUP_DELETED',
       entityType: 'ChannelGroup',
@@ -1153,6 +1542,9 @@ class AppState extends ChangeNotifier {
 
   void deletePost(String postId) {
     postRepository.deletePost(postId);
+    if (localUserId != null && localUserId!.isNotEmpty) {
+      FirebaseSyncService.instance.deletePost(localUserId!, postId);
+    }
     final jobs = jobRepository.getJobsByPostId(postId);
     for (final j in jobs) {
       jobRepository.deleteJob(j.id);
@@ -1297,7 +1689,10 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> clearAllData() async {
+    // 1. Wipe all SQLite tables
     await AppDatabase.instance.clearAllData();
+
+    // 2. Clear in-memory repository caches
     if (brandRepository is SqliteBrandRepository) {
       (brandRepository as SqliteBrandRepository).clearCache();
     }
@@ -1313,9 +1708,34 @@ class AppState extends ChangeNotifier {
     if (jobRepository is SqliteJobRepository) {
       (jobRepository as SqliteJobRepository).clearCache();
     }
-    hasCompletedOnboarding = false;
+    if (orgMemberRepository is SqliteOrgMemberRepository) {
+      (orgMemberRepository as SqliteOrgMemberRepository).clearCache();
+    }
+
+    // 3. Clear all SharedPreferences session data
+    await SessionService.instance.clearSession();
     await SessionService.instance.setCompletedOnboarding(false);
     await SessionService.instance.saveBrandsCache([]);
+
+    // 4. Revoke Google sign-in token
+    try {
+      await GoogleAuthService.instance.signOut();
+    } catch (e) {
+      debugPrint('Google signOut during clearAllData: $e');
+    }
+
+    // 5. Reset all in-memory state — triggers auth guard to redirect to login
+    isLoggedIn = false;
+    isSessionExpired = false;
+    hasCompletedOnboarding = false;
+    _workspaceMode = WorkspaceMode.solo;
+    localUserName = null;
+    localUserEmail = null;
+    localUserPhotoUrl = null;
+    localUserId = null;
+    localUserProvider = null;
+    localUserData = null;
+    maskedEmail = null;
     selectedBrandFilterId = null;
     selectedStatusFilter = null;
     searchQuery = '';
@@ -1338,6 +1758,7 @@ class AppState extends ChangeNotifier {
     if (jobRepository is SqliteJobRepository) {
       await (jobRepository as SqliteJobRepository).init();
     }
+    await initOrgMembers();
     notifyListeners();
   }
 

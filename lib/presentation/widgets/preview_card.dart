@@ -1,10 +1,14 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:no5ocial/core/theme/app_colors.dart';
 import 'package:no5ocial/core/theme/app_typography.dart';
+import 'package:no5ocial/domain/enums/media_type.dart';
 import 'package:no5ocial/domain/enums/platform_type.dart';
 import 'package:no5ocial/domain/models/media_asset.dart';
 import 'package:no5ocial/domain/models/social_account.dart';
 import 'package:no5ocial/presentation/widgets/platform_logo.dart';
+import 'package:no5ocial/core/services/video_thumbnail_service.dart';
 
 class PreviewCard extends StatelessWidget {
   final SocialAccount account;
@@ -368,40 +372,208 @@ class PreviewCard extends StatelessWidget {
     MediaAsset media, {
     double aspectRatio = 16 / 9,
   }) {
-    return AspectRatio(
-      aspectRatio: aspectRatio,
-      child: Container(
-        decoration: BoxDecoration(
-          color: AppColors.surfaceMuted,
+    final previewUrl = media.localPreviewUrl;
+    final isVideo = media.mediaType == MediaType.video;
+
+    if (!isVideo && previewUrl != null && previewUrl.isNotEmpty) {
+      Widget imageWidget;
+      if (previewUrl.startsWith('http://') || previewUrl.startsWith('https://')) {
+        imageWidget = Image.network(
+          previewUrl,
+          fit: BoxFit.cover,
+          errorBuilder: (_, _, _) => _buildMediaFallback(media),
+        );
+      } else if (!kIsWeb) {
+        final file = File(previewUrl);
+        if (file.existsSync()) {
+          imageWidget = Image.file(
+            file,
+            fit: BoxFit.cover,
+            errorBuilder: (_, _, _) => _buildMediaFallback(media),
+          );
+        } else {
+          imageWidget = _buildMediaFallback(media);
+        }
+      } else {
+        imageWidget = _buildMediaFallback(media);
+      }
+
+      return AspectRatio(
+        aspectRatio: aspectRatio,
+        child: ClipRRect(
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: AppColors.border),
+          child: imageWidget,
+        ),
+      );
+    }
+
+    if (isVideo) {
+      Widget videoFallback = Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF1E293B), Color(0xFF0F172A)],
+          ),
         ),
         child: Stack(
           alignment: Alignment.center,
           children: [
-            Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  media.mediaType.name == 'video'
-                      ? Icons.play_circle_fill
-                      : Icons.image_outlined,
-                  size: 36,
-                  color: AppColors.textSecondary,
+            Center(
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  media.fileName,
-                  style: AppTypography.labelMedium.copyWith(fontSize: 11),
-                ),
-                Text(
-                  '${media.formattedSize} • ${media.mediaType.label}',
-                  style: AppTypography.bodySecondary.copyWith(fontSize: 10),
-                ),
-              ],
+                child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 36),
+              ),
+            ),
+            Positioned(
+              bottom: 8,
+              left: 10,
+              right: 10,
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.redAccent,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Text('VIDEO', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold)),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '${media.fileName} (${media.formattedSize})',
+                      style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
+      );
+
+      Widget videoDisplay;
+      if (previewUrl != null && previewUrl.isNotEmpty) {
+        final isImageExt = previewUrl.endsWith('.jpg') ||
+            previewUrl.endsWith('.jpeg') ||
+            previewUrl.endsWith('.png') ||
+            previewUrl.endsWith('.webp');
+
+        if (isImageExt && (previewUrl.startsWith('http://') || previewUrl.startsWith('https://'))) {
+          videoDisplay = Stack(
+            fit: StackFit.expand,
+            children: [
+              Image.network(previewUrl, fit: BoxFit.cover, errorBuilder: (_, _, _) => videoFallback),
+              Center(
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.5),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 36),
+                ),
+              ),
+            ],
+          );
+        } else {
+          // Local video file path or network video: query video thumbnail extractor
+          videoDisplay = FutureBuilder<Uint8List?>(
+            future: VideoThumbnailService.getThumbnail(previewUrl),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.done && snapshot.data != null) {
+                return Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Image.memory(snapshot.data!, fit: BoxFit.cover),
+                    Center(
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.5),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 36),
+                      ),
+                    ),
+                    Positioned(
+                      bottom: 8,
+                      left: 10,
+                      right: 10,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.7),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          '${media.fileName} (${media.formattedSize})',
+                          style: const TextStyle(color: Colors.white, fontSize: 10.5, fontWeight: FontWeight.bold),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              }
+              return videoFallback;
+            },
+          );
+        }
+      } else {
+        videoDisplay = videoFallback;
+      }
+
+      return AspectRatio(
+        aspectRatio: aspectRatio,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: videoDisplay,
+        ),
+      );
+    }
+
+    return AspectRatio(
+      aspectRatio: aspectRatio,
+      child: _buildMediaFallback(media),
+    );
+  }
+
+  Widget _buildMediaFallback(MediaAsset media) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surfaceMuted,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            media.mediaType == MediaType.video
+                ? Icons.play_circle_fill
+                : Icons.image_outlined,
+            size: 36,
+            color: AppColors.textSecondary,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            media.fileName,
+            style: AppTypography.labelMedium.copyWith(fontSize: 11),
+          ),
+          Text(
+            '${media.formattedSize} • ${media.mediaType.label}',
+            style: AppTypography.bodySecondary.copyWith(fontSize: 10),
+          ),
+        ],
       ),
     );
   }

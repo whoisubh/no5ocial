@@ -37,6 +37,11 @@ class StatusBadge extends StatelessWidget {
           border = AppColors.border;
           fg = AppColors.textSecondary;
           icon = Icons.edit_note_outlined;
+        case PublishJobStatus.needsApproval:
+          bg = const Color(0xFFFEF3C7);
+          border = const Color(0xFFFDE68A);
+          fg = const Color(0xFFD97706);
+          icon = Icons.pending_actions_outlined;
         case PublishJobStatus.scheduled:
           bg = AppColors.accentLight;
           border = const Color(0xFFC7D2FE);

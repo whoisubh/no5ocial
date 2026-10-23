@@ -259,7 +259,7 @@ class _SplashScreenState extends State<SplashScreen>
                       ],
                     ),
                     child: Image.asset(
-                      'assets/logo/no5ocial_N.png',
+                      'assets/logo/no5ocial_cropped.png',
                       fit: BoxFit.contain,
                       errorBuilder: (_, _, _) => const Icon(
                         Icons.rocket_launch_rounded,

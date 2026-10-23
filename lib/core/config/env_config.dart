@@ -1,6 +1,9 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
+import 'dart:io';
+import 'package:shared_preferences/shared_preferences.dart';
+
 enum AppFlavor {
   dev,
   prod,
@@ -8,7 +11,7 @@ enum AppFlavor {
 
 /// Unified Environment & Flavor Configuration Service.
 /// Loads values at startup from `.env`, `.env.dev`, or `.env.prod` assets,
-/// with runtime support for `--dart-define` overrides.
+/// with runtime support for `--dart-define` overrides and dynamic runtime persistence.
 ///
 /// Contains ZERO hardcoded client IDs or secrets.
 class EnvConfig {
@@ -47,7 +50,44 @@ class EnvConfig {
       }
     }
 
+    // Attempt direct filesystem load if running locally on desktop
+    if (!kIsWeb) {
+      for (final fileName in filesToTry) {
+        try {
+          final file = File(fileName);
+          if (file.existsSync()) {
+            final content = file.readAsStringSync();
+            _parseEnvString(content);
+            if (_envValues.isNotEmpty) break;
+          }
+        } catch (_) {}
+      }
+    }
+
+    // Also load any runtime persisted overrides
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      for (final key in prefs.getKeys()) {
+        if (key.startsWith('env_')) {
+          final envKey = key.substring(4);
+          final val = prefs.getString(key);
+          if (val != null && val.isNotEmpty) {
+            _envValues[envKey] = val;
+          }
+        }
+      }
+    } catch (_) {}
+
     _isInitialized = true;
+  }
+
+  /// Store and persist a runtime environment key-value pair
+  static Future<void> set(String key, String value) async {
+    _envValues[key] = value;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('env_$key', value);
+    } catch (_) {}
   }
 
   static void _parseEnvString(String content) {
@@ -134,4 +174,13 @@ class EnvConfig {
 
   static String get appTitle =>
       get('APP_TITLE', fallback: 'no5ocial');
+
+  // --- Firebase Configuration Getters ---
+  static String get firebaseApiKey => get('FIREBASE_API_KEY');
+  static String get firebaseProjectId => get('FIREBASE_PROJECT_ID', fallback: 'no5ocial-cloud');
+  static String get firebaseAppId => get('FIREBASE_APP_ID');
+  static String get firebaseMessagingSenderId =>
+      get('FIREBASE_MESSAGING_SENDER_ID', fallback: '1030532523858');
+  static String get firebaseAuthDomain => get('FIREBASE_AUTH_DOMAIN');
+  static String get firebaseStorageBucket => get('FIREBASE_STORAGE_BUCKET');
 }
