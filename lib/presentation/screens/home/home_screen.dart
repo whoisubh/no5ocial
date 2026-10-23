@@ -243,7 +243,7 @@ class HomeScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // 0. Live Centralization Sync Indicator (SQLite ↔ Firebase Cloud)
+                // 0. Status indicator (Only shown when offline or actively syncing)
                 ListenableBuilder(
                   listenable: Listenable.merge([SyncService.instance, FirebaseSyncService.instance]),
                   builder: (context, _) {
@@ -252,57 +252,40 @@ class HomeScreen extends StatelessWidget {
                     final isSyncing = fbSync.status == FirebaseSyncStatus.syncing || sync.status == SyncStatus.syncing;
                     final isOffline = fbSync.status == FirebaseSyncStatus.offline && sync.status == SyncStatus.offline;
 
+                    if (!isOffline && !isSyncing) {
+                      return const SizedBox.shrink();
+                    }
+
                     return Container(
                       margin: const EdgeInsets.only(bottom: 12),
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                       decoration: BoxDecoration(
                         color: isOffline
                             ? AppColors.warning.withAlpha(20)
-                            : _surfaceColor,
+                            : AppColors.accent.withAlpha(20),
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
-                          color: isOffline ? AppColors.warning : _borderColor,
+                          color: isOffline ? AppColors.warning.withAlpha(80) : AppColors.accent.withAlpha(80),
                         ),
                       ),
                       child: Row(
                         children: [
                           Icon(
-                            isSyncing
-                                ? Icons.sync
-                                : isOffline
-                                    ? Icons.cloud_off
-                                    : Icons.cloud_done_outlined,
+                            isSyncing ? Icons.sync : Icons.cloud_off,
                             size: 16,
-                            color: isOffline
-                                ? AppColors.warning
-                                : isSyncing
-                                    ? AppColors.accent
-                                    : AppColors.success,
+                            color: isOffline ? AppColors.warning : AppColors.accent,
                           ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
                               isSyncing
-                                  ? 'Synchronizing local SQLite ↔ Firebase Cloud...'
-                                  : isOffline
-                                      ? 'Working in offline mode. Changes saved locally in SQLite.'
-                                      : 'Cloud DB Synchronized • Vault Live (${fbSync.formattedLastSync})',
+                                  ? 'Synchronizing workspace...'
+                                  : 'Offline Mode — Changes will sync automatically when reconnected.',
                               style: TextStyle(
                                 fontSize: 12,
-                                color: _textSecColor,
+                                color: isOffline ? AppColors.warning : AppColors.accent,
                                 fontWeight: FontWeight.w500,
                               ),
-                            ),
-                          ),
-                          TextButton.icon(
-                            onPressed: isSyncing
-                                ? null
-                                : () => appState.syncWithCloud(force: true),
-                            icon: const Icon(Icons.refresh, size: 14),
-                            label: const Text('Sync Now', style: TextStyle(fontSize: 11)),
-                            style: TextButton.styleFrom(
-                              visualDensity: VisualDensity.compact,
-                              padding: const EdgeInsets.symmetric(horizontal: 8),
                             ),
                           ),
                         ],

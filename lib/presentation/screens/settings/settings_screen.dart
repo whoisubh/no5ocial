@@ -1,6 +1,5 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:no5ocial/core/extensions/l10n_extension.dart';
 import 'package:no5ocial/core/services/biometric_lock_service.dart';
 import 'package:no5ocial/core/theme/app_colors.dart';
 import 'package:no5ocial/core/theme/app_typography.dart';
@@ -11,7 +10,6 @@ import 'package:no5ocial/presentation/widgets/passkey_management_sheet.dart';
 import 'package:no5ocial/presentation/widgets/team_management_sheet.dart';
 import 'package:no5ocial/presentation/screens/settings/monetization_settings_view.dart';
 import 'package:no5ocial/core/services/currency_service.dart';
-import 'package:no5ocial/core/services/firebase_sync_service.dart';
 
 class SettingsScreen extends StatelessWidget {
   final AppState appState;
@@ -251,24 +249,23 @@ class SettingsScreen extends StatelessWidget {
   }
 
   void _confirmResetData(BuildContext context) {
-    final l10n = context.l10n;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Row(
+        title: const Row(
           children: [
-            const Icon(Icons.warning_amber_rounded, color: AppColors.error),
-            const SizedBox(width: 8),
-            Text(l10n.wipeConfirmTitle),
+            Icon(Icons.warning_amber_rounded, color: AppColors.error),
+            SizedBox(width: 8),
+            Text('Reset Local Workspace Cache'),
           ],
         ),
-        content: Text(
-          l10n.wipeConfirmMessage,
+        content: const Text(
+          'Are you sure you want to clear your local workspace cache? Your connected channels and workspace data are securely stored and will reload upon sign-in.',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: Text(l10n.btnCancel),
+            child: const Text('Cancel'),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -282,7 +279,7 @@ class SettingsScreen extends StatelessWidget {
               backgroundColor: AppColors.error,
               foregroundColor: Colors.white,
             ),
-            child: Text(l10n.btnConfirmWipe),
+            child: const Text('Clear Cache'),
           ),
         ],
       ),
@@ -292,7 +289,6 @@ class SettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = context.l10n;
     return ListenableBuilder(
       listenable: appState,
       builder: (context, _) {
@@ -471,10 +467,6 @@ class SettingsScreen extends StatelessWidget {
                   );
                 },
               ),
-              const SizedBox(height: 20),
-
-              _buildSectionTitle('Live Cloud DB & Workspace Channel Vault'),
-              _buildCloudSyncCard(context),
               const SizedBox(height: 20),
 
               _buildSectionTitle('Workspace & Team Access'),
@@ -1089,7 +1081,7 @@ class SettingsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 16),
 
-              _buildSectionTitle('Security & Compliance'),
+              _buildSectionTitle('Security & Privacy'),
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
@@ -1102,27 +1094,27 @@ class SettingsScreen extends StatelessWidget {
                   children: [
                     _buildSecurityItem(
                       Icons.shield_outlined,
-                      'Enterprise Credential Protection',
-                      'Platform access tokens are encrypted locally with zero credentials stored on external servers.',
+                      'Encrypted Account Access',
+                      'Connected social channels and tokens are encrypted with device-level security protection.',
                     ),
                     const SizedBox(height: 10),
                     _buildSecurityItem(
-                      Icons.lock_clock_outlined,
-                      'Duplicate Broadcast Protection',
-                      'Smart publication guards verify and prevent accidental duplicate posts across all channels.',
+                      Icons.verified_user_outlined,
+                      'Duplicate Post Safeguards',
+                      'Preflight validation prevents accidental duplicate posts across your channels.',
                     ),
                     const SizedBox(height: 10),
                     _buildSecurityItem(
-                      Icons.visibility_off_outlined,
-                      'Automated Privacy Redaction',
-                      'Authentication signatures and headers are strictly sanitized before recording.',
+                      Icons.privacy_tip_outlined,
+                      'Privacy Focused',
+                      'Your workspace drafts, media, and publishing schedules are private and never shared.',
                     ),
                   ],
                 ),
               ),
               const SizedBox(height: 16),
 
-              _buildSectionTitle('Activity & Security History'),
+              _buildSectionTitle('Activity History'),
               InkWell(
                 onTap: () => _showAuditLog(context),
                 borderRadius: BorderRadius.circular(10),
@@ -1168,7 +1160,8 @@ class SettingsScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 16),
-              _buildSectionTitle(l10n.dbManagementTitle),
+
+              _buildSectionTitle('Workspace Storage'),
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -1179,14 +1172,14 @@ class SettingsScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      l10n.dbManagementTitle,
-                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                    const Text(
+                      'Local Workspace Cache',
+                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
                     ),
                     const SizedBox(height: 4),
-                    Text(
-                      l10n.dbManagementSub,
-                      style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                    const Text(
+                      'Clear temporary cached drafts and local offline data on this device.',
+                      style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
                     ),
                     const SizedBox(height: 16),
                     Wrap(
@@ -1196,7 +1189,7 @@ class SettingsScreen extends StatelessWidget {
                         OutlinedButton.icon(
                           onPressed: () => _confirmResetData(context),
                           icon: const Icon(Icons.delete_sweep_outlined, size: 16, color: AppColors.error),
-                          label: Text(l10n.btnClearAllData, style: const TextStyle(color: AppColors.error)),
+                          label: const Text('Reset Workspace Cache', style: TextStyle(color: AppColors.error)),
                           style: OutlinedButton.styleFrom(
                             side: const BorderSide(color: AppColors.errorBorder),
                             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -1208,184 +1201,6 @@ class SettingsScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 24),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildCloudSyncCard(BuildContext context) {
-    return ListenableBuilder(
-      listenable: FirebaseSyncService.instance,
-      builder: (context, _) {
-        final fbSync = FirebaseSyncService.instance;
-        final isSyncing = fbSync.status == FirebaseSyncStatus.syncing;
-        final isOffline = fbSync.status == FirebaseSyncStatus.offline;
-        final isError = fbSync.status == FirebaseSyncStatus.error;
-
-        final Color statusColor = isSyncing
-            ? AppColors.accent
-            : isOffline
-                ? AppColors.warning
-                : isError
-                    ? AppColors.error
-                    : AppColors.success;
-
-        final String statusTitle = isSyncing
-            ? 'Synchronizing...'
-            : isOffline
-                ? 'Offline (Local-First)'
-                : isError
-                    ? 'Sync Error'
-                    : 'Cloud DB Synchronized';
-
-        final IconData statusIcon = isSyncing
-            ? Icons.sync
-            : isOffline
-                ? Icons.cloud_off
-                : isError
-                    ? Icons.error_outline
-                    : Icons.cloud_done;
-
-        return Container(
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.border),
-            boxShadow: AppColors.cardShadow,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: statusColor.withAlpha(25),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(statusIcon, color: statusColor, size: 20),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Cloud Firestore & SQLite Live Channel Vault',
-                          style: AppTypography.titleMedium.copyWith(fontSize: 14),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Database state: ${fbSync.formattedLastSync}',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: statusColor,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: statusColor.withAlpha(20),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: statusColor.withAlpha(80)),
-                    ),
-                    child: Text(
-                      statusTitle,
-                      style: TextStyle(
-                        color: statusColor,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                'Your user account, linked channels, groups, and brand configurations are fully managed in the Cloud DB in real time. Whenever you connect a channel or organize groups, changes write directly to the database so your channel and group details are never lost or forgotten across devices.',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: AppColors.textSecondary,
-                  height: 1.4,
-                ),
-              ),
-              if (fbSync.lastError != null && isError) ...[
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: AppColors.errorBg,
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: AppColors.errorBorder),
-                  ),
-                  child: Text(
-                    fbSync.lastError!,
-                    style: const TextStyle(fontSize: 11, color: AppColors.error),
-                  ),
-                ),
-              ],
-              const SizedBox(height: 14),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: isSyncing
-                          ? null
-                          : () async {
-                              final res = await appState.syncWithCloud(force: false);
-                              if (context.mounted && res != null) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(res.success
-                                        ? 'Cloud DB synchronized (${res.pulledCount} pulled, ${res.pushedCount} pushed).'
-                                        : 'Sync notice: ${res.errorMessage}'),
-                                    backgroundColor: res.success ? AppColors.success : AppColors.warning,
-                                  ),
-                                );
-                              }
-                            },
-                      icon: const Icon(Icons.sync, size: 16),
-                      label: const Text('Live Sync DB', style: TextStyle(fontSize: 12)),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: isSyncing
-                          ? null
-                          : () async {
-                              final res = await appState.syncWithCloud(force: true);
-                              if (context.mounted && res != null) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(res.success
-                                        ? 'Workspace hydrated from Cloud DB (${res.pulledCount} items active).'
-                                        : 'Fetch notice: ${res.errorMessage}'),
-                                    backgroundColor: res.success ? AppColors.success : AppColors.warning,
-                                  ),
-                                );
-                              }
-                            },
-                      icon: const Icon(Icons.cloud_download_outlined, size: 16),
-                      label: const Text('Force Fetch from DB', style: TextStyle(fontSize: 12)),
-                      style: FilledButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
             ],
           ),
         );
