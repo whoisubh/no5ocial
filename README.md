@@ -104,6 +104,5 @@ Commercial publishing tools typically charge ₹3,000 to ₹10,000/month for mul
    ```
 
 ### Backend & OAuth Configuration
-- Refer to [`DEVELOPER_SETUP.md`](file:///E:/no5ocial/DEVELOPER_SETUP.md) for step-by-step developer portal guides for Meta, Google, LinkedIn, and X.
-- Refer to [`PLATFORM_CAPABILITIES.md`](file:///E:/no5ocial/PLATFORM_CAPABILITIES.md) for the verified platform capability matrix and documentation links.
+- Refer to [`INTEGRATIONS.md`](file:///E:/no5ocial/INTEGRATIONS.md) for step-by-step developer portal guides (Meta, Google, LinkedIn, X) and the verified platform capability matrix.
 - Refer to [`backend/.env.example`](file:///E:/no5ocial/backend/.env.example) for required server environment variables.
