@@ -18,12 +18,14 @@ class MonetizationService extends ChangeNotifier {
   DayPassStatus _dayPassStatus = const DayPassStatus();
   DailyRewardCeiling _dailyCeiling = DailyRewardCeiling.today();
   int _offerwallCredits = 0;
+  int _postCoins = 5;
   bool _isInitialized = false;
 
   AccountPlanTier get currentPlan => _currentPlan;
   DayPassStatus get dayPassStatus => _dayPassStatus;
   DailyRewardCeiling get dailyCeiling => _dailyCeiling;
   int get offerwallCredits => _offerwallCredits;
+  int get postCoins => _postCoins;
   bool get isInitialized => _isInitialized;
 
   /// Initialize service state from persistent storage
@@ -48,12 +50,13 @@ class MonetizationService extends ChangeNotifier {
       // Load Ceiling & reset if day rolled over
       _refreshDailyCeiling(prefs);
 
-      // Load Credits
+      // Load Credits & Coins
       _offerwallCredits = prefs.getInt('monetization_offerwall_credits') ?? 0;
+      _postCoins = prefs.getInt('monetization_post_coins') ?? 5;
 
       _isInitialized = true;
       notifyListeners();
-      debugPrint('MonetizationService: Initialized with plan ${_currentPlan.displayName}, Day Pass active: ${_dayPassStatus.isActive}');
+      debugPrint('MonetizationService: Initialized with plan ${_currentPlan.displayName}, Coins: $_postCoins');
     } catch (e) {
       debugPrint('MonetizationService: Storage init fallback: $e');
       _isInitialized = true;
@@ -102,28 +105,34 @@ class MonetizationService extends ChangeNotifier {
     );
   }
 
-  /// Evaluates whether the user can schedule a post right now or if a system bottleneck is hit.
-  ({bool canSchedule, SystemBottleneckType? bottleneck}) evaluateSchedulingAccess({
+  /// Evaluates whether the user can schedule or publish a post right now.
+  ({bool canSchedule, bool requiresCoin, SystemBottleneckType? bottleneck}) evaluateSchedulingAccess({
     required WorkspaceMode workspaceMode,
     required int memberCount,
   }) {
     // 1. Multi-person company check: If collaborating on a team, enforce B2B subscription
     final isTeam = isMultiPersonCompany(workspaceMode: workspaceMode, memberCount: memberCount);
     if (isTeam && !_currentPlan.isB2B) {
-      return (canSchedule: false, bottleneck: SystemBottleneckType.teamSeatExpansion);
+      return (canSchedule: false, requiresCoin: false, bottleneck: SystemBottleneckType.teamSeatExpansion);
     }
 
     // 2. Paid individual tier (Solo Pro) or B2B: Unlimited scheduling, zero bottlenecks
     if (_currentPlan.isPaid) {
-      return (canSchedule: true, bottleneck: null);
+      return (canSchedule: true, requiresCoin: false, bottleneck: null);
     }
 
-    // 3. Free Tier: Daily post quota check (up to 10 scheduled posts/day)
-    if (_dailyCeiling.hasReachedScheduledPostCeiling) {
-      return (canSchedule: false, bottleneck: SystemBottleneckType.dailyPostCeilingReached);
+    // 3. Free Tier: Check daily post quota (up to 10 scheduled posts/day)
+    if (!_dailyCeiling.hasReachedScheduledPostCeiling) {
+      return (canSchedule: true, requiresCoin: false, bottleneck: null);
     }
 
-    return (canSchedule: true, bottleneck: null);
+    // 4. Free Tier: Daily quota reached, but user has Coins!
+    if (_postCoins > 0) {
+      return (canSchedule: true, requiresCoin: true, bottleneck: null);
+    }
+
+    // 5. Daily quota reached and 0 coins
+    return (canSchedule: false, requiresCoin: false, bottleneck: SystemBottleneckType.dailyPostCeilingReached);
   }
 
   /// Records a successful post scheduled under the free tier (anti-bot tracker).
@@ -289,6 +298,55 @@ class MonetizationService extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setInt('monetization_offerwall_credits', _offerwallCredits);
+    } catch (_) {}
+  }
+
+  // --- Coin System Methods for Free Users ---
+
+  /// Earn publishing coins by watching a rewarded ad.
+  Future<({bool success, int coinsEarned, String message})> watchAdForCoins({int rewardAmount = 2}) async {
+    final success = await AppLovinMaxMediationService.instance.showRewardedVideo();
+    if (success) {
+      _postCoins += rewardAmount;
+      notifyListeners();
+      await _saveCoins();
+      return (
+        success: true,
+        coinsEarned: rewardAmount,
+        message: '+$rewardAmount Coins added! Current balance: $_postCoins Coins.',
+      );
+    } else {
+      return (
+        success: false,
+        coinsEarned: 0,
+        message: 'Video ad was closed before completion. Watch the full ad to earn Coins.',
+      );
+    }
+  }
+
+  /// Consumes 1 coin for publishing or scheduling a post.
+  Future<bool> consumePostCoin() async {
+    if (_currentPlan.isPaid) return true;
+    if (_postCoins > 0) {
+      _postCoins -= 1;
+      notifyListeners();
+      await _saveCoins();
+      return true;
+    }
+    return false;
+  }
+
+  /// Adds coins directly to the user balance.
+  Future<void> addCoins(int amount) async {
+    _postCoins += amount;
+    notifyListeners();
+    await _saveCoins();
+  }
+
+  Future<void> _saveCoins() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('monetization_post_coins', _postCoins);
     } catch (_) {}
   }
 }

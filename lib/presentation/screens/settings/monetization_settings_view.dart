@@ -5,11 +5,19 @@ import 'package:no5ocial/domain/models/monetization/monetization_models.dart';
 import 'package:no5ocial/presentation/state/app_state.dart';
 import 'package:no5ocial/presentation/widgets/monetization/upgrade_paywall_sheet.dart';
 
-/// Consumer-grade Settings Section for Workspace Plan, Tier Details, and Usage Quotas.
-class MonetizationSettingsView extends StatelessWidget {
+/// Consumer-grade Settings Section for Workspace Plan, Tier Details, Quotas,
+/// and the Publishing Coin (Credit) System for Free Users.
+class MonetizationSettingsView extends StatefulWidget {
   final AppState appState;
 
   const MonetizationSettingsView({super.key, required this.appState});
+
+  @override
+  State<MonetizationSettingsView> createState() => _MonetizationSettingsViewState();
+}
+
+class _MonetizationSettingsViewState extends State<MonetizationSettingsView> {
+  bool _isWatchingAd = false;
 
   @override
   Widget build(BuildContext context) {
@@ -20,14 +28,14 @@ class MonetizationSettingsView extends StatelessWidget {
         final plan = monetization.currentPlan;
         final ceiling = monetization.dailyCeiling;
         final isMultiPerson = monetization.isMultiPersonCompany(
-          workspaceMode: appState.workspaceMode,
-          memberCount: appState.teamMembers.length,
+          workspaceMode: widget.appState.workspaceMode,
+          memberCount: widget.appState.teamMembers.length,
         );
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Workspace Plan Card
+            // 1. Workspace Plan Card
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -149,8 +157,133 @@ class MonetizationSettingsView extends StatelessWidget {
             ),
             const SizedBox(height: 14),
 
-            // Plan Usage Quotas (Free accounts) or Plan Perks (Paid accounts)
+            // 2. Free Tier: Publishing Coins (Credits) Card & Daily Quota
             if (!plan.isPaid) ...[
+              // Coins (Credit) Wallet Card
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFFFDE68A)),
+                  boxShadow: AppColors.cardShadow,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFFF59E0B), Color(0xFFD97706)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(10),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFFD97706).withAlpha(50),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: const Icon(Icons.monetization_on_rounded, color: Colors.white, size: 22),
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Publishing Coins',
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.ink),
+                              ),
+                              SizedBox(height: 2),
+                              Text(
+                                '1 Coin = 1 Scheduled or Published Post',
+                                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFFBEB),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: const Color(0xFFFDE68A)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Text('🪙 ', style: TextStyle(fontSize: 13)),
+                              Text(
+                                '${monetization.postCoins} Coins',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFFB45309),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Reached your daily free post limit? Watch a short partner video ad to earn Coins and keep publishing across all your social channels without upgrading.',
+                      style: TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.4),
+                    ),
+                    const SizedBox(height: 14),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: _isWatchingAd
+                            ? null
+                            : () async {
+                                setState(() => _isWatchingAd = true);
+                                final messenger = ScaffoldMessenger.of(context);
+                                final res = await monetization.watchAdForCoins(rewardAmount: 2);
+                                if (mounted) {
+                                  setState(() => _isWatchingAd = false);
+                                  messenger.showSnackBar(
+                                    SnackBar(
+                                      content: Text(res.message),
+                                      backgroundColor: res.success ? const Color(0xFF059669) : AppColors.error,
+                                    ),
+                                  );
+                                }
+                              },
+                        icon: _isWatchingAd
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              )
+                            : const Icon(Icons.play_circle_filled_rounded, size: 18),
+                        label: Text(
+                          _isWatchingAd ? 'Loading Video Ad...' : 'Watch Ad to Earn +2 Coins',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFD97706),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          elevation: 0,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              // Daily Quota Metric Card
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -167,14 +300,14 @@ class MonetizationSettingsView extends StatelessWidget {
                         Icon(Icons.bar_chart_rounded, color: AppColors.accent, size: 20),
                         SizedBox(width: 8),
                         Text(
-                          'Daily Publishing Quota',
+                          'Daily Free Post Quota',
                           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.ink),
                         ),
                       ],
                     ),
                     const SizedBox(height: 4),
                     const Text(
-                      'Free plan includes up to 10 scheduled posts per calendar day. Upgrade to Solo Pro for unlimited scheduling.',
+                      'Free plan includes 10 daily scheduled posts. Extra posts consume 1 Coin each.',
                       style: TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.4),
                     ),
                     const SizedBox(height: 14),
@@ -190,6 +323,7 @@ class MonetizationSettingsView extends StatelessWidget {
                 ),
               ),
             ] else ...[
+              // Paid Plan Status Card
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -213,7 +347,7 @@ class MonetizationSettingsView extends StatelessWidget {
                     ),
                     SizedBox(height: 6),
                     Text(
-                      'Your plan includes unlimited multi-destination post scheduling, concurrent queues, and priority API delivery.',
+                      'Your plan includes unlimited multi-destination post scheduling, concurrent queues, and priority API delivery with zero coins or quotas required.',
                       style: TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.4),
                     ),
                   ],
