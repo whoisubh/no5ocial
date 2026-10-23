@@ -17,7 +17,6 @@ import 'package:no5ocial/presentation/widgets/platform_logo.dart';
 import 'package:no5ocial/presentation/widgets/status_badge.dart';
 import 'package:no5ocial/core/services/sync_service.dart';
 import 'package:no5ocial/core/services/firebase_sync_service.dart';
-import 'package:no5ocial/presentation/widgets/monetization/day_pass_banner.dart';
 import '../analytics/analytics_screen.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -293,9 +292,6 @@ class HomeScreen extends StatelessWidget {
                     );
                   },
                 ),
-
-                // 0.1 Day Pass / Ad Monetization Banner (Audience segmented)
-                DayPassBanner(appState: appState),
 
                 // 1. Executive Operations Hero Card
                 _buildHeroBanner(context, l10n),

@@ -32,9 +32,7 @@ import 'package:no5ocial/core/services/google_auth_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:no5ocial/core/services/video_thumbnail_service.dart';
 import 'package:no5ocial/core/services/monetization_service.dart';
-import 'package:no5ocial/presentation/widgets/monetization/day_pass_banner.dart';
 import 'package:no5ocial/presentation/widgets/monetization/upgrade_paywall_sheet.dart';
-import 'package:no5ocial/presentation/widgets/monetization/offerwall_sheet.dart';
 
 class ComposerScreen extends StatefulWidget {
   final AppState appState;
@@ -598,20 +596,6 @@ class _ComposerScreenState extends State<ComposerScreen>
         await UpgradePaywallSheet.show(
           context,
           bottleneck: access.bottleneck!,
-          onDayPassUnlockRequested: () async {
-            final res = await MonetizationService.instance.advanceDayPassVideoSequence();
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(res.message),
-                  backgroundColor: res.success ? AppColors.accent : AppColors.error,
-                ),
-              );
-            }
-          },
-          onOfferwallRequested: () {
-            OfferwallSheet.show(context, userId: widget.appState.localUserId ?? 'user_solo');
-          },
         );
         return;
       }
@@ -2640,8 +2624,6 @@ class _ComposerScreenState extends State<ComposerScreen>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // Day Pass Engine & Status Banner (Strictly hidden for multi-person companies / B2B)
-                      DayPassBanner(appState: widget.appState),
 
                       // Role Guardrail Banners
                       if (widget.appState.isReadOnly) ...[

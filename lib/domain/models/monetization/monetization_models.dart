@@ -230,7 +230,7 @@ class DailyRewardCeiling {
   }
 }
 
-/// Identifies the system bottleneck prompting an upgrade modal.
+/// Identifies the plan limit prompting an upgrade modal.
 enum SystemBottleneckType {
   dayPassExpired,
   dailyPostCeilingReached,
@@ -241,30 +241,30 @@ enum SystemBottleneckType {
   String get title {
     switch (this) {
       case SystemBottleneckType.dayPassExpired:
-        return 'Day Pass Expired';
+        return 'Daily Plan Quota';
       case SystemBottleneckType.dailyPostCeilingReached:
-        return 'Daily Free Scheduling Ceiling Reached';
+        return 'Daily Post Limit Reached';
       case SystemBottleneckType.dailyRewardCeilingReached:
-        return 'Daily Reward Limit Reached';
+        return 'Daily Limit Reached';
       case SystemBottleneckType.teamSeatExpansion:
-        return 'Multi-Person Company Detected';
+        return 'Team Collaboration';
       case SystemBottleneckType.bulkPlatformPublishing:
-        return 'High Volume Multi-Platform Queue';
+        return 'Multi-Channel Publishing';
     }
   }
 
   String get description {
     switch (this) {
       case SystemBottleneckType.dayPassExpired:
-        return 'Your 24-hour Day Pass has concluded. Watch a quick 3-video sequence to re-activate, complete a micro-task, or upgrade to Solo Pro for uninterrupted lifetime scheduling.';
+        return 'Upgrade to Solo Pro or Team Workspace for unlimited scheduled posts and full queue management.';
       case SystemBottleneckType.dailyPostCeilingReached:
-        return 'To protect infrastructure resources and API quotas against automated abuse, free accounts are limited to 10 scheduled posts/day. Upgrade to Solo Pro for unlimited queue capacity.';
+        return 'Free accounts include up to 10 scheduled posts per day. Upgrade to Solo Pro for unlimited daily scheduling.';
       case SystemBottleneckType.dailyRewardCeilingReached:
-        return 'You have reached today\'s reward ceiling for free accounts. Reset occurs at 00:00 UTC, or upgrade to bypass all reward loops.';
+        return 'You have reached today\'s daily post limit on the Free plan. Upgrade to Solo Pro for unlimited scheduling.';
       case SystemBottleneckType.teamSeatExpansion:
-        return 'Collaborating with team members requires a B2B Team subscription to preserve corporate credibility and unlock approval workflows without advertising.';
+        return 'Collaborating with team members is available on our Team Workspace and Enterprise plans. Upgrade to invite colleagues and manage roles.';
       case SystemBottleneckType.bulkPlatformPublishing:
-        return 'Publishing across multiple simultaneous channels requires higher concurrency limits available on paid tiers.';
+        return 'Publishing across multiple simultaneous channels is optimized on Solo Pro and Team plans.';
     }
   }
 }

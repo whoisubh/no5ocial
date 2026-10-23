@@ -118,17 +118,11 @@ class MonetizationService extends ChangeNotifier {
       return (canSchedule: true, bottleneck: null);
     }
 
-    // 3. Free D2C Tier: Anti-bot daily post ceiling check
+    // 3. Free Tier: Daily post quota check (up to 10 scheduled posts/day)
     if (_dailyCeiling.hasReachedScheduledPostCeiling) {
       return (canSchedule: false, bottleneck: SystemBottleneckType.dailyPostCeilingReached);
     }
 
-    // 4. Free D2C Tier: Day Pass check
-    if (!_dayPassStatus.isActive) {
-      return (canSchedule: false, bottleneck: SystemBottleneckType.dayPassExpired);
-    }
-
-    // Day Pass is active and under daily limit
     return (canSchedule: true, bottleneck: null);
   }
 

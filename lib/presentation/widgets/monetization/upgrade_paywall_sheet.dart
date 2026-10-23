@@ -218,57 +218,6 @@ class _UpgradePaywallSheetState extends State<UpgradePaywallSheet> {
                   ),
           ),
 
-          // Free Alternative Options (Only for Solo Free users when Day Pass is the bottleneck)
-          if (!isTeamBottleneck && widget.bottleneck == SystemBottleneckType.dayPassExpired) ...[
-            const SizedBox(height: 16),
-            const Row(
-              children: [
-                Expanded(child: Divider()),
-                Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 10),
-                  child: Text('OR CONTINUE ON FREE TIER', style: TextStyle(fontSize: 11, color: AppColors.textSecondary, fontWeight: FontWeight.bold)),
-                ),
-                Expanded(child: Divider()),
-              ],
-            ),
-            const SizedBox(height: 14),
-
-            // Unlock Day Pass Video Sequence Button
-            OutlinedButton.icon(
-              onPressed: () {
-                Navigator.of(context).pop();
-                widget.onDayPassUnlockRequested?.call();
-              },
-              icon: const Icon(Icons.play_circle_outline_rounded, size: 20, color: AppColors.accent),
-              label: const Text(
-                'Watch 3 Short Videos (Unlock 24h Day Pass)',
-                style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.accent),
-              ),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-            ),
-            const SizedBox(height: 8),
-
-            // Complete Offerwall Micro-Task Button
-            OutlinedButton.icon(
-              onPressed: () {
-                Navigator.of(context).pop();
-                widget.onOfferwallRequested?.call();
-              },
-              icon: const Icon(Icons.stars_rounded, size: 20, color: Color(0xFFD97706)),
-              label: const Text(
-                'Complete Micro-Task on Offerwall (High Payout)',
-                style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFFD97706)),
-              ),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-            ),
-          ],
-
           const SizedBox(height: 12),
         ],
       ),
