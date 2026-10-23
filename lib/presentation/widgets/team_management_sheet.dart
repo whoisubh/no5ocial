@@ -9,9 +9,6 @@ import 'package:no5ocial/domain/models/brand.dart';
 import 'package:no5ocial/domain/models/org_invite.dart';
 import 'package:no5ocial/domain/models/org_member.dart';
 import 'package:no5ocial/presentation/state/app_state.dart';
-import 'package:no5ocial/core/services/monetization_service.dart';
-import 'package:no5ocial/domain/models/monetization/monetization_models.dart';
-import 'package:no5ocial/presentation/widgets/monetization/upgrade_paywall_sheet.dart';
 
 class TeamManagementSheet extends StatefulWidget {
   final AppState appState;
@@ -771,16 +768,6 @@ class _TeamManagementSheetState extends State<TeamManagementSheet> {
                   if (email.isEmpty || !email.contains('@')) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('Please enter a valid email address')),
-                    );
-                    return;
-                  }
-
-                  // Strictly enforce B2B Team plan for multi-person organizations
-                  if (!MonetizationService.instance.currentPlan.isB2B) {
-                    Navigator.of(ctx).pop();
-                    await UpgradePaywallSheet.show(
-                      context,
-                      bottleneck: SystemBottleneckType.teamSeatExpansion,
                     );
                     return;
                   }

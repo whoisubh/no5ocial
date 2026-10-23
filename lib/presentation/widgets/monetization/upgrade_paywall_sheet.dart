@@ -3,9 +3,9 @@ import 'package:no5ocial/core/services/monetization_service.dart';
 import 'package:no5ocial/core/theme/app_colors.dart';
 import 'package:no5ocial/domain/models/monetization/monetization_models.dart';
 import 'package:no5ocial/presentation/widgets/app_sheets.dart';
-import 'package:no5ocial/core/services/currency_service.dart';
 
-/// Clean, high-converting Paywall & Upgrade Sheet displayed at all system bottlenecks.
+/// Ad-supported Publishing Coins Sheet displayed when a quota bottleneck is hit.
+/// Pro/paid subscription system is disabled/hidden in favor of the free ad-reward coin system.
 class UpgradePaywallSheet extends StatefulWidget {
   final SystemBottleneckType bottleneck;
   final VoidCallback? onDayPassUnlockRequested;
@@ -20,27 +20,31 @@ class UpgradePaywallSheet extends StatefulWidget {
     this.currencyCode,
   });
 
-  static Future<void> show(
+  static Future<bool?> show(
     BuildContext context, {
     required SystemBottleneckType bottleneck,
     VoidCallback? onDayPassUnlockRequested,
     VoidCallback? onOfferwallRequested,
     String? currencyCode,
   }) {
-    return AppSheets.showAdaptiveFormSheet(
+    return AppSheets.showAdaptiveFormSheet<bool>(
       context,
       title: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
-              color: AppColors.accent.withAlpha(30),
+              gradient: const LinearGradient(
+                colors: [Color(0xFFF59E0B), Color(0xFFD97706)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: const Icon(Icons.workspace_premium_rounded, color: AppColors.accent, size: 20),
+            child: const Icon(Icons.monetization_on_rounded, color: Colors.white, size: 20),
           ),
           const SizedBox(width: 10),
-          Text(bottleneck.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          const Text('Earn Coins to Publish', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
         ],
       ),
       builder: (ctx, _) => UpgradePaywallSheet(
@@ -57,283 +61,182 @@ class UpgradePaywallSheet extends StatefulWidget {
 }
 
 class _UpgradePaywallSheetState extends State<UpgradePaywallSheet> {
-  AccountPlanTier _selectedPlan = AccountPlanTier.soloPro;
-  bool _isProcessing = false;
+  bool _isWatchingAd = false;
 
   @override
   Widget build(BuildContext context) {
-    final monetization = MonetizationService.instance;
-    final isTeamBottleneck = widget.bottleneck == SystemBottleneckType.teamSeatExpansion;
+    return ListenableBuilder(
+      listenable: MonetizationService.instance,
+      builder: (context, _) {
+        final monetization = MonetizationService.instance;
 
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Bottleneck Explanation Banner
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceSecondary,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(
-                  isTeamBottleneck ? Icons.group_work_rounded : Icons.info_outline_rounded,
-                  color: isTeamBottleneck ? const Color(0xFF7C3AED) : AppColors.accent,
-                  size: 22,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    widget.bottleneck.description,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      height: 1.4,
-                      color: AppColors.ink,
-                      fontWeight: FontWeight.w400,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 18),
-
-          // Plan Comparison Selector
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        return SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text(
-                'Choose your operational plan:',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary),
-              ),
+              // 1. Explanation Banner
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
                   color: AppColors.surfaceSecondary,
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: AppColors.border),
                 ),
-                child: Text(
-                  '${CurrencyService.getByCode(widget.currencyCode ?? CurrencyService.instance.activeCurrencyCode).flag} ${CurrencyService.getByCode(widget.currencyCode ?? CurrencyService.instance.activeCurrencyCode).code}',
-                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.ink),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-
-          // Solo Pro Card
-          _buildPlanTierCard(
-            tier: AccountPlanTier.soloPro,
-            name: 'Solo Pro',
-            price: CurrencyService.getSubscriptionPrice(
-              AccountPlanTier.soloPro,
-              currencyCode: widget.currencyCode,
-            ),
-            period: '/month',
-            badge: 'MOST POPULAR',
-            features: [
-              'Zero ads & zero video loops',
-              'Unlimited scheduled posts & queues',
-              'Multi-platform batch publishing',
-              'Priority backend API throughput',
-            ],
-            color: AppColors.accent,
-          ),
-          const SizedBox(height: 10),
-
-          // B2B Team Card
-          _buildPlanTierCard(
-            tier: AccountPlanTier.b2bTeam,
-            name: 'B2B Team Workspace',
-            price: CurrencyService.getSubscriptionPrice(
-              AccountPlanTier.b2bTeam,
-              currencyCode: widget.currencyCode,
-            ),
-            period: '/month',
-            badge: isTeamBottleneck ? 'RECOMMENDED FOR TEAMS' : 'BUSINESS',
-            features: [
-              'Strictly zero ad placements (Corporate Polish)',
-              'Multi-seat collaboration (up to 10 seats)',
-              'Post approval & review workflows',
-              'Custom corporate brand workspaces',
-            ],
-            color: const Color(0xFF7C3AED),
-          ),
-          const SizedBox(height: 10),
-
-          // Enterprise Card
-          _buildPlanTierCard(
-            tier: AccountPlanTier.b2bEnterprise,
-            name: 'Enterprise Organization',
-            price: CurrencyService.getSubscriptionPrice(
-              AccountPlanTier.b2bEnterprise,
-              currencyCode: widget.currencyCode,
-            ),
-            period: '/month',
-            badge: 'CUSTOM SLA',
-            features: [
-              'Dedicated queue workers & webhooks',
-              'Passkey / SSO organization enforcement',
-              'Unlimited workspace seats & brands',
-              'Direct engineering SLA support',
-            ],
-            color: const Color(0xFF0F172A),
-          ),
-          const SizedBox(height: 20),
-
-          // Upgrade CTA Button
-          ElevatedButton(
-            onPressed: _isProcessing
-                ? null
-                : () async {
-                    final navigator = Navigator.of(context);
-                    final messenger = ScaffoldMessenger.of(context);
-                    setState(() => _isProcessing = true);
-                    await monetization.upgradePlan(_selectedPlan);
-                    if (!mounted) return;
-                    navigator.pop();
-                    messenger.showSnackBar(
-                      SnackBar(
-                        content: Text('Successfully upgraded to ${_selectedPlan.displayName}!'),
-                        backgroundColor: AppColors.accent,
-                      ),
-                    );
-                  },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.accent,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            child: _isProcessing
-                ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                : Text(
-                    'Upgrade to ${_selectedPlan.displayName}',
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                  ),
-          ),
-
-          const SizedBox(height: 12),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPlanTierCard({
-    required AccountPlanTier tier,
-    required String name,
-    required String price,
-    required String period,
-    required String badge,
-    required List<String> features,
-    required Color color,
-  }) {
-    final isSelected = _selectedPlan == tier;
-
-    return InkWell(
-      onTap: () => setState(() => _selectedPlan = tier),
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: isSelected ? color.withAlpha(12) : AppColors.surface,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: isSelected ? color : AppColors.border,
-            width: isSelected ? 2 : 1,
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.ink)),
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: color.withAlpha(25),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              badge,
-                              style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: color),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.baseline,
-                        textBaseline: TextBaseline.alphabetic,
-                        children: [
-                          Text(price, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: color)),
-                          Text(period, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  width: 22,
-                  height: 22,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: isSelected ? color : AppColors.border,
-                      width: 2,
-                    ),
-                  ),
-                  child: isSelected
-                      ? Center(
-                          child: Container(
-                            width: 12,
-                            height: 12,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: color,
-                            ),
-                          ),
-                        )
-                      : null,
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            const Divider(height: 1),
-            const SizedBox(height: 8),
-            ...features.map(
-              (f) => Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Row(
+                child: const Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.check_circle_rounded, size: 14, color: color),
-                    const SizedBox(width: 8),
+                    Icon(
+                      Icons.info_outline_rounded,
+                      color: Color(0xFFD97706),
+                      size: 22,
+                    ),
+                    SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        f,
-                        style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                        'You have reached today\'s 10 free scheduled posts. Watch a short partner video ad to earn Coins and keep publishing immediately!',
+                        style: TextStyle(
+                          fontSize: 13,
+                          height: 1.4,
+                          color: AppColors.ink,
+                          fontWeight: FontWeight.w400,
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
-            ),
-          ],
-        ),
-      ),
+              const SizedBox(height: 16),
+
+              // 2. Coin Balance Card
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(0xFFFDE68A)),
+                  boxShadow: AppColors.cardShadow,
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFFF59E0B), Color(0xFFD97706)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFFD97706).withAlpha(50),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: const Icon(Icons.monetization_on_rounded, color: Colors.white, size: 24),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Your Coin Balance',
+                            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                          ),
+                          const SizedBox(height: 2),
+                          Row(
+                            children: [
+                              const Text('🪙 ', style: TextStyle(fontSize: 16)),
+                              Text(
+                                '${monetization.postCoins} Coins',
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFFB45309),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFFBEB),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: const Color(0xFFFDE68A)),
+                      ),
+                      child: const Text(
+                        '1 Coin = 1 Post',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFFB45309),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // 3. Primary Watch Ad Button
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _isWatchingAd
+                      ? null
+                      : () async {
+                          final messenger = ScaffoldMessenger.of(context);
+                          final nav = Navigator.of(context);
+                          final res = await monetization.watchAdForCoins(rewardAmount: 2);
+                          if (!mounted) return;
+                          setState(() => _isWatchingAd = false);
+                          messenger.showSnackBar(
+                            SnackBar(
+                              content: Text(res.message),
+                              backgroundColor: res.success ? const Color(0xFF059669) : AppColors.error,
+                            ),
+                          );
+                          if (res.success) {
+                            nav.pop(true);
+                          }
+                        },
+                  icon: _isWatchingAd
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Icon(Icons.play_circle_filled_rounded, size: 20),
+                  label: Text(
+                    _isWatchingAd ? 'Loading Video Ad...' : 'Watch Ad to Earn +2 Coins',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFD97706),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    elevation: 0,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+
+              // 4. Dismiss Button
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

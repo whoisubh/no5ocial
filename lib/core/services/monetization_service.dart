@@ -86,11 +86,8 @@ class MonetizationService extends ChangeNotifier {
     required WorkspaceMode workspaceMode,
     required int memberCount,
   }) {
-    return AudienceSegmentation.shouldDisplayAds(
-      workspaceMode: workspaceMode,
-      memberCount: memberCount,
-      planTier: _currentPlan,
-    );
+    // Pro subscription is disabled for now; ad system is universally active
+    return true;
   }
 
   /// Check whether the workspace is a multi-person company.
@@ -110,28 +107,18 @@ class MonetizationService extends ChangeNotifier {
     required WorkspaceMode workspaceMode,
     required int memberCount,
   }) {
-    // 1. Multi-person company check: If collaborating on a team, enforce B2B subscription
-    final isTeam = isMultiPersonCompany(workspaceMode: workspaceMode, memberCount: memberCount);
-    if (isTeam && !_currentPlan.isB2B) {
-      return (canSchedule: false, requiresCoin: false, bottleneck: SystemBottleneckType.teamSeatExpansion);
-    }
-
-    // 2. Paid individual tier (Solo Pro) or B2B: Unlimited scheduling, zero bottlenecks
-    if (_currentPlan.isPaid) {
-      return (canSchedule: true, requiresCoin: false, bottleneck: null);
-    }
-
-    // 3. Free Tier: Check daily post quota (up to 10 scheduled posts/day)
+    // Pro/B2B subscription is disabled for now. All users operate on the free ad-supported tier.
+    // 1. Check daily free post quota (up to 10 scheduled posts/day)
     if (!_dailyCeiling.hasReachedScheduledPostCeiling) {
       return (canSchedule: true, requiresCoin: false, bottleneck: null);
     }
 
-    // 4. Free Tier: Daily quota reached, but user has Coins!
+    // 2. Daily free quota reached, but user has Coins!
     if (_postCoins > 0) {
       return (canSchedule: true, requiresCoin: true, bottleneck: null);
     }
 
-    // 5. Daily quota reached and 0 coins
+    // 3. Daily quota reached and 0 coins: prompt user to watch ad for coins
     return (canSchedule: false, requiresCoin: false, bottleneck: SystemBottleneckType.dailyPostCeilingReached);
   }
 

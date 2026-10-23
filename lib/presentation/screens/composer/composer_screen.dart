@@ -32,7 +32,6 @@ import 'package:no5ocial/core/services/google_auth_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:no5ocial/core/services/video_thumbnail_service.dart';
 import 'package:no5ocial/core/services/monetization_service.dart';
-import 'package:no5ocial/domain/models/monetization/monetization_models.dart';
 import 'package:no5ocial/presentation/widgets/monetization/upgrade_paywall_sheet.dart';
 
 class ComposerScreen extends StatefulWidget {
@@ -597,71 +596,14 @@ class _ComposerScreenState extends State<ComposerScreen>
       if (access.requiresCoin) {
         usedCoin = true;
       } else if (!access.canSchedule && access.bottleneck != null) {
-        if (access.bottleneck == SystemBottleneckType.teamSeatExpansion) {
-          await UpgradePaywallSheet.show(
-            context,
-            bottleneck: access.bottleneck!,
-          );
-          return;
-        }
-
-        // Daily limit reached and 0 coins: offer watching an ad right now or upgrading
-        final watchOrUpgrade = await showDialog<bool>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: const Row(
-              children: [
-                Icon(Icons.monetization_on_rounded, color: Color(0xFFD97706), size: 22),
-                SizedBox(width: 8),
-                Text('Need Coins to Post', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              ],
-            ),
-            content: const Text(
-              'You have reached today\'s 10 free scheduled posts and have 0 Coins.\n\nWatch a short partner video ad to earn +2 Coins and post immediately, or upgrade to Solo Pro.',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(null),
-                child: const Text('Cancel'),
-              ),
-              OutlinedButton(
-                onPressed: () {
-                  Navigator.of(ctx).pop(false);
-                  UpgradePaywallSheet.show(
-                    context,
-                    bottleneck: SystemBottleneckType.dailyPostCeilingReached,
-                  );
-                },
-                child: const Text('Upgrade Plan'),
-              ),
-              ElevatedButton.icon(
-                onPressed: () => Navigator.of(ctx).pop(true),
-                icon: const Icon(Icons.play_circle_filled_rounded, size: 16),
-                label: const Text('Watch Ad (+2 Coins)'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFD97706),
-                  foregroundColor: Colors.white,
-                ),
-              ),
-            ],
-          ),
+        // Daily limit reached and 0 coins: show the ad & coin reward sheet
+        final watchedAd = await UpgradePaywallSheet.show(
+          context,
+          bottleneck: access.bottleneck!,
         );
 
-        if (watchOrUpgrade == true) {
-          final res = await MonetizationService.instance.watchAdForCoins(rewardAmount: 2);
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(res.message),
-                backgroundColor: res.success ? const Color(0xFF059669) : AppColors.error,
-              ),
-            );
-          }
-          if (res.success) {
-            usedCoin = true;
-          } else {
-            return;
-          }
+        if (watchedAd == true) {
+          usedCoin = true;
         } else {
           return;
         }

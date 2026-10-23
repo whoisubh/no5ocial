@@ -595,7 +595,7 @@ class SettingsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 20),
 
-              _buildSectionTitle('Workspace Plan & Subscription'),
+              _buildSectionTitle('Publishing Coins & Daily Quota'),
               MonetizationSettingsView(appState: appState),
               const SizedBox(height: 20),
 
