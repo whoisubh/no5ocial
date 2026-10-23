@@ -692,7 +692,10 @@ class _ComposerScreenState extends State<ComposerScreen>
 
       if (isScheduled) {
         if (usedCoin) {
-          await MonetizationService.instance.consumePostCoin();
+          await MonetizationService.instance.consumePostCoin(
+            userId: widget.appState.localUserId,
+            postId: post.id,
+          );
         } else {
           await MonetizationService.instance.recordScheduledPost();
         }

@@ -1,7 +1,11 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:no5ocial/core/services/applovin_max_mediation_service.dart';
+import 'package:no5ocial/core/services/firebase_sync_service.dart';
+import 'package:no5ocial/core/services/session_service.dart';
+import 'package:no5ocial/data/database/app_database.dart';
 import 'package:no5ocial/domain/models/monetization/monetization_models.dart';
 import 'package:no5ocial/domain/enums/workspace_mode.dart';
 
@@ -18,7 +22,9 @@ class MonetizationService extends ChangeNotifier {
   DayPassStatus _dayPassStatus = const DayPassStatus();
   DailyRewardCeiling _dailyCeiling = DailyRewardCeiling.today();
   int _offerwallCredits = 0;
-  int _postCoins = 5;
+  int _postCoins = 0;
+  String? _activeUserId;
+  List<Map<String, dynamic>> _coinTransactions = const [];
   bool _isInitialized = false;
 
   AccountPlanTier get currentPlan => _currentPlan;
@@ -26,6 +32,8 @@ class MonetizationService extends ChangeNotifier {
   DailyRewardCeiling get dailyCeiling => _dailyCeiling;
   int get offerwallCredits => _offerwallCredits;
   int get postCoins => _postCoins;
+  String? get activeUserId => _activeUserId;
+  List<Map<String, dynamic>> get coinTransactions => _coinTransactions;
   bool get isInitialized => _isInitialized;
 
   /// Initialize service state from persistent storage
@@ -50,13 +58,22 @@ class MonetizationService extends ChangeNotifier {
       // Load Ceiling & reset if day rolled over
       _refreshDailyCeiling(prefs);
 
-      // Load Credits & Coins
+      // Load Credits
       _offerwallCredits = prefs.getInt('monetization_offerwall_credits') ?? 0;
-      _postCoins = prefs.getInt('monetization_post_coins') ?? 5;
+
+      // Load active session user wallet from real SQLite Database
+      final session = await SessionService.instance.getSession();
+      final uid = session?['id'] as String?;
+      if (uid != null && uid.isNotEmpty) {
+        await loadUserWallet(uid);
+      } else {
+        _postCoins = await AppDatabase.instance.getCoinBalance('local_user');
+        _coinTransactions = await AppDatabase.instance.getCoinTransactions('local_user');
+      }
 
       _isInitialized = true;
       notifyListeners();
-      debugPrint('MonetizationService: Initialized with plan ${_currentPlan.displayName}, Coins: $_postCoins');
+      debugPrint('MonetizationService: Initialized with plan ${_currentPlan.displayName}, Real DB Coins: $_postCoins');
     } catch (e) {
       debugPrint('MonetizationService: Storage init fallback: $e');
       _isInitialized = true;
@@ -288,20 +305,52 @@ class MonetizationService extends ChangeNotifier {
     } catch (_) {}
   }
 
-  // --- Coin System Methods for Free Users ---
+  // --- Real Database-Backed Coin System Methods for Free Users ---
+
+  /// Loads real database wallet balance and verified transaction ledger for the user
+  Future<void> loadUserWallet(String userId) async {
+    _activeUserId = userId;
+    try {
+      _postCoins = await AppDatabase.instance.getCoinBalance(userId);
+      _coinTransactions = await AppDatabase.instance.getCoinTransactions(userId);
+      notifyListeners();
+    } catch (e) {
+      debugPrint('MonetizationService: Error loading real wallet from database: $e');
+    }
+  }
 
   /// Earn publishing coins by watching a rewarded ad.
-  Future<({bool success, int coinsEarned, String message})> watchAdForCoins({int rewardAmount = 2}) async {
+  /// Writes verified transaction to SQLite and syncs with Cloud Firestore.
+  Future<({bool success, int coinsEarned, String message})> watchAdForCoins({
+    int rewardAmount = 2,
+    String? userId,
+  }) async {
     final success = await AppLovinMaxMediationService.instance.showRewardedVideo();
     if (success) {
-      _postCoins += rewardAmount;
-      notifyListeners();
-      await _saveCoins();
-      return (
-        success: true,
-        coinsEarned: rewardAmount,
-        message: '+$rewardAmount Coins added! Current balance: $_postCoins Coins.',
-      );
+      final uid = userId ?? _activeUserId ?? (await SessionService.instance.getSession())?['id'] as String? ?? 'local_user';
+      try {
+        _postCoins = await AppDatabase.instance.addCoinsToWallet(
+          userId: uid,
+          amount: rewardAmount,
+          type: 'ad_reward',
+          description: 'Rewarded Partner Video Ad',
+        );
+        _coinTransactions = await AppDatabase.instance.getCoinTransactions(uid);
+        unawaited(FirebaseSyncService.instance.pushWallet(uid, _postCoins));
+        notifyListeners();
+        return (
+          success: true,
+          coinsEarned: rewardAmount,
+          message: '+$rewardAmount Coins added to your verified database wallet!',
+        );
+      } catch (e) {
+        debugPrint('MonetizationService: Database error crediting coins: $e');
+        return (
+          success: true,
+          coinsEarned: rewardAmount,
+          message: '+$rewardAmount Coins earned!',
+        );
+      }
     } else {
       return (
         success: false,
@@ -311,29 +360,59 @@ class MonetizationService extends ChangeNotifier {
     }
   }
 
-  /// Consumes 1 coin for publishing or scheduling a post.
-  Future<bool> consumePostCoin() async {
+  /// Consumes 1 coin for publishing or scheduling a post beyond daily quota.
+  /// Deducts coin and records real transaction in SQLite & Cloud Firestore.
+  Future<bool> consumePostCoin({String? userId, String? postId}) async {
     if (_currentPlan.isPaid) return true;
-    if (_postCoins > 0) {
-      _postCoins -= 1;
-      notifyListeners();
-      await _saveCoins();
-      return true;
-    }
-    return false;
-  }
-
-  /// Adds coins directly to the user balance.
-  Future<void> addCoins(int amount) async {
-    _postCoins += amount;
-    notifyListeners();
-    await _saveCoins();
-  }
-
-  Future<void> _saveCoins() async {
+    final uid = userId ?? _activeUserId ?? (await SessionService.instance.getSession())?['id'] as String? ?? 'local_user';
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setInt('monetization_post_coins', _postCoins);
-    } catch (_) {}
+      final ok = await AppDatabase.instance.spendCoinFromWallet(
+        userId: uid,
+        description: 'Multi-destination post publishing',
+        postId: postId,
+      );
+      if (ok) {
+        _postCoins = await AppDatabase.instance.getCoinBalance(uid);
+        _coinTransactions = await AppDatabase.instance.getCoinTransactions(uid);
+        unawaited(FirebaseSyncService.instance.pushWallet(uid, _postCoins));
+        notifyListeners();
+      }
+      return ok;
+    } catch (e) {
+      debugPrint('MonetizationService: Database error consuming coin: $e');
+      if (_postCoins > 0) {
+        _postCoins -= 1;
+        notifyListeners();
+        return true;
+      }
+      return false;
+    }
+  }
+
+  /// Adds coins directly to the user balance in real SQLite database.
+  Future<void> addCoins(int amount, {String? userId, String? description}) async {
+    final uid = userId ?? _activeUserId ?? (await SessionService.instance.getSession())?['id'] as String? ?? 'local_user';
+    try {
+      _postCoins = await AppDatabase.instance.addCoinsToWallet(
+        userId: uid,
+        amount: amount,
+        type: 'grant',
+        description: description ?? 'Promotional Credit Grant',
+      );
+      _coinTransactions = await AppDatabase.instance.getCoinTransactions(uid);
+      unawaited(FirebaseSyncService.instance.pushWallet(uid, _postCoins));
+      notifyListeners();
+    } catch (e) {
+      _postCoins += amount;
+      notifyListeners();
+    }
+  }
+
+  /// Clears in-memory wallet and transactions on user logout
+  void clearUserWallet() {
+    _activeUserId = null;
+    _postCoins = 0;
+    _coinTransactions = [];
+    notifyListeners();
   }
 }

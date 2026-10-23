@@ -36,6 +36,7 @@ import 'package:no5ocial/domain/enums/workspace_mode.dart';
 import 'package:no5ocial/domain/models/org_invite.dart';
 import 'package:no5ocial/domain/models/org_member.dart';
 import 'package:no5ocial/core/services/firebase_sync_service.dart';
+import 'package:no5ocial/core/services/monetization_service.dart';
 
 class AppState extends ChangeNotifier {
   final BrandRepository brandRepository;
@@ -231,6 +232,7 @@ class AppState extends ChangeNotifier {
         rawData: rawData,
       );
       await SessionService.instance.setCompletedOnboarding(true);
+      await MonetizationService.instance.loadUserWallet(safeId);
       await syncWithCloud(force: true);
       await ensureDefaultBrandExists();
     } catch (e) {
@@ -267,6 +269,7 @@ class AppState extends ChangeNotifier {
     localUserProvider = null;
     localUserData = null;
     maskedEmail = null;
+    MonetizationService.instance.clearUserWallet();
     notifyListeners();
 
     try {
@@ -315,6 +318,7 @@ class AppState extends ChangeNotifier {
         await loadSavedWorkspaceMode();
         await initOrgMembers();
         await initCurrency();
+        await MonetizationService.instance.loadUserWallet(uid);
         notifyListeners();
       }
       return res;
@@ -350,6 +354,9 @@ class AppState extends ChangeNotifier {
 
         await loadSecuritySettings();
         hasCompletedOnboarding = await SessionService.instance.hasCompletedOnboarding();
+        if (localUserId != null && localUserId!.isNotEmpty) {
+          await MonetizationService.instance.loadUserWallet(localUserId!);
+        }
         await syncWithCloud();
         if (brands.isEmpty) {
           final cachedBrands = await SessionService.instance.getBrandsCache();
@@ -399,6 +406,9 @@ class AppState extends ChangeNotifier {
 
         await loadSecuritySettings();
         hasCompletedOnboarding = await SessionService.instance.hasCompletedOnboarding();
+        if (localUserId != null && localUserId!.isNotEmpty) {
+          await MonetizationService.instance.loadUserWallet(localUserId!);
+        }
         await syncWithCloud();
         if (brands.isEmpty) {
           final cachedBrands = await SessionService.instance.getBrandsCache();

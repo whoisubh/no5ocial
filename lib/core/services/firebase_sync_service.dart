@@ -231,6 +231,36 @@ class FirebaseSyncService extends ChangeNotifier {
         SetOptions(merge: true),
       );
 
+      // 5. User Wallet & Coin Balance Synchronization (users/{userId}/wallet/balance)
+      final localBalance = await db.getCoinBalance(userId);
+      try {
+        final walletDocSnap = await userRef.collection('wallet').doc('balance').get();
+        if (walletDocSnap.exists && walletDocSnap.data() != null) {
+          final remoteBalance = walletDocSnap.data()!['balance'] as int? ?? 0;
+          if (remoteBalance > localBalance) {
+            final diff = remoteBalance - localBalance;
+            await db.addCoinsToWallet(
+              userId: userId,
+              amount: diff,
+              type: 'cloud_sync',
+              description: 'Cloud Wallet Synchronization',
+            );
+          } else if (localBalance > remoteBalance) {
+            await userRef.collection('wallet').doc('balance').set({
+              'balance': localBalance,
+              'updated_at_utc': DateTime.now().toUtc().toIso8601String(),
+            }, SetOptions(merge: true));
+          }
+        } else {
+          await userRef.collection('wallet').doc('balance').set({
+            'balance': localBalance,
+            'updated_at_utc': DateTime.now().toUtc().toIso8601String(),
+          });
+        }
+      } catch (e) {
+        debugPrint('FirebaseSyncService: Error syncing wallet: $e');
+      }
+
       // =========================================================================
       // PHASE 1: PULL REMOTE CLOUD FIRESTORE DATA INTO LOCAL SQLITE FIRST
       // (Cloud Database is the persistent authority for auth, channels & groups)
@@ -749,6 +779,43 @@ class FirebaseSyncService extends ChangeNotifier {
     } catch (e) {
       debugPrint('FirebaseSyncService: Error pushing settings: $e');
     }
+  }
+
+  /// Push real-time wallet balance to Cloud Firestore
+  Future<void> pushWallet(String userId, int balance) async {
+    if (userId.isEmpty || firestore == null) return;
+    try {
+      await firestore!
+          .collection('users')
+          .doc(userId)
+          .collection('wallet')
+          .doc('balance')
+          .set({
+        'balance': balance,
+        'updated_at_utc': DateTime.now().toUtc().toIso8601String(),
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('FirebaseSyncService: Error pushing wallet balance: $e');
+    }
+  }
+
+  /// Pull real-time wallet balance from Cloud Firestore
+  Future<int?> pullWallet(String userId) async {
+    if (userId.isEmpty || firestore == null) return null;
+    try {
+      final doc = await firestore!
+          .collection('users')
+          .doc(userId)
+          .collection('wallet')
+          .doc('balance')
+          .get();
+      if (doc.exists && doc.data() != null) {
+        return doc.data()!['balance'] as int?;
+      }
+    } catch (e) {
+      debugPrint('FirebaseSyncService: Error pulling wallet balance: $e');
+    }
+    return null;
   }
 
   /// Formatted last sync time string

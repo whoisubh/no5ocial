@@ -83,6 +83,8 @@ class AppDatabase {
     await db.delete('user_profiles');
     await db.delete('org_members');
     await db.delete('org_invites');
+    await db.delete('user_wallets');
+    await db.delete('coin_transactions');
   }
 
   Future<void> seedDemoData() async {
@@ -302,6 +304,33 @@ class AppDatabase {
       )
     ''');
 
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS user_wallets (
+        user_id TEXT PRIMARY KEY,
+        balance INTEGER NOT NULL DEFAULT 0,
+        total_earned INTEGER NOT NULL DEFAULT 0,
+        total_spent INTEGER NOT NULL DEFAULT 0,
+        created_at_utc TEXT NOT NULL,
+        updated_at_utc TEXT NOT NULL,
+        synced_at_utc TEXT
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS coin_transactions (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        amount INTEGER NOT NULL,
+        balance_after INTEGER NOT NULL,
+        type TEXT NOT NULL,
+        description TEXT NOT NULL,
+        reference_id TEXT,
+        created_at_utc TEXT NOT NULL,
+        updated_at_utc TEXT NOT NULL,
+        synced_at_utc TEXT
+      )
+    ''');
+
     // Run schema migrations safely to add sync tracking metadata columns
     await _ensureSyncColumns(db, 'brands');
     await _ensureSyncColumns(db, 'channel_groups');
@@ -313,6 +342,8 @@ class AppDatabase {
     await _ensureSyncColumns(db, 'audit_events');
     await _ensureSyncColumns(db, 'org_members');
     await _ensureSyncColumns(db, 'org_invites');
+    await _ensureSyncColumns(db, 'user_wallets');
+    await _ensureSyncColumns(db, 'coin_transactions');
   }
 
   Future<void> _ensureSyncColumns(Database db, String tableName) async {
@@ -894,6 +925,194 @@ class AppDatabase {
       }
     }
     return result;
+  }
+
+  // ==============================================================================
+  // User Wallet & Coin Transactions (Real Database Ledger)
+  // ==============================================================================
+
+  /// Returns user's verified coin balance from SQLite database
+  Future<int> getCoinBalance(String userId) async {
+    final db = await database;
+    final list = await db.query(
+      'user_wallets',
+      columns: ['balance'],
+      where: 'user_id = ?',
+      whereArgs: [userId],
+      limit: 1,
+    );
+    if (list.isEmpty) {
+      await initUserWallet(userId);
+      return 5;
+    }
+    return list.first['balance'] as int? ?? 0;
+  }
+
+  /// Initializes a real database wallet record and welcome grant transaction for the user
+  Future<void> initUserWallet(String userId) async {
+    final db = await database;
+    final now = DateTime.now().toUtc().toIso8601String();
+    await db.transaction((txn) async {
+      final existing = await txn.query(
+        'user_wallets',
+        where: 'user_id = ?',
+        whereArgs: [userId],
+        limit: 1,
+      );
+      if (existing.isNotEmpty) return;
+
+      const initialCoins = 5;
+      await txn.insert('user_wallets', {
+        'user_id': userId,
+        'balance': initialCoins,
+        'total_earned': initialCoins,
+        'total_spent': 0,
+        'created_at_utc': now,
+        'updated_at_utc': now,
+      });
+
+      final txId = 'tx-${DateTime.now().millisecondsSinceEpoch}-${userId.hashCode.abs().toString().padLeft(4, '0')}';
+      await txn.insert('coin_transactions', {
+        'id': txId,
+        'user_id': userId,
+        'amount': initialCoins,
+        'balance_after': initialCoins,
+        'type': 'welcome_grant',
+        'description': 'Welcome Publishing Credits',
+        'reference_id': null,
+        'created_at_utc': now,
+        'updated_at_utc': now,
+      });
+    });
+  }
+
+  /// Adds coins to the user's database wallet and records a transaction
+  Future<int> addCoinsToWallet({
+    required String userId,
+    required int amount,
+    required String type,
+    required String description,
+    String? referenceId,
+  }) async {
+    final db = await database;
+    final now = DateTime.now().toUtc().toIso8601String();
+
+    return await db.transaction<int>((txn) async {
+      final list = await txn.query(
+        'user_wallets',
+        where: 'user_id = ?',
+        whereArgs: [userId],
+        limit: 1,
+      );
+
+      int currentBalance = 0;
+      int currentEarned = 0;
+      int currentSpent = 0;
+
+      if (list.isEmpty) {
+        currentBalance = 0;
+      } else {
+        currentBalance = list.first['balance'] as int? ?? 0;
+        currentEarned = list.first['total_earned'] as int? ?? 0;
+        currentSpent = list.first['total_spent'] as int? ?? 0;
+      }
+
+      final newBalance = currentBalance + amount;
+      final newEarned = currentEarned + amount;
+
+      await txn.insert(
+        'user_wallets',
+        {
+          'user_id': userId,
+          'balance': newBalance,
+          'total_earned': newEarned,
+          'total_spent': currentSpent,
+          'created_at_utc': list.isEmpty ? now : (list.first['created_at_utc'] ?? now),
+          'updated_at_utc': now,
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+
+      final txId = 'tx-${DateTime.now().millisecondsSinceEpoch}-${userId.hashCode.abs().toString().padLeft(4, '0')}';
+      await txn.insert('coin_transactions', {
+        'id': txId,
+        'user_id': userId,
+        'amount': amount,
+        'balance_after': newBalance,
+        'type': type,
+        'description': description,
+        'reference_id': referenceId,
+        'created_at_utc': now,
+        'updated_at_utc': now,
+      });
+
+      return newBalance;
+    });
+  }
+
+  /// Deducts 1 coin from user's database wallet when publishing/scheduling beyond daily quota
+  Future<bool> spendCoinFromWallet({
+    required String userId,
+    required String description,
+    String? postId,
+  }) async {
+    final db = await database;
+    final now = DateTime.now().toUtc().toIso8601String();
+
+    return await db.transaction<bool>((txn) async {
+      final list = await txn.query(
+        'user_wallets',
+        where: 'user_id = ?',
+        whereArgs: [userId],
+        limit: 1,
+      );
+
+      if (list.isEmpty) return false;
+      final currentBalance = list.first['balance'] as int? ?? 0;
+      if (currentBalance <= 0) return false;
+
+      final currentSpent = list.first['total_spent'] as int? ?? 0;
+      final newBalance = currentBalance - 1;
+      final newSpent = currentSpent + 1;
+
+      await txn.update(
+        'user_wallets',
+        {
+          'balance': newBalance,
+          'total_spent': newSpent,
+          'updated_at_utc': now,
+        },
+        where: 'user_id = ?',
+        whereArgs: [userId],
+      );
+
+      final txId = 'tx-${DateTime.now().millisecondsSinceEpoch}-${userId.hashCode.abs().toString().padLeft(4, '0')}';
+      await txn.insert('coin_transactions', {
+        'id': txId,
+        'user_id': userId,
+        'amount': -1,
+        'balance_after': newBalance,
+        'type': 'post_publish',
+        'description': description,
+        'reference_id': postId,
+        'created_at_utc': now,
+        'updated_at_utc': now,
+      });
+
+      return true;
+    });
+  }
+
+  /// Returns recent verified coin transactions from SQLite database
+  Future<List<Map<String, dynamic>>> getCoinTransactions(String userId, {int limit = 15}) async {
+    final db = await database;
+    return await db.query(
+      'coin_transactions',
+      where: 'user_id = ?',
+      whereArgs: [userId],
+      orderBy: 'created_at_utc DESC',
+      limit: limit,
+    );
   }
 
   // ==============================================================================

@@ -117,7 +117,10 @@ class _MonetizationSettingsViewState extends State<MonetizationSettingsView> {
                           : () async {
                               setState(() => _isWatchingAd = true);
                               final messenger = ScaffoldMessenger.of(context);
-                              final res = await monetization.watchAdForCoins(rewardAmount: 2);
+                              final res = await monetization.watchAdForCoins(
+                                rewardAmount: 2,
+                                userId: widget.appState.localUserId,
+                              );
                               if (mounted) {
                                 setState(() => _isWatchingAd = false);
                                 messenger.showSnackBar(
@@ -253,6 +256,10 @@ class _MonetizationSettingsViewState extends State<MonetizationSettingsView> {
                 ],
               ),
             ),
+            const SizedBox(height: 14),
+
+            // 4. Real Database & Cloud Synced Transaction Ledger
+            _buildTransactionLedgerCard(monetization.coinTransactions),
           ],
         );
       },
@@ -294,5 +301,166 @@ class _MonetizationSettingsViewState extends State<MonetizationSettingsView> {
         ),
       ],
     );
+  }
+
+  Widget _buildTransactionLedgerCard(List<Map<String, dynamic>> transactions) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+        boxShadow: AppColors.cardShadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.receipt_long_rounded, color: AppColors.accent, size: 20),
+                  SizedBox(width: 8),
+                  Text(
+                    'Coin Ledger',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.ink),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF0FDF4),
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: const Color(0xFFBBF7D0)),
+                ),
+                child: const Text(
+                  'DB Verified',
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFF16A34A)),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Audited records of coins earned and used from local SQLite and synced to Cloud Firestore.',
+            style: TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.4),
+          ),
+          const SizedBox(height: 12),
+          if (transactions.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: Center(
+                child: Column(
+                  children: [
+                    Icon(Icons.history_toggle_off_rounded, size: 36, color: AppColors.textSecondary.withAlpha(120)),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'No coin activity yet',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.ink),
+                    ),
+                    const SizedBox(height: 2),
+                    const Text(
+                      'Watch a video ad to earn your first Coins.',
+                      style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: transactions.length,
+              separatorBuilder: (_, _) => const Divider(height: 12, thickness: 0.5, color: AppColors.border),
+              itemBuilder: (context, index) {
+                final tx = transactions[index];
+                final amount = tx['amount'] as int? ?? 0;
+                final isPositive = amount > 0;
+                final description = tx['description'] as String? ?? (isPositive ? 'Coin Reward' : 'Coin Spent');
+                final dateStr = _formatTxDate(tx['created_at']);
+                final balanceAfter = tx['balance_after'] as int?;
+
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: isPositive
+                              ? const Color(0xFFECFDF5)
+                              : const Color(0xFFFEF2F2),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          isPositive ? Icons.add_circle_outline_rounded : Icons.remove_circle_outline_rounded,
+                          size: 16,
+                          color: isPositive ? const Color(0xFF059669) : const Color(0xFFDC2626),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              description,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.ink,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            if (dateStr.isNotEmpty)
+                              Text(
+                                dateStr,
+                                style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                              ),
+                          ],
+                        ),
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            '${isPositive ? '+' : ''}$amount 🪙',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: isPositive ? const Color(0xFF059669) : const Color(0xFFDC2626),
+                            ),
+                          ),
+                          if (balanceAfter != null)
+                            Text(
+                              'Bal: $balanceAfter',
+                              style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
+  String _formatTxDate(dynamic raw) {
+    if (raw == null) return '';
+    final dt = raw is DateTime ? raw : DateTime.tryParse(raw.toString())?.toLocal();
+    if (dt == null) return raw.toString();
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    final month = months[dt.month - 1];
+    final hour = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+    final minute = dt.minute.toString().padLeft(2, '0');
+    final ampm = dt.hour >= 12 ? 'PM' : 'AM';
+    return '$month ${dt.day}, ${dt.year} • $hour:$minute $ampm';
   }
 }
