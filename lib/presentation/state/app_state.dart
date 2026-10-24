@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
@@ -276,9 +277,11 @@ class AppState extends ChangeNotifier {
         rawData: rawData,
       );
       await SessionService.instance.setCompletedOnboarding(true);
-      await MonetizationService.instance.loadUserWallet(safeId);
-      await syncWithCloud(force: true);
       await ensureDefaultBrandExists();
+      await MonetizationService.instance.loadUserWallet(safeId);
+
+      // Run cloud hydration in background so login transitions instantaneously
+      unawaited(syncWithCloud(force: true));
     } catch (e) {
       debugPrint('Error saving session to SessionService: $e');
     }
@@ -341,6 +344,16 @@ class AppState extends ChangeNotifier {
       final res = await FirebaseSyncService.instance.syncUserWorkspace(
         uid,
         forceHydration: force,
+      ).timeout(
+        const Duration(seconds: 4),
+        onTimeout: () {
+          debugPrint('AppState.syncWithCloud timed out, continuing in local-first mode');
+          return FirebaseSyncResult(
+            success: false,
+            errorMessage: 'Sync timed out, using local storage',
+            timestamp: DateTime.now(),
+          );
+        },
       );
       if (res.success) {
         if (brandRepository is SqliteBrandRepository) {

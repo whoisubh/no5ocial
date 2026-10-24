@@ -35,7 +35,13 @@ class GoogleAuthService {
   /// Trigger the official Google Sign-In flow
   Future<GoogleSignInAccount?> signIn() async {
     try {
-      final account = await client.signIn();
+      final account = await client.signIn().timeout(
+        const Duration(seconds: 25),
+        onTimeout: () {
+          debugPrint('Google Sign-In timed out');
+          return null;
+        },
+      );
       return account;
     } catch (e) {
       debugPrint('Google Sign-In SDK error: $e');
@@ -90,19 +96,12 @@ class GoogleAuthService {
     }
   }
 
-  /// Sign out from Google Identity Services and disconnect OAuth credentials.
-  /// Calling both signOut() and disconnect() revokes granted OAuth access
-  /// so Google prompts the account chooser on next login rather than auto-signing in.
+  /// Sign out from Google Identity Services.
   Future<void> signOut() async {
     try {
-      await client.signOut().timeout(const Duration(seconds: 3), onTimeout: () => null);
+      await client.signOut().timeout(const Duration(seconds: 2), onTimeout: () => null);
     } catch (e) {
       debugPrint('Google Sign-Out error: $e');
-    }
-    try {
-      await client.disconnect().timeout(const Duration(seconds: 3), onTimeout: () => null);
-    } catch (e) {
-      debugPrint('Google disconnect error (can be ignored if already disconnected): $e');
     }
     _googleSignIn = null;
   }

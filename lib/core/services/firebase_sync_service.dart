@@ -236,58 +236,7 @@ class FirebaseSyncService extends ChangeNotifier {
         SetOptions(merge: true),
       );
 
-      // 5. User Wallet & Coin Balance Synchronization (users/{userId}/wallet/balance)
-      final localBalance = await db.getCoinBalance(userId);
-      try {
-        final walletDocSnap = await userRef.collection('wallet').doc('balance').get();
-        if (walletDocSnap.exists && walletDocSnap.data() != null) {
-          final remoteBalance = walletDocSnap.data()!['balance'] as int? ?? 0;
-          if (remoteBalance > localBalance) {
-            final diff = remoteBalance - localBalance;
-            await db.addCoinsToWallet(
-              userId: userId,
-              amount: diff,
-              type: 'cloud_sync',
-              description: 'Cloud Wallet Synchronization',
-            );
-          } else if (localBalance > remoteBalance) {
-            await userRef.collection('wallet').doc('balance').set({
-              'balance': localBalance,
-              'updated_at_utc': DateTime.now().toUtc().toIso8601String(),
-            }, SetOptions(merge: true));
-          }
-        } else {
-          await userRef.collection('wallet').doc('balance').set({
-            'balance': localBalance,
-            'updated_at_utc': DateTime.now().toUtc().toIso8601String(),
-          });
-        }
-      } catch (e) {
-        debugPrint('FirebaseSyncService: Error syncing wallet: $e');
-      }
 
-      // 5.1 Push & Synchronize Unsynced Coin Transactions
-      try {
-        final unsyncedTx = await db.getUnsyncedRecords('coin_transactions');
-        for (final tx in unsyncedTx) {
-          final txId = tx['id'] as String?;
-          if (txId != null && txId.isNotEmpty) {
-            await userRef.collection('wallet_transactions').doc(txId).set(
-              Map<String, dynamic>.from(tx),
-              SetOptions(merge: true),
-            );
-          }
-        }
-        if (unsyncedTx.isNotEmpty) {
-          await db.markRecordsAsSynced(
-            tableName: 'coin_transactions',
-            recordIds: unsyncedTx.map((t) => t['id'] as String).toList(),
-            syncedAtUtc: nowUtc,
-          );
-        }
-      } catch (e) {
-        debugPrint('FirebaseSyncService: Error syncing coin transactions: $e');
-      }
 
       // 5.2 2-Day Publishing Pass Cloud Synchronization (users/{userId}/publishing_pass/current)
       try {
