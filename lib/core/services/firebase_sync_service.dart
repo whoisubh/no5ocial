@@ -164,8 +164,10 @@ class FirebaseSyncService extends ChangeNotifier {
       final provider = localProfile?['provider'] as String? ?? session?['provider'] as String? ?? 'google';
       final createdAt = localProfile?['created_at_utc'] as String? ?? session?['createdAtUtc'] as String? ?? nowUtc;
 
+      final countryCode = await db.getSetting('user_country_code') ?? 'IN';
       final currency = await db.getSetting('user_currency') ?? 'INR';
       final currencySymbol = await db.getSetting('user_currency_symbol') ?? '₹';
+      final appLocale = await db.getSetting('app_locale') ?? 'en';
       final themeMode = await db.getSetting('theme_mode') ?? 'system';
       final workspaceMode = await db.getSetting('workspace_mode') ?? 'personal';
       final subscriptionTier = await db.getSetting('subscription_tier') ?? 'free';
@@ -183,6 +185,8 @@ class FirebaseSyncService extends ChangeNotifier {
         'last_backup_at_utc': nowUtc,
         'workspace_mode': workspaceMode,
         'subscription_tier': subscriptionTier,
+        'user_country_code': countryCode,
+        'app_locale': appLocale,
         'user_currency': currency,
         'user_currency_symbol': currencySymbol,
         'theme_mode': themeMode,

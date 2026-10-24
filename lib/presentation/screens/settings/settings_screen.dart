@@ -10,6 +10,7 @@ import 'package:no5ocial/presentation/widgets/passkey_management_sheet.dart';
 import 'package:no5ocial/presentation/widgets/team_management_sheet.dart';
 import 'package:no5ocial/presentation/screens/settings/monetization_settings_view.dart';
 import 'package:no5ocial/core/services/currency_service.dart';
+import 'package:no5ocial/core/services/country_service.dart';
 
 class SettingsScreen extends StatelessWidget {
   final AppState appState;
@@ -142,25 +143,27 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
-  void _showCurrencySelector(BuildContext context) {
+  void _showCountrySelector(BuildContext context) {
     String searchQuery = '';
-    final currencies = CurrencyService.supportedCurrencies;
+    final countries = CountryService.supportedCountries;
 
     AppSheets.showAdaptiveFormSheet(
       context,
       title: const Row(
         children: [
-          Icon(Icons.payments_outlined, size: 20, color: AppColors.accent),
+          Icon(Icons.public_rounded, size: 20, color: AppColors.accent),
           SizedBox(width: 8),
-          Text('Select Display Currency'),
+          Text('Select Country & Region'),
         ],
       ),
       builder: (ctx, setSheetState) {
-        final filtered = currencies.where((c) {
+        final filtered = countries.where((c) {
           final q = searchQuery.toLowerCase();
-          return c.code.toLowerCase().contains(q) ||
-              c.name.toLowerCase().contains(q) ||
-              c.symbol.toLowerCase().contains(q);
+          return c.name.toLowerCase().contains(q) ||
+              c.code.toLowerCase().contains(q) ||
+              c.languageName.toLowerCase().contains(q) ||
+              c.currencyCode.toLowerCase().contains(q) ||
+              c.currencyName.toLowerCase().contains(q);
         }).toList();
 
         return Column(
@@ -175,11 +178,11 @@ class SettingsScreen extends StatelessWidget {
               ),
               child: const Row(
                 children: [
-                  Icon(Icons.my_location_rounded, size: 14, color: AppColors.accent),
+                  Icon(Icons.auto_awesome_rounded, size: 14, color: AppColors.accent),
                   SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Default currency is automatically detected from your current IP location.',
+                      'Selecting your country automatically sets your app language, local currency, and formatting, saved securely in your database.',
                       style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
                     ),
                   ),
@@ -189,7 +192,7 @@ class SettingsScreen extends StatelessWidget {
             const SizedBox(height: 10),
             TextField(
               decoration: InputDecoration(
-                hintText: 'Search currency (e.g. INR, USD, EUR)...',
+                hintText: 'Search country or currency (e.g. India, Germany, USD)...',
                 prefixIcon: const Icon(Icons.search, size: 18),
                 isDense: true,
                 contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -208,34 +211,46 @@ class SettingsScreen extends StatelessWidget {
                 separatorBuilder: (_, _) => const Divider(height: 1),
                 itemBuilder: (_, idx) {
                   final c = filtered[idx];
-                  final isSelected = appState.userCurrency == c.code;
+                  final isSelected = appState.selectedCountry.code == c.code;
                   return ListTile(
                     dense: true,
                     leading: Text(c.flag, style: const TextStyle(fontSize: 22)),
                     title: Row(
                       children: [
                         Text(
-                          '${c.code} (${c.symbol})',
+                          c.name,
                           style: TextStyle(
                             fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
                             color: isSelected ? AppColors.accent : AppColors.textPrimary,
                           ),
                         ),
                         const SizedBox(width: 8),
-                        Expanded(
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceSecondary,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
                           child: Text(
-                            c.name,
-                            style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                            overflow: TextOverflow.ellipsis,
+                            c.code,
+                            style: const TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.textSecondary,
+                            ),
                           ),
                         ),
                       ],
+                    ),
+                    subtitle: Text(
+                      '${c.languageName} • ${c.currencyCode} (${c.currencySymbol})',
+                      style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
                     ),
                     trailing: isSelected
                         ? const Icon(Icons.check_circle_rounded, size: 18, color: AppColors.accent)
                         : null,
                     onTap: () {
-                      appState.setUserCurrency(c.code);
+                      appState.setSelectedCountry(c.code);
                       Navigator.of(ctx).pop();
                     },
                   );
@@ -646,13 +661,13 @@ class SettingsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 10),
 
-              // Currency & Pricing Localization tile (Auto-assigned per IP location)
+              // Unified Country & Regional Settings tile
               AnimatedBuilder(
                 animation: appState,
                 builder: (context, _) {
-                  final currencyInfo = CurrencyService.getByCode(appState.userCurrency);
+                  final country = appState.selectedCountry;
                   return InkWell(
-                    onTap: () => _showCurrencySelector(context),
+                    onTap: () => _showCountrySelector(context),
                     borderRadius: BorderRadius.circular(10),
                     child: Container(
                       padding: const EdgeInsets.all(12),
@@ -664,7 +679,7 @@ class SettingsScreen extends StatelessWidget {
                       child: Row(
                         children: [
                           const Icon(
-                            Icons.payments_outlined,
+                            Icons.public_rounded,
                             color: AppColors.accent,
                             size: 20,
                           ),
@@ -674,11 +689,12 @@ class SettingsScreen extends StatelessWidget {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 const Text(
-                                  'Display Currency',
+                                  'Country & Region',
                                   style: AppTypography.titleMedium,
                                 ),
+                                const SizedBox(height: 2),
                                 Text(
-                                  '${currencyInfo.flag} ${currencyInfo.code} (${currencyInfo.symbol}) • ${currencyInfo.name}',
+                                  '${country.flag} ${country.name} • ${country.languageName} • ${country.currencyCode} (${country.currencySymbol})',
                                   style: AppTypography.bodySecondary.copyWith(
                                     fontSize: 12,
                                   ),
@@ -686,6 +702,23 @@ class SettingsScreen extends StatelessWidget {
                               ],
                             ),
                           ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: AppColors.surfaceSecondary,
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: AppColors.border),
+                            ),
+                            child: Text(
+                              '${country.flag} ${country.code}',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
                           const Icon(
                             Icons.chevron_right,
                             size: 18,
@@ -693,113 +726,6 @@ class SettingsScreen extends StatelessWidget {
                           ),
                         ],
                       ),
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(height: 10),
-
-              // Language & Localization tile
-              AnimatedBuilder(
-                animation: appState,
-                builder: (context, _) {
-                  final currentCode = appState.currentLocale.languageCode;
-                  final currentName = AppState.localeDisplayNames[currentCode] ?? currentCode;
-                  return Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: AppColors.surface,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: AppColors.border),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.language,
-                          color: AppColors.accent,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Application Language',
-                                style: AppTypography.titleMedium,
-                              ),
-                              Text(
-                                'EN · ES · AR · FR — tap to change',
-                                style: AppTypography.bodySecondary.copyWith(
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        PopupMenuButton<String>(
-                          tooltip: 'Switch language',
-                          offset: const Offset(0, 36),
-                          color: AppColors.surfaceSecondary,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            side: BorderSide(color: AppColors.border),
-                          ),
-                          onSelected: (code) {
-                            final locale = AppState.supportedLocales.firstWhere(
-                              (l) => l.languageCode == code,
-                            );
-                            appState.setLocale(locale);
-                          },
-                          itemBuilder: (_) => AppState.supportedLocales.map((locale) {
-                            final code = locale.languageCode;
-                            final name = AppState.localeDisplayNames[code] ?? code;
-                            final isActive = code == currentCode;
-                            return PopupMenuItem<String>(
-                              value: code,
-                              child: Row(
-                                children: [
-                                  if (isActive)
-                                    const Icon(Icons.check, size: 14, color: AppColors.accent)
-                                  else
-                                    const SizedBox(width: 14),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    name,
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      color: isActive ? AppColors.accent : AppColors.textPrimary,
-                                      fontWeight: isActive ? FontWeight.w700 : FontWeight.w400,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }).toList(),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: AppColors.accentLight,
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  currentName,
-                                  style: const TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.accent,
-                                  ),
-                                ),
-                                const SizedBox(width: 2),
-                                const Icon(Icons.arrow_drop_down, size: 14, color: AppColors.accent),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
                     ),
                   );
                 },

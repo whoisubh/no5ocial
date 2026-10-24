@@ -8,6 +8,7 @@ import 'package:no5ocial/core/services/session_service.dart';
 import 'package:no5ocial/core/utils/input_validator.dart';
 import 'package:no5ocial/core/utils/string_sanitizer.dart';
 import 'package:no5ocial/core/services/currency_service.dart';
+import 'package:no5ocial/core/services/country_service.dart';
 import 'package:no5ocial/data/database/app_database.dart';
 import 'package:no5ocial/data/repositories/account_repository.dart';
 import 'package:no5ocial/data/repositories/audit_repository.dart';
@@ -57,22 +58,63 @@ class AppState extends ChangeNotifier {
   String userTimezone = 'Local (UTC+5:30)';
   Locale currentLocale = const Locale('en');
 
-  // Currency settings (Auto-assigned per current IP location by default)
+  // Country & Regional Settings (Auto-assigned per IP or saved in SQLite)
+  CountryProfile _selectedCountry = CountryService.getByCode('IN');
+  CountryProfile get selectedCountry => _selectedCountry;
+  String get userCountryCode => _selectedCountry.code;
+
+  // Currency settings (Auto-derived from Selected Country, or loaded from DB)
   String _userCurrency = 'USD';
   String _userCurrencySymbol = '\$';
   String get userCurrency => _userCurrency;
   String get userCurrencySymbol => _userCurrencySymbol;
 
-  Future<void> initCurrency() async {
+  Future<void> initCountryAndLocalization() async {
     try {
-      final info = await CurrencyService.instance.getOrDetectCurrency();
-      _userCurrency = info.code;
-      _userCurrencySymbol = info.symbol;
+      final country = await CountryService.instance.getOrDetectCountry();
+      _selectedCountry = country;
+      _userCurrency = country.currencyCode;
+      _userCurrencySymbol = country.currencySymbol;
+
+      // Check SQLite for user preference
+      final savedLocale = await AppDatabase.instance.getSetting('app_locale');
+      final langCode = savedLocale ?? country.defaultLanguageCode;
+      currentLocale = supportedLocales.firstWhere(
+        (l) => l.languageCode == langCode,
+        orElse: () => Locale(country.defaultLanguageCode),
+      );
       notifyListeners();
     } catch (e) {
-      debugPrint('AppState: Error initializing currency: $e');
+      debugPrint('AppState: Error initializing country & localization: $e');
     }
   }
+
+  Future<void> setSelectedCountry(String countryCode) async {
+    final country = CountryService.getByCode(countryCode);
+    _selectedCountry = country;
+    _userCurrency = country.currencyCode;
+    _userCurrencySymbol = country.currencySymbol;
+    currentLocale = supportedLocales.firstWhere(
+      (l) => l.languageCode == country.defaultLanguageCode,
+      orElse: () => const Locale('en'),
+    );
+    notifyListeners();
+
+    // 1. Authoritative persistent storage in local SQLite database
+    await CountryService.instance.saveCountryToDb(country.code);
+
+    // 2. Cloud Firestore multi-device sync
+    if (localUserId != null && localUserId!.isNotEmpty) {
+      FirebaseSyncService.instance.pushSettings(localUserId!, {
+        'user_country_code': country.code,
+        'user_currency': country.currencyCode,
+        'user_currency_symbol': country.currencySymbol,
+        'app_locale': country.defaultLanguageCode,
+      });
+    }
+  }
+
+  Future<void> initCurrency() => initCountryAndLocalization();
 
   Future<void> setUserCurrency(String code) async {
     final info = CurrencyService.getByCode(code);
@@ -80,6 +122,8 @@ class AppState extends ChangeNotifier {
     _userCurrencySymbol = info.symbol;
     notifyListeners();
     await CurrencyService.instance.saveCurrency(info.code);
+    await AppDatabase.instance.setSetting('user_currency', info.code);
+    await AppDatabase.instance.setSetting('user_currency_symbol', info.symbol);
     if (localUserId != null && localUserId!.isNotEmpty) {
       FirebaseSyncService.instance.pushSettings(localUserId!, {
         'user_currency': info.code,
@@ -1622,6 +1666,12 @@ class AppState extends ChangeNotifier {
   void setLocale(Locale locale) {
     currentLocale = locale;
     notifyListeners();
+    AppDatabase.instance.setSetting('app_locale', locale.languageCode);
+    if (localUserId != null && localUserId!.isNotEmpty) {
+      FirebaseSyncService.instance.pushSettings(localUserId!, {
+        'app_locale': locale.languageCode,
+      });
+    }
   }
 
   /// Cycles through all supported locales in order.

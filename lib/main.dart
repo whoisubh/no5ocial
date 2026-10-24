@@ -115,7 +115,7 @@ Future<void> bootstrap({AppFlavor flavor = AppFlavor.dev}) async {
   await appState.loadSavedThemeMode();
   await appState.loadSavedWorkspaceMode();
   await appState.initOrgMembers();
-  await appState.initCurrency();
+  await appState.initCountryAndLocalization();
 
   // Initialize OAuth deep link listener
   OAuthCallbackService.instance.init(
