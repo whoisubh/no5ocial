@@ -22,26 +22,51 @@ class _CoinHistoryScreenState extends State<CoinHistoryScreen> {
   final DateFormat _fullDateFormat = DateFormat('MMM d, y • h:mm a');
 
   @override
+  void initState() {
+    super.initState();
+    final uid = widget.appState.localUserId;
+    if (uid != null) {
+      MonetizationService.instance.loadUserWallet(uid);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final monetization = MonetizationService.instance;
     final isDark = widget.appState.isDarkMode;
-    final transactions = monetization.coinTransactions;
     final locale = widget.appState.currentLocale.languageCode;
 
-    // Group transactions by "Month Year" (e.g. "October 2026")
-    final Map<String, List<Map<String, dynamic>>> grouped = {};
-    for (final tx in transactions) {
-      final date = _parseDate(tx['created_at_utc'] ?? tx['created_at']);
-      final key = _monthYearFormat.format(date);
-      grouped.putIfAbsent(key, () => []).add(tx);
-    }
+    return ListenableBuilder(
+      listenable: monetization,
+      builder: (context, _) {
+        final transactions = monetization.coinTransactions;
 
-    return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0F1523) : AppColors.background,
-      appBar: AppBar(
-        title: const Text('Coin History'),
-        elevation: 0,
-      ),
+        // Group transactions by "Month Year" (e.g. "October 2026")
+        final Map<String, List<Map<String, dynamic>>> grouped = {};
+        for (final tx in transactions) {
+          final date = _parseDate(tx['created_at_utc'] ?? tx['created_at']);
+          final key = _monthYearFormat.format(date);
+          grouped.putIfAbsent(key, () => []).add(tx);
+        }
+
+        return Scaffold(
+          backgroundColor: isDark ? const Color(0xFF0F1523) : AppColors.background,
+          appBar: AppBar(
+            title: Text(
+              'Coin History',
+              style: TextStyle(
+                color: isDark ? Colors.white : AppColors.ink,
+                fontWeight: FontWeight.bold,
+                fontSize: 18,
+              ),
+            ),
+            backgroundColor: isDark ? const Color(0xFF0F1523) : AppColors.surface,
+            foregroundColor: isDark ? Colors.white : AppColors.ink,
+            iconTheme: IconThemeData(
+              color: isDark ? Colors.white : AppColors.ink,
+            ),
+            elevation: 0,
+          ),
       body: RefreshIndicator(
         onRefresh: () async {
           if (widget.appState.localUserId != null) {
@@ -346,6 +371,8 @@ class _CoinHistoryScreenState extends State<CoinHistoryScreen> {
         ),
       ),
     );
+      },
+    );
   }
 
   DateTime _parseDate(dynamic raw) {
@@ -355,19 +382,14 @@ class _CoinHistoryScreenState extends State<CoinHistoryScreen> {
   }
 
   String _getCommercialTitle(String type, String? rawDesc, bool isPositive) {
-    if (type == 'welcome_grant' || rawDesc?.contains('Welcome') == true) {
-      return 'Welcome Bonus Coins';
+    if (rawDesc != null && rawDesc.trim().isNotEmpty) {
+      return rawDesc.trim();
     }
-    if (type == 'rewarded_ad' || rawDesc?.contains('Watched') == true) {
-      return 'Video Ad Reward';
-    }
-    if (type == 'pass_activation' || rawDesc?.contains('Pass') == true) {
-      return '2-Day Publishing Pass (2 Posts)';
-    }
-    if (type == 'post_published' || rawDesc?.contains('published') == true) {
-      return 'Post Published';
-    }
-    return rawDesc ?? (isPositive ? 'Coins Earned' : 'Coins Used');
+    if (type == 'welcome_grant') return 'Welcome Bonus Coins';
+    if (type == 'rewarded_ad') return 'Video Ad Reward';
+    if (type == 'pass_activation') return '2-Day Publishing Pass (2 Posts)';
+    if (type == 'post_published') return 'Post Published';
+    return isPositive ? 'Coins Earned' : 'Coins Used';
   }
 
   IconData _getCommercialIcon(String type, bool isPositive) {

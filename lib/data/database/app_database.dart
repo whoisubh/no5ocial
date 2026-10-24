@@ -965,7 +965,8 @@ class AppDatabase {
       await initUserWallet(userId);
       return 15;
     }
-    await _upgradeWelcomeCoinsIfNeeded(db, userId);
+    // Clean up any duplicate grants and calibrate genuine wallet balance
+    await _cleanAndRecalibrateWallet(db, userId);
     final refreshed = await db.query(
       'user_wallets',
       columns: ['balance'],
@@ -976,49 +977,105 @@ class AppDatabase {
     return refreshed.isNotEmpty ? (refreshed.first['balance'] as int? ?? 0) : 0;
   }
 
-  /// Automatically upgrades legacy 5-coin welcome grants to 15 coins
-  Future<void> _upgradeWelcomeCoinsIfNeeded(Database db, String userId) async {
+  /// Clean up any duplicate welcome grants and recalibrate genuine running balances
+  Future<void> _cleanAndRecalibrateWallet(Database db, String userId) async {
     try {
-      final welcomeTxs = await db.query(
-        'coin_transactions',
-        where: 'user_id = ? AND type = ?',
-        whereArgs: [userId, 'welcome_grant'],
-        limit: 1,
-      );
-      if (welcomeTxs.isNotEmpty && (welcomeTxs.first['amount'] as int? ?? 0) < 15) {
-        final oldAmount = welcomeTxs.first['amount'] as int? ?? 5;
-        final diff = 15 - oldAmount;
-        if (diff > 0) {
-          final now = DateTime.now().toUtc().toIso8601String();
-          await db.transaction((txn) async {
-            final wallet = await txn.query('user_wallets', where: 'user_id = ?', whereArgs: [userId], limit: 1);
-            if (wallet.isEmpty) return;
-            final bal = wallet.first['balance'] as int? ?? 0;
-            final earned = wallet.first['total_earned'] as int? ?? 0;
-            final newBal = bal + diff;
-            final newEarned = earned + diff;
-            await txn.update(
-              'user_wallets',
-              {'balance': newBal, 'total_earned': newEarned, 'updated_at_utc': now},
-              where: 'user_id = ?',
-              whereArgs: [userId],
+      final now = DateTime.now().toUtc().toIso8601String();
+      await db.transaction((txn) async {
+        // 1. Delete all duplicate Welcome Bonus Coins (+10) transactions
+        await txn.delete(
+          'coin_transactions',
+          where: "user_id = ? AND description LIKE 'Welcome Bonus Coins (+10)%'",
+          whereArgs: [userId],
+        );
+
+        // 2. Fetch all welcome_grant transactions
+        final welcomeTxs = await txn.query(
+          'coin_transactions',
+          where: 'user_id = ? AND type = ?',
+          whereArgs: [userId, 'welcome_grant'],
+          orderBy: 'created_at_utc ASC',
+        );
+
+        if (welcomeTxs.isNotEmpty) {
+          // Keep the first welcome grant and ensure it gives 15 coins
+          final firstId = welcomeTxs.first['id'];
+          await txn.update(
+            'coin_transactions',
+            {
+              'amount': 15,
+              'balance_after': 15,
+              'description': 'Welcome Bonus Coins',
+            },
+            where: 'id = ?',
+            whereArgs: [firstId],
+          );
+          // Delete any subsequent welcome grants if they exist
+          for (int i = 1; i < welcomeTxs.length; i++) {
+            await txn.delete(
+              'coin_transactions',
+              where: 'id = ?',
+              whereArgs: [welcomeTxs[i]['id']],
             );
-            final txId = 'tx-${DateTime.now().millisecondsSinceEpoch}-${userId.hashCode.abs().toString().padLeft(4, '0')}';
-            await txn.insert('coin_transactions', {
-              'id': txId,
-              'user_id': userId,
-              'amount': diff,
-              'balance_after': newBal,
-              'type': 'welcome_grant',
-              'description': 'Welcome Bonus Coins (+10)',
-              'reference_id': null,
-              'created_at_utc': now,
-              'updated_at_utc': now,
-            });
+          }
+        } else {
+          // If user had no welcome grant, create the standard 15 coins grant
+          final txId = 'tx-${DateTime.now().millisecondsSinceEpoch}-${userId.hashCode.abs().toString().padLeft(4, '0')}';
+          await txn.insert('coin_transactions', {
+            'id': txId,
+            'user_id': userId,
+            'amount': 15,
+            'balance_after': 15,
+            'type': 'welcome_grant',
+            'description': 'Welcome Bonus Coins',
+            'reference_id': null,
+            'created_at_utc': now,
+            'updated_at_utc': now,
           });
         }
-      }
-    } catch (_) {}
+
+        // 3. Recalculate all real transactions in chronological order
+        final allTxs = await txn.query(
+          'coin_transactions',
+          where: 'user_id = ?',
+          whereArgs: [userId],
+          orderBy: 'created_at_utc ASC',
+        );
+
+        int runningBal = 0;
+        int totalEarned = 0;
+        int totalSpent = 0;
+
+        for (final tx in allTxs) {
+          final amt = tx['amount'] as int? ?? 0;
+          runningBal += amt;
+          if (amt > 0) totalEarned += amt;
+          if (amt < 0) totalSpent += amt.abs();
+
+          await txn.update(
+            'coin_transactions',
+            {'balance_after': runningBal},
+            where: 'id = ?',
+            whereArgs: [tx['id']],
+          );
+        }
+
+        // 4. Update the wallet with real calculated figures
+        await txn.update(
+          'user_wallets',
+          {
+            'balance': runningBal,
+            'total_earned': totalEarned,
+            'total_spent': totalSpent,
+            'updated_at_utc': now,
+          },
+          where: 'user_id = ?',
+          whereArgs: [userId],
+        );
+      });
+    } catch (e) {
+      debugPrint('Error cleaning and recalibrating wallet: $e');
+    }
   }
 
   /// Initializes a real database wallet record and welcome grant transaction for the user (15 Welcome Coins)
