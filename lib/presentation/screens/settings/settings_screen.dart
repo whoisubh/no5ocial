@@ -9,7 +9,6 @@ import 'package:no5ocial/presentation/widgets/app_sheets.dart';
 import 'package:no5ocial/presentation/widgets/passkey_management_sheet.dart';
 import 'package:no5ocial/presentation/widgets/team_management_sheet.dart';
 import 'package:no5ocial/presentation/screens/settings/monetization_settings_view.dart';
-import 'package:no5ocial/core/services/currency_service.dart';
 import 'package:no5ocial/core/services/country_service.dart';
 
 class SettingsScreen extends StatelessWidget {

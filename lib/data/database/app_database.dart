@@ -963,12 +963,65 @@ class AppDatabase {
     );
     if (list.isEmpty) {
       await initUserWallet(userId);
-      return 5;
+      return 15;
     }
-    return list.first['balance'] as int? ?? 0;
+    await _upgradeWelcomeCoinsIfNeeded(db, userId);
+    final refreshed = await db.query(
+      'user_wallets',
+      columns: ['balance'],
+      where: 'user_id = ?',
+      whereArgs: [userId],
+      limit: 1,
+    );
+    return refreshed.isNotEmpty ? (refreshed.first['balance'] as int? ?? 0) : 0;
   }
 
-  /// Initializes a real database wallet record and welcome grant transaction for the user
+  /// Automatically upgrades legacy 5-coin welcome grants to 15 coins
+  Future<void> _upgradeWelcomeCoinsIfNeeded(Database db, String userId) async {
+    try {
+      final welcomeTxs = await db.query(
+        'coin_transactions',
+        where: 'user_id = ? AND type = ?',
+        whereArgs: [userId, 'welcome_grant'],
+        limit: 1,
+      );
+      if (welcomeTxs.isNotEmpty && (welcomeTxs.first['amount'] as int? ?? 0) < 15) {
+        final oldAmount = welcomeTxs.first['amount'] as int? ?? 5;
+        final diff = 15 - oldAmount;
+        if (diff > 0) {
+          final now = DateTime.now().toUtc().toIso8601String();
+          await db.transaction((txn) async {
+            final wallet = await txn.query('user_wallets', where: 'user_id = ?', whereArgs: [userId], limit: 1);
+            if (wallet.isEmpty) return;
+            final bal = wallet.first['balance'] as int? ?? 0;
+            final earned = wallet.first['total_earned'] as int? ?? 0;
+            final newBal = bal + diff;
+            final newEarned = earned + diff;
+            await txn.update(
+              'user_wallets',
+              {'balance': newBal, 'total_earned': newEarned, 'updated_at_utc': now},
+              where: 'user_id = ?',
+              whereArgs: [userId],
+            );
+            final txId = 'tx-${DateTime.now().millisecondsSinceEpoch}-${userId.hashCode.abs().toString().padLeft(4, '0')}';
+            await txn.insert('coin_transactions', {
+              'id': txId,
+              'user_id': userId,
+              'amount': diff,
+              'balance_after': newBal,
+              'type': 'welcome_grant',
+              'description': 'Welcome Bonus Coins (+10)',
+              'reference_id': null,
+              'created_at_utc': now,
+              'updated_at_utc': now,
+            });
+          });
+        }
+      }
+    } catch (_) {}
+  }
+
+  /// Initializes a real database wallet record and welcome grant transaction for the user (15 Welcome Coins)
   Future<void> initUserWallet(String userId) async {
     final db = await database;
     final now = DateTime.now().toUtc().toIso8601String();
@@ -981,7 +1034,7 @@ class AppDatabase {
       );
       if (existing.isNotEmpty) return;
 
-      const initialCoins = 5;
+      const initialCoins = 15;
       await txn.insert('user_wallets', {
         'user_id': userId,
         'balance': initialCoins,
@@ -998,7 +1051,7 @@ class AppDatabase {
         'amount': initialCoins,
         'balance_after': initialCoins,
         'type': 'welcome_grant',
-        'description': 'Welcome Publishing Credits',
+        'description': 'Welcome Bonus Coins',
         'reference_id': null,
         'created_at_utc': now,
         'updated_at_utc': now,
@@ -1123,8 +1176,8 @@ class AppDatabase {
     });
   }
 
-  /// Returns recent verified coin transactions from SQLite database
-  Future<List<Map<String, dynamic>>> getCoinTransactions(String userId, {int limit = 15}) async {
+  /// Returns verified coin transactions from SQLite database
+  Future<List<Map<String, dynamic>>> getCoinTransactions(String userId, {int limit = 100}) async {
     final db = await database;
     return await db.query(
       'coin_transactions',

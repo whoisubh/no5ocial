@@ -3081,7 +3081,7 @@ class _ComposerScreenState extends State<ComposerScreen>
                       const Expanded(
                         child: Text(
                           'Ready to activate! Spend 10 Coins for 2 posts over 2 days.',
-                          style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                          style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
                         ),
                       ),
                       const SizedBox(width: 8),
