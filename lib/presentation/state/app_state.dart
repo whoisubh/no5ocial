@@ -935,9 +935,6 @@ class AppState extends ChangeNotifier {
     );
 
     postRepository.savePost(post);
-    if (localUserId != null && localUserId!.isNotEmpty) {
-      FirebaseSyncService.instance.pushPost(localUserId!, post);
-    }
 
     // Save or update variants
     for (final accId in destinationAccountIds) {
@@ -1627,9 +1624,6 @@ class AppState extends ChangeNotifier {
 
   void deletePost(String postId) {
     postRepository.deletePost(postId);
-    if (localUserId != null && localUserId!.isNotEmpty) {
-      FirebaseSyncService.instance.deletePost(localUserId!, postId);
-    }
     final jobs = jobRepository.getJobsByPostId(postId);
     for (final j in jobs) {
       jobRepository.deleteJob(j.id);

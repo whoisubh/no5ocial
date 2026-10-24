@@ -8,8 +8,6 @@ import 'package:no5ocial/core/services/session_service.dart';
 import 'package:no5ocial/data/database/app_database.dart';
 import 'package:no5ocial/domain/models/brand.dart';
 import 'package:no5ocial/domain/models/channel_group.dart';
-import 'package:no5ocial/domain/models/content_post.dart';
-import 'package:no5ocial/domain/models/passkey_credential.dart';
 import 'package:no5ocial/domain/models/social_account.dart';
 import 'package:no5ocial/domain/models/monetization/monetization_models.dart';
 
@@ -149,13 +147,10 @@ class FirebaseSyncService extends ChangeNotifier {
       int totalPulled = 0;
 
       // =========================================================================
-      // PHASE 0: PUSH USER PROFILE, AUTH IDENTITY & SECURITY SETTINGS
+      // PHASE 1: CRUCIAL USER AUTH & IDENTITY (Root Document users/{userId})
       // =========================================================================
       final localProfile = await db.getUserProfile();
       final session = await SessionService.instance.getSession();
-      final registeredPasskeys = await SessionService.instance.getRegisteredPasskeys();
-      final isBiometric = await SessionService.instance.isBiometricLockEnabled();
-      final lockTimeout = await SessionService.instance.getLockTimeoutSeconds();
       final onboardingDone = await SessionService.instance.hasCompletedOnboarding();
 
       final email = localProfile?['email'] as String? ?? session?['email'] as String? ?? '';
@@ -169,109 +164,37 @@ class FirebaseSyncService extends ChangeNotifier {
       final currencySymbol = await db.getSetting('user_currency_symbol') ?? '₹';
       final appLocale = await db.getSetting('app_locale') ?? 'en';
       final themeMode = await db.getSetting('theme_mode') ?? 'system';
-      final workspaceMode = await db.getSetting('workspace_mode') ?? 'personal';
-      final subscriptionTier = await db.getSetting('subscription_tier') ?? 'free';
-      final dayPassExpiresAt = await db.getSetting('day_pass_expires_at');
 
-      // 1. Root User Document (Physical Firestore Document with Full Profile Fields)
+      // Clean single source of truth on root user document
       await userRef.set({
-        'id': userId,
-        'email': email,
-        'display_name': name,
-        'photo_url': photoUrl,
-        'auth_provider': provider,
-        'created_at_utc': createdAt,
-        'last_login_at_utc': nowUtc,
-        'last_backup_at_utc': nowUtc,
-        'workspace_mode': workspaceMode,
-        'subscription_tier': subscriptionTier,
-        'user_country_code': countryCode,
-        'app_locale': appLocale,
-        'user_currency': currency,
-        'user_currency_symbol': currencySymbol,
-        'theme_mode': themeMode,
-        'day_pass_expires_at': dayPassExpiresAt,
-        'has_completed_onboarding': onboardingDone,
-        'is_active': true,
-        'platform': defaultTargetPlatform.name,
-      }, SetOptions(merge: true));
-
-      // 2. Auth Identity Document (users/{userId}/auth/profile)
-      await userRef.collection('auth').doc('profile').set({
         'uid': userId,
         'email': email,
         'display_name': name,
         'photo_url': photoUrl,
         'auth_provider': provider,
-        'created_at_utc': createdAt,
-        'last_synced_at_utc': nowUtc,
-        'raw_data': localProfile?['raw_data'] ?? session?['rawData'],
-      }, SetOptions(merge: true));
-
-      // 3. Security & Biometrics Document (users/{userId}/security/settings)
-      await userRef.collection('security').doc('settings').set({
-        'biometric_lock_enabled': isBiometric,
-        'lock_timeout_seconds': lockTimeout,
-        'passkeys_count': registeredPasskeys.length,
-        'passkeys': registeredPasskeys.map((p) => p.toJson()).toList(),
-        'updated_at_utc': nowUtc,
-      }, SetOptions(merge: true));
-
-      // 4. Complete App Settings (users/{userId}/settings/preferences)
-      final allSettings = await db.getAllSettings();
-      final fullSettingsMap = <String, dynamic>{
-        'updated_at_utc': nowUtc,
+        'user_country_code': countryCode,
         'user_currency': currency,
         'user_currency_symbol': currencySymbol,
+        'app_locale': appLocale,
         'theme_mode': themeMode,
-        'workspace_mode': workspaceMode,
-        'subscription_tier': subscriptionTier,
-        'day_pass_expires_at': dayPassExpiresAt,
-      };
-      allSettings.forEach((k, v) {
-        fullSettingsMap[k] = v;
-      });
-      await userRef.collection('settings').doc('preferences').set(
-        fullSettingsMap,
-        SetOptions(merge: true),
-      );
+        'has_completed_onboarding': onboardingDone,
+        'created_at_utc': createdAt,
+        'updated_at_utc': nowUtc,
+        'last_login_at_utc': nowUtc,
+      }, SetOptions(merge: true));
 
-
-
-      // 5.2 2-Day Publishing Pass Cloud Synchronization (users/{userId}/publishing_pass/current)
+      // Clean up legacy redundant subcollection documents if they exist
       try {
-        final passDocSnap = await userRef.collection('publishing_pass').doc('current').get();
-        final localPass = await db.getActivePublishingPass(userId);
-
-        if (passDocSnap.exists && passDocSnap.data() != null) {
-          final remotePassData = passDocSnap.data()!;
-          final remoteUpdated = remotePassData['updated_at_utc'] as String? ?? '';
-          final localUpdated = localPass?.activatedAt.toUtc().toIso8601String() ?? '';
-
-          if (localPass == null || remoteUpdated.compareTo(localUpdated) >= 0) {
-            await db.savePublishingPass(remotePassData);
-          } else {
-            await userRef.collection('publishing_pass').doc('current').set(
-              localPass.toJson(),
-              SetOptions(merge: true),
-            );
-          }
-        } else if (localPass != null) {
-          await userRef.collection('publishing_pass').doc('current').set(
-            localPass.toJson(),
-            SetOptions(merge: true),
-          );
-        }
-      } catch (e) {
-        debugPrint('FirebaseSyncService: Error syncing publishing pass: $e');
-      }
+        await userRef.collection('auth').doc('profile').delete();
+        await userRef.collection('security').doc('settings').delete();
+        await userRef.collection('settings').doc('preferences').delete();
+      } catch (_) {}
 
       // =========================================================================
-      // PHASE 1: PULL REMOTE CLOUD FIRESTORE DATA INTO LOCAL SQLITE FIRST
-      // (Cloud Database is the persistent authority for auth, channels & groups)
+      // PHASE 2: PULL CRUCIAL DATA FROM CLOUD (Brands, Channels Linking, Groups)
       // =========================================================================
 
-      // 0. Pull Root User Profile & Session
+      // 1. Pull Root User Profile
       final userDocSnap = await userRef.get();
       if (userDocSnap.exists) {
         final uData = userDocSnap.data();
@@ -300,27 +223,7 @@ class FirebaseSyncService extends ChangeNotifier {
         }
       }
 
-      // 0.1 Pull Security Settings
-      final securitySnap = await userRef.collection('security').doc('settings').get();
-      if (securitySnap.exists) {
-        final secData = securitySnap.data();
-        if (secData != null) {
-          if (secData['biometric_lock_enabled'] is bool) {
-            await SessionService.instance.setBiometricLockEnabled(secData['biometric_lock_enabled'] as bool);
-          }
-          if (secData['lock_timeout_seconds'] is int) {
-            await SessionService.instance.setLockTimeoutSeconds(secData['lock_timeout_seconds'] as int);
-          }
-          if (secData['passkeys'] is List) {
-            final list = (secData['passkeys'] as List)
-                .map((e) => PasskeyCredential.fromJson(Map<String, dynamic>.from(e as Map)))
-                .toList();
-            await SessionService.instance.saveRegisteredPasskeys(list);
-          }
-        }
-      }
-
-      // 1. Pull Brands from Cloud DB
+      // 2. Pull Brands
       final remoteBrandsSnap = await userRef.collection('brands').get();
       final remoteBrands = remoteBrandsSnap.docs.map((d) => d.data()).toList();
       if (remoteBrands.isNotEmpty) {
@@ -332,25 +235,7 @@ class FirebaseSyncService extends ChangeNotifier {
         totalPulled += remoteBrands.length;
       }
 
-      // 2. Pull Channel Groups from Cloud DB
-      final remoteGroupsSnap = await userRef.collection('channel_groups').get();
-      final remoteGroups = remoteGroupsSnap.docs.map((d) {
-        final map = Map<String, dynamic>.from(d.data());
-        if (map['account_ids'] is List) {
-          map['account_ids'] = (map['account_ids'] as List).map((e) => e.toString()).toList();
-        }
-        return map;
-      }).toList();
-      if (remoteGroups.isNotEmpty) {
-        await db.upsertRemoteDelta(
-          tableName: 'channel_groups',
-          records: remoteGroups,
-          syncedAtUtc: nowUtc,
-        );
-        totalPulled += remoteGroups.length;
-      }
-
-      // 3. Pull Social Accounts from Cloud DB
+      // 3. Pull Channels Linking (Social Accounts)
       final remoteAccountsSnap = await userRef.collection('social_accounts').get();
       final remoteAccounts = remoteAccountsSnap.docs.map((d) {
         final map = Map<String, dynamic>.from(d.data());
@@ -371,72 +256,28 @@ class FirebaseSyncService extends ChangeNotifier {
         totalPulled += remoteAccounts.length;
       }
 
-      // 4. Pull Content Posts from Cloud DB
-      final remotePostsSnap = await userRef.collection('content_posts').get();
-      final remotePosts = remotePostsSnap.docs.map((d) => d.data()).toList();
-      if (remotePosts.isNotEmpty) {
-        await db.upsertRemoteDelta(
-          tableName: 'content_posts',
-          records: remotePosts,
-          syncedAtUtc: nowUtc,
-        );
-        totalPulled += remotePosts.length;
-      }
-
-      // 5. Pull Post Variants from Cloud DB
-      final remoteVariantsSnap = await userRef.collection('post_variants').get();
-      final remoteVariants = remoteVariantsSnap.docs.map((d) => d.data()).toList();
-      if (remoteVariants.isNotEmpty) {
-        await db.upsertRemoteDelta(
-          tableName: 'post_variants',
-          records: remoteVariants,
-          syncedAtUtc: nowUtc,
-        );
-        totalPulled += remoteVariants.length;
-      }
-
-      // 6. Pull Publish Jobs from Cloud DB
-      final remoteJobsSnap = await userRef.collection('publish_jobs').get();
-      final remoteJobs = remoteJobsSnap.docs.map((d) => d.data()).toList();
-      if (remoteJobs.isNotEmpty) {
-        await db.upsertRemoteDelta(
-          tableName: 'publish_jobs',
-          records: remoteJobs,
-          syncedAtUtc: nowUtc,
-        );
-        totalPulled += remoteJobs.length;
-      }
-
-      // 7. Pull Org Members from Cloud DB
-      final remoteMembersSnap = await userRef.collection('org_members').get();
-      final remoteMembers = remoteMembersSnap.docs.map((d) => d.data()).toList();
-      if (remoteMembers.isNotEmpty) {
-        await db.upsertRemoteDelta(
-          tableName: 'org_members',
-          records: remoteMembers,
-          syncedAtUtc: nowUtc,
-        );
-        totalPulled += remoteMembers.length;
-      }
-
-      // 8. Pull Settings from Cloud DB
-      final remoteSettingsSnap = await userRef.collection('settings').doc('preferences').get();
-      if (remoteSettingsSnap.exists) {
-        final sData = remoteSettingsSnap.data();
-        if (sData != null) {
-          for (final entry in sData.entries) {
-            if (entry.value != null && entry.key != 'updated_at_utc') {
-              await db.setSetting(entry.key, entry.value.toString());
-            }
-          }
+      // 4. Pull Channel Groups
+      final remoteGroupsSnap = await userRef.collection('channel_groups').get();
+      final remoteGroups = remoteGroupsSnap.docs.map((d) {
+        final map = Map<String, dynamic>.from(d.data());
+        if (map['account_ids'] is List) {
+          map['account_ids'] = (map['account_ids'] as List).map((e) => e.toString()).toList();
         }
+        return map;
+      }).toList();
+      if (remoteGroups.isNotEmpty) {
+        await db.upsertRemoteDelta(
+          tableName: 'channel_groups',
+          records: remoteGroups,
+          syncedAtUtc: nowUtc,
+        );
+        totalPulled += remoteGroups.length;
       }
 
       // =========================================================================
-      // PHASE 2: PUSH LOCAL OUTBOX CHANGES TO CLOUD FIRESTORE
+      // PHASE 3: PUSH CRUCIAL DATA TO CLOUD (Brands, Channels Linking, Groups)
       // =========================================================================
 
-      // Demo/seed brand IDs that should not be uploaded as user brands
       const seedBrandIds = {
         'brand-shaadow',
         'brand-shaadow-works',
@@ -465,7 +306,24 @@ class FirebaseSyncService extends ChangeNotifier {
         totalPushed += brandsToPush.length;
       }
 
-      // 2. Channel Groups
+      // 2. Channels Linking (Social Accounts)
+      final accountsToPush = forceHydration
+          ? await db.getAllRecords('social_accounts')
+          : await db.getUnsyncedRecords('social_accounts');
+      for (final a in accountsToPush) {
+        final id = a['id'] as String;
+        await userRef.collection('social_accounts').doc(id).set(a, SetOptions(merge: true));
+      }
+      if (accountsToPush.isNotEmpty) {
+        await db.markRecordsAsSynced(
+          tableName: 'social_accounts',
+          recordIds: accountsToPush.map((r) => r['id'] as String).toList(),
+          syncedAtUtc: nowUtc,
+        );
+        totalPushed += accountsToPush.length;
+      }
+
+      // 3. Channel Groups
       final groupsToPush = forceHydration
           ? await db.getAllRecords('channel_groups')
           : await db.getUnsyncedRecords('channel_groups');
@@ -480,92 +338,6 @@ class FirebaseSyncService extends ChangeNotifier {
           syncedAtUtc: nowUtc,
         );
         totalPushed += groupsToPush.length;
-      }
-
-      // 3. Social Accounts
-      final accountsToPush = forceHydration
-          ? await db.getAllRecords('social_accounts')
-          : await db.getUnsyncedRecords('social_accounts');
-      for (final a in accountsToPush) {
-        final id = a['id'] as String;
-        // Never commit secret tokens to Firestore; social_accounts table stores safe metadata
-        await userRef.collection('social_accounts').doc(id).set(a, SetOptions(merge: true));
-      }
-      if (accountsToPush.isNotEmpty) {
-        await db.markRecordsAsSynced(
-          tableName: 'social_accounts',
-          recordIds: accountsToPush.map((r) => r['id'] as String).toList(),
-          syncedAtUtc: nowUtc,
-        );
-        totalPushed += accountsToPush.length;
-      }
-
-      // 4. Content Posts
-      final postsToPush = forceHydration
-          ? await db.getAllRecords('content_posts')
-          : await db.getUnsyncedRecords('content_posts');
-      for (final p in postsToPush) {
-        final id = p['id'] as String;
-        await userRef.collection('content_posts').doc(id).set(p, SetOptions(merge: true));
-      }
-      if (postsToPush.isNotEmpty) {
-        await db.markRecordsAsSynced(
-          tableName: 'content_posts',
-          recordIds: postsToPush.map((r) => r['id'] as String).toList(),
-          syncedAtUtc: nowUtc,
-        );
-        totalPushed += postsToPush.length;
-      }
-
-      // 5. Post Variants
-      final variantsToPush = forceHydration
-          ? await db.getAllRecords('post_variants')
-          : await db.getUnsyncedRecords('post_variants');
-      for (final v in variantsToPush) {
-        final id = v['id'] as String;
-        await userRef.collection('post_variants').doc(id).set(v, SetOptions(merge: true));
-      }
-      if (variantsToPush.isNotEmpty) {
-        await db.markRecordsAsSynced(
-          tableName: 'post_variants',
-          recordIds: variantsToPush.map((r) => r['id'] as String).toList(),
-          syncedAtUtc: nowUtc,
-        );
-        totalPushed += variantsToPush.length;
-      }
-
-      // 6. Publish Jobs
-      final jobsToPush = forceHydration
-          ? await db.getAllRecords('publish_jobs')
-          : await db.getUnsyncedRecords('publish_jobs');
-      for (final j in jobsToPush) {
-        final id = j['id'] as String;
-        await userRef.collection('publish_jobs').doc(id).set(j, SetOptions(merge: true));
-      }
-      if (jobsToPush.isNotEmpty) {
-        await db.markRecordsAsSynced(
-          tableName: 'publish_jobs',
-          recordIds: jobsToPush.map((r) => r['id'] as String).toList(),
-          syncedAtUtc: nowUtc,
-        );
-        totalPushed += jobsToPush.length;
-      }
-
-      // 7. Org Members
-      final membersToPush = forceHydration
-          ? await db.getAllRecords('org_members')
-          : await db.getUnsyncedRecords('org_members');
-      for (final m in membersToPush) {
-        final id = m['id'] as String;
-        await userRef.collection('org_members').doc(id).set(m, SetOptions(merge: true));
-      }
-      if (membersToPush.isNotEmpty) {
-        await db.markRecordsAsSynced(
-          tableName: 'org_members',
-          recordIds: membersToPush.map((r) => r['id'] as String).toList(),
-          syncedAtUtc: nowUtc,
-        );
-        totalPushed += membersToPush.length;
       }
 
       _lastSyncedAt = DateTime.parse(nowUtc);
@@ -689,51 +461,7 @@ class FirebaseSyncService extends ChangeNotifier {
     }
   }
 
-  /// Save or update a content post to Cloud Firestore
-  Future<void> pushPost(String userId, ContentPost post) async {
-    if (userId.isEmpty || firestore == null) return;
-    try {
-      final nowUtc = DateTime.now().toUtc().toIso8601String();
-      final map = {
-        'id': post.id,
-        'brand_id': post.brandId,
-        'title': post.title,
-        'default_caption': post.defaultCaption,
-        'destination_account_ids': post.destinationAccountIds.join(','),
-        'media_asset_ids': post.mediaAssetIds.join(','),
-        'campaign': post.campaign,
-        'tags': post.tags.join(','),
-        'status': post.status.name,
-        'scheduled_at_utc': post.scheduledAtUtc?.toIso8601String(),
-        'created_at_utc': post.createdAtUtc.toIso8601String(),
-        'updated_at_utc': post.updatedAtUtc.toIso8601String(),
-        'synced_at_utc': nowUtc,
-      };
-      await firestore!
-          .collection('users')
-          .doc(userId)
-          .collection('content_posts')
-          .doc(post.id)
-          .set(map, SetOptions(merge: true));
-    } catch (e) {
-      debugPrint('FirebaseSyncService: Error pushing post ${post.id}: $e');
-    }
-  }
 
-  /// Remove a content post from Cloud Firestore
-  Future<void> deletePost(String userId, String postId) async {
-    if (userId.isEmpty || firestore == null) return;
-    try {
-      await firestore!
-          .collection('users')
-          .doc(userId)
-          .collection('content_posts')
-          .doc(postId)
-          .delete();
-    } catch (e) {
-      debugPrint('FirebaseSyncService: Error deleting cloud post $postId: $e');
-    }
-  }
 
   /// Save or update channel group to Cloud Firestore
   Future<void> pushGroup(String userId, ChannelGroup group) async {
