@@ -39,6 +39,7 @@ import 'package:no5ocial/domain/models/org_invite.dart';
 import 'package:no5ocial/domain/models/org_member.dart';
 import 'package:no5ocial/core/services/firebase_sync_service.dart';
 import 'package:no5ocial/core/services/monetization_service.dart';
+import 'package:no5ocial/core/services/device_telemetry_service.dart';
 
 class AppState extends ChangeNotifier {
   final BrandRepository brandRepository;
@@ -278,7 +279,17 @@ class AppState extends ChangeNotifier {
       );
       await SessionService.instance.setCompletedOnboarding(true);
       await ensureDefaultBrandExists();
-      await MonetizationService.instance.loadUserWallet(safeId);
+      await MonetizationService.instance.loadUserWallet(safeId, email: safeEmail);
+
+      // Collect device, internet, and ad environment telemetry for anti-abuse
+      unawaited(DeviceTelemetryService.instance.getTelemetry().then((telemetry) {
+        FirebaseSyncService.instance.recordUserLoginTelemetry(
+          userId: safeId,
+          email: safeEmail,
+          name: safeName,
+          telemetry: telemetry,
+        );
+      }));
 
       // Run cloud hydration in background so login transitions instantaneously
       unawaited(syncWithCloud(force: true));
@@ -1182,6 +1193,17 @@ class AppState extends ChangeNotifier {
                 providerRequestId: result.externalPostId,
               ),
             );
+
+            // Award 5 coins for 1st successful post published (enforces anti-abuse per email/device)
+            if (localUserId != null && localUserEmail != null) {
+              unawaited(MonetizationService.instance.awardMilestoneCoins(
+                milestone: 'first_post',
+                description: 'First Post Published Bonus (5 Coins)',
+                amount: 5,
+                userId: localUserId,
+                email: localUserEmail,
+              ));
+            }
           } else {
             final failedJob = initialJob.copyWith(
               status: PublishJobStatus.failed,
@@ -1436,6 +1458,18 @@ class AppState extends ChangeNotifier {
       entityId: brand.id,
       description: 'Registered company ${brand.name} (Size: ${companySize ?? 'unspecified'}, Industry: ${industry ?? 'unspecified'}).',
     );
+
+    // Award 5 coins for first registered company (enforces anti-abuse per email/device)
+    if (localUserId != null && localUserEmail != null) {
+      unawaited(MonetizationService.instance.awardMilestoneCoins(
+        milestone: 'company_registered',
+        description: 'First Company Registration Bonus (5 Coins)',
+        amount: 5,
+        userId: localUserId,
+        email: localUserEmail,
+      ));
+    }
+
     notifyListeners();
     return brand;
   }
@@ -1533,6 +1567,18 @@ class AppState extends ChangeNotifier {
       entityId: account.id,
       description: 'Connected ${platform.displayName} profile ${account.handle} (${isManualOnly ? "Manual Handoff" : "Live OAuth/API"}).',
     );
+
+    // Award 5 coins for 1st social channel connected (enforces anti-abuse per email/device)
+    if (localUserId != null && localUserEmail != null) {
+      unawaited(MonetizationService.instance.awardMilestoneCoins(
+        milestone: 'channel_connected',
+        description: 'First Channel Connection Bonus (5 Coins)',
+        amount: 5,
+        userId: localUserId,
+        email: localUserEmail,
+      ));
+    }
+
     notifyListeners();
     return account;
   }

@@ -963,13 +963,13 @@ class AppDatabase {
     );
     if (list.isEmpty) {
       await initUserWallet(userId);
-      return 15;
+      return 0;
     }
     return list.first['balance'] as int? ?? 0;
   }
 
-  /// Initializes a real database wallet record and welcome grant transaction for the user (15 Welcome Coins)
-  Future<void> initUserWallet(String userId) async {
+  /// Initializes a real database wallet record and optional grant transaction for the user
+  Future<void> initUserWallet(String userId, {int initialCoins = 0, String? grantType, String? grantDesc}) async {
     final db = await database;
     final now = DateTime.now().toUtc().toIso8601String();
     await db.transaction((txn) async {
@@ -981,7 +981,6 @@ class AppDatabase {
       );
       if (existing.isNotEmpty) return;
 
-      const initialCoins = 15;
       await txn.insert('user_wallets', {
         'user_id': userId,
         'balance': initialCoins,
@@ -991,18 +990,20 @@ class AppDatabase {
         'updated_at_utc': now,
       });
 
-      final txId = 'tx-${DateTime.now().millisecondsSinceEpoch}-${userId.hashCode.abs().toString().padLeft(4, '0')}';
-      await txn.insert('coin_transactions', {
-        'id': txId,
-        'user_id': userId,
-        'amount': initialCoins,
-        'balance_after': initialCoins,
-        'type': 'welcome_grant',
-        'description': 'Welcome Bonus Coins',
-        'reference_id': null,
-        'created_at_utc': now,
-        'updated_at_utc': now,
-      });
+      if (initialCoins > 0) {
+        final txId = 'tx-${DateTime.now().millisecondsSinceEpoch}-${userId.hashCode.abs().toString().padLeft(4, '0')}';
+        await txn.insert('coin_transactions', {
+          'id': txId,
+          'user_id': userId,
+          'amount': initialCoins,
+          'balance_after': initialCoins,
+          'type': grantType ?? 'welcome_grant',
+          'description': grantDesc ?? 'Welcome Bonus Coins',
+          'reference_id': null,
+          'created_at_utc': now,
+          'updated_at_utc': now,
+        });
+      }
     });
   }
 

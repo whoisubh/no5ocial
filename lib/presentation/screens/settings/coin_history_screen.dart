@@ -386,7 +386,10 @@ class _CoinHistoryScreenState extends State<CoinHistoryScreen> {
     if (rawDesc != null && rawDesc.trim().isNotEmpty) {
       return rawDesc.trim();
     }
-    if (type == 'welcome_grant') return 'Welcome Bonus Coins';
+    if (type == 'welcome_grant') return 'Welcome Bonus Coins (15 Coins)';
+    if (type == 'company_registered') return 'First Company Registration Bonus (5 Coins)';
+    if (type == 'channel_connected') return 'First Channel Connection Bonus (5 Coins)';
+    if (type == 'first_post') return 'First Post Published Bonus (5 Coins)';
     if (type == 'rewarded_ad') return 'Video Ad Reward';
     if (type == 'pass_activation') return '2-Day Publishing Pass (2 Posts)';
     if (type == 'post_published') return 'Post Published';
@@ -395,6 +398,9 @@ class _CoinHistoryScreenState extends State<CoinHistoryScreen> {
 
   IconData _getCommercialIcon(String type, bool isPositive) {
     if (type == 'welcome_grant') return Icons.card_giftcard_rounded;
+    if (type == 'company_registered') return Icons.business_center_rounded;
+    if (type == 'channel_connected') return Icons.link_rounded;
+    if (type == 'first_post') return Icons.rocket_launch_rounded;
     if (type == 'rewarded_ad') return Icons.play_circle_filled_rounded;
     if (type == 'pass_activation') return Icons.confirmation_number_rounded;
     if (type == 'post_published') return Icons.send_rounded;

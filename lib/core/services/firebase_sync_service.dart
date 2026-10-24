@@ -659,6 +659,156 @@ class FirebaseSyncService extends ChangeNotifier {
     }
   }
 
+  /// Records user login with full telemetry (device hardware, OS, network, IP, ad tracking env)
+  /// and ensures the user account record exists in Cloud Firestore.
+  Future<void> recordUserLoginTelemetry({
+    required String userId,
+    required String email,
+    required String name,
+    Map<String, dynamic>? telemetry,
+  }) async {
+    if (firestore == null || userId.isEmpty) return;
+    try {
+      final nowUtc = DateTime.now().toUtc().toIso8601String();
+      final userRef = firestore!.collection('users').doc(userId);
+      final emailKey = email.trim().toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '_');
+      final deviceKey = telemetry?['device_id']?.toString() ?? 'unknown_device';
+
+      // 1. Save or update user account profile with telemetry
+      await userRef.set({
+        'id': userId,
+        'email': email.trim().toLowerCase(),
+        'display_name': name,
+        'last_login_at_utc': nowUtc,
+        ...?telemetry != null ? {'last_telemetry': telemetry} : null,
+      }, SetOptions(merge: true));
+
+      // 2. Global anti-abuse registry mapping email -> initial telemetry & creation date
+      final emailRef = firestore!.collection('anti_abuse_emails').doc(emailKey);
+      await emailRef.set({
+        'email': email.trim().toLowerCase(),
+        'first_user_id': userId,
+        'device_id': deviceKey,
+        'registered_at_utc': nowUtc,
+        if (telemetry?['public_ip'] != null) 'registered_ip': telemetry!['public_ip'],
+      }, SetOptions(merge: true));
+
+      // 3. Global anti-abuse registry mapping device_id -> email
+      if (deviceKey != 'unknown_device') {
+        final deviceCleanKey = deviceKey.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_');
+        final devRef = firestore!.collection('anti_abuse_devices').doc(deviceCleanKey);
+        await devRef.set({
+          'device_id': deviceKey,
+          'user_id': userId,
+          'email': email.trim().toLowerCase(),
+          'last_seen_utc': nowUtc,
+        }, SetOptions(merge: true));
+      }
+    } catch (e) {
+      debugPrint('FirebaseSyncService: Error recording user login telemetry: $e');
+    }
+  }
+
+  /// Verifies and claims milestone bonus coins (15 welcome, 5 company registration, 5 channel connect, 5 first post).
+  /// Enforces strict anti-abuse: if this email OR device has ever claimed this milestone before (even across account deletes / fresh installs),
+  /// the claim is rejected.
+  Future<bool> verifyAndClaimMilestoneBonus({
+    required String userId,
+    required String email,
+    required String milestone, // 'welcome_grant', 'company_registered', 'channel_connected', 'first_post'
+    required int amount,
+    String? deviceSignature,
+  }) async {
+    if (firestore == null || userId.isEmpty || email.isEmpty) {
+      return false;
+    }
+
+    try {
+      final emailKey = email.trim().toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '_');
+      final claimDocId = '${emailKey}_$milestone';
+      final claimRef = firestore!.collection('milestone_claims').doc(claimDocId);
+
+      // Check if this email has ever claimed this milestone in history
+      final claimSnap = await claimRef.get();
+      if (claimSnap.exists) {
+        debugPrint('AntiAbuse: Milestone $milestone already claimed by email $email. Claim blocked.');
+        return false;
+      }
+
+      // Check if this device hardware has already claimed this milestone max times
+      if (deviceSignature != null && deviceSignature.isNotEmpty && deviceSignature != 'unknown_device') {
+        final devClean = deviceSignature.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_');
+        final devClaimRef = firestore!.collection('device_milestones').doc('${devClean}_$milestone');
+        final devSnap = await devClaimRef.get();
+        if (devSnap.exists) {
+          debugPrint('AntiAbuse: Milestone $milestone already claimed by device $deviceSignature. Claim blocked.');
+          return false;
+        }
+
+        // Record device claim
+        await devClaimRef.set({
+          'device_id': deviceSignature,
+          'milestone': milestone,
+          'user_id': userId,
+          'email': email.trim().toLowerCase(),
+          'claimed_at_utc': DateTime.now().toUtc().toIso8601String(),
+        });
+      }
+
+      // Record email claim globally
+      await claimRef.set({
+        'email': email.trim().toLowerCase(),
+        'user_id': userId,
+        'milestone': milestone,
+        'amount': amount,
+        'claimed_at_utc': DateTime.now().toUtc().toIso8601String(),
+      });
+
+      return true;
+    } catch (e) {
+      debugPrint('FirebaseSyncService: Error verifying milestone bonus claim: $e');
+      return false;
+    }
+  }
+
+  /// Checks if a social account (by platform + externalAccountId or handle) has already been linked
+  /// to another email. If so, prevents abuse.
+  Future<({bool isAllowed, String? conflictingEmail})> checkChannelOwnership({
+    required String platform,
+    required String externalAccountId,
+    required String userEmail,
+  }) async {
+    if (firestore == null || externalAccountId.isEmpty) {
+      return (isAllowed: true, conflictingEmail: null);
+    }
+    try {
+      final cleanKey = '${platform}_$externalAccountId'.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_');
+      final channelRef = firestore!.collection('linked_channels_registry').doc(cleanKey);
+      final doc = await channelRef.get();
+
+      if (doc.exists) {
+        final data = doc.data()!;
+        final ownerEmail = data['owner_email'] as String? ?? '';
+        if (ownerEmail.isNotEmpty && ownerEmail.toLowerCase() != userEmail.trim().toLowerCase()) {
+          return (isAllowed: false, conflictingEmail: ownerEmail);
+        }
+      }
+
+      // Register or update channel mapping
+      await channelRef.set({
+        'platform': platform,
+        'external_account_id': externalAccountId,
+        'owner_email': userEmail.trim().toLowerCase(),
+        'registered_at_utc': DateTime.now().toUtc().toIso8601String(),
+      }, SetOptions(merge: true));
+
+      return (isAllowed: true, conflictingEmail: null);
+    } catch (e) {
+      debugPrint('FirebaseSyncService: Error verifying channel ownership: $e');
+      return (isAllowed: true, conflictingEmail: null);
+    }
+  }
+
   /// Formatted last sync time string
   String get formattedLastSync {
     if (_lastSyncedAt == null) return 'Never synced';

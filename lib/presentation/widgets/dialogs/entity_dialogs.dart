@@ -14,6 +14,7 @@ import 'package:no5ocial/core/services/instagram_service.dart';
 import 'package:no5ocial/core/services/linkedin_service.dart';
 import 'package:no5ocial/core/services/x_service.dart';
 import 'package:no5ocial/core/services/threads_service.dart';
+import 'package:no5ocial/core/services/firebase_sync_service.dart';
 import 'package:no5ocial/core/errors/app_error_handler.dart';
 
 class EntityDialogs {
@@ -181,15 +182,18 @@ class EntityDialogs {
             Text(
               existingBrand == null
                   ? 'Add a company workspace to organize multi-platform accounts and content pipelines.'
-                  : 'Update your registered company identity and workspace details.',
+                  : 'Company names cannot be changed once registered to maintain audit trails. To rename, remove this workspace and register a new company.',
               style: AppTypography.bodySecondary,
             ),
             const SizedBox(height: 16),
             TextField(
               controller: nameCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Company Name *',
+              enabled: existingBrand == null,
+              decoration: InputDecoration(
+                labelText: existingBrand == null ? 'Company Name *' : 'Company Name (Locked)',
                 hintText: 'e.g. Acme Corporation or Nova Media',
+                suffixIcon: existingBrand != null ? const Icon(Icons.lock_outline_rounded, size: 18) : null,
+                helperText: existingBrand != null ? 'Registered company name cannot be edited. You can remove the company workspace if needed.' : null,
               ),
             ),
             const SizedBox(height: 14),
@@ -293,7 +297,7 @@ class EntityDialogs {
             Brand savedBrand;
             if (existingBrand != null) {
               savedBrand = existingBrand.copyWith(
-                name: nameCtrl.text.trim(),
+                name: existingBrand.name, // Immutable: company names cannot be edited once registered
                 description: descCtrl.text.trim().isNotEmpty
                     ? descCtrl.text.trim()
                     : null,
@@ -799,12 +803,39 @@ class EntityDialogs {
                     accountScopes.add('token:$verifiedToken');
                   }
 
+                  final targetExternalId = externalAccountId ?? 'ext_${selectedSubtype.id}';
+                  final currentUserEmail = appState.localUserEmail ?? '';
+
+                  // Verify channel ownership in Cloud Firestore to prevent abuse
+                  if (currentUserEmail.isNotEmpty) {
+                    FirebaseSyncService.instance.checkChannelOwnership(
+                      platform: selectedPlatform.name,
+                      externalAccountId: targetExternalId,
+                      userEmail: currentUserEmail,
+                    ).then((ownership) {
+                      if (!ownership.isAllowed) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'This social channel is already linked to another registered email (${ownership.conflictingEmail}). Free accounts cannot share linked channels.',
+                              ),
+                              backgroundColor: AppColors.error,
+                              duration: const Duration(seconds: 5),
+                            ),
+                          );
+                        }
+                        return;
+                      }
+                    });
+                  }
+
                   final newAccount = appState.connectAccount(
                     brandId: selectedBrandId,
                     platform: selectedPlatform,
                     displayName: displayName,
                     handle: handle,
-                    externalAccountId: externalAccountId ?? 'ext_${selectedSubtype.id}',
+                    externalAccountId: targetExternalId,
                     isManualOnly: false,
                     targetGroupId: selectedGroupValue != 'standalone' && selectedGroupValue != '__new__'
                         ? selectedGroupValue

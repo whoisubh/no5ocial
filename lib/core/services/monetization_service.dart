@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:no5ocial/core/services/applovin_max_mediation_service.dart';
 import 'package:no5ocial/core/services/firebase_sync_service.dart';
 import 'package:no5ocial/core/services/session_service.dart';
+import 'package:no5ocial/core/services/device_telemetry_service.dart';
 import 'package:no5ocial/data/database/app_database.dart';
 import 'package:no5ocial/domain/models/monetization/monetization_models.dart';
 import 'package:no5ocial/domain/enums/workspace_mode.dart';
@@ -310,10 +311,38 @@ class MonetizationService extends ChangeNotifier {
 
   // --- Real Database-Backed Coin System Methods for Free Users ---
 
-  /// Loads real database wallet balance and verified transaction ledger for the user
-  Future<void> loadUserWallet(String userId) async {
+  /// Loads real database wallet balance and verified transaction ledger for the user.
+  /// Anti-abuse check: if this email/device hasn't received the 15 welcome coins, claims and deposits them.
+  Future<void> loadUserWallet(String userId, {String? email}) async {
     _activeUserId = userId;
     try {
+      final userEmail = email ?? (await SessionService.instance.getSession())?['email'] as String? ?? '';
+      
+      // Check if wallet transactions exist in local DB
+      final txs = await AppDatabase.instance.getCoinTransactions(userId);
+
+      // If user has no welcome grant recorded locally and has an email, verify with cloud anti-abuse
+      final hasLocalWelcome = txs.any((tx) => tx['type'] == 'welcome_grant');
+      if (!hasLocalWelcome && userEmail.isNotEmpty) {
+        final devSig = await DeviceTelemetryService.instance.getDeviceSignature();
+        final canClaimWelcome = await FirebaseSyncService.instance.verifyAndClaimMilestoneBonus(
+          userId: userId,
+          email: userEmail,
+          milestone: 'welcome_grant',
+          amount: 15,
+          deviceSignature: devSig,
+        );
+
+        if (canClaimWelcome) {
+          await AppDatabase.instance.addCoinsToWallet(
+            userId: userId,
+            amount: 15,
+            type: 'welcome_grant',
+            description: 'Welcome Bonus Coins (15 Coins)',
+          );
+        }
+      }
+
       _postCoins = await AppDatabase.instance.getCoinBalance(userId);
       _coinTransactions = await AppDatabase.instance.getCoinTransactions(userId);
       _activePass = await AppDatabase.instance.getActivePublishingPass(userId);
@@ -329,6 +358,49 @@ class MonetizationService extends ChangeNotifier {
     } catch (e) {
       debugPrint('MonetizationService: Error loading real wallet from database: $e');
     }
+  }
+
+  /// Awards milestone coins with strict anti-abuse check:
+  /// - 'company_registered': 5 coins (max 1 claim per email/device)
+  /// - 'channel_connected': 5 coins (max 1 claim per email/device)
+  /// - 'first_post': 5 coins (max 1 claim per email/device)
+  Future<bool> awardMilestoneCoins({
+    required String milestone,
+    required String description,
+    required int amount,
+    String? userId,
+    String? email,
+  }) async {
+    final uid = userId ?? _activeUserId ?? (await SessionService.instance.getSession())?['id'] as String? ?? 'local_user';
+    final userEmail = email ?? (await SessionService.instance.getSession())?['email'] as String? ?? '';
+
+    if (userEmail.isEmpty) return false;
+
+    try {
+      final devSig = await DeviceTelemetryService.instance.getDeviceSignature();
+      final allowed = await FirebaseSyncService.instance.verifyAndClaimMilestoneBonus(
+        userId: uid,
+        email: userEmail,
+        milestone: milestone,
+        amount: amount,
+        deviceSignature: devSig,
+      );
+
+      if (allowed) {
+        _postCoins = await AppDatabase.instance.addCoinsToWallet(
+          userId: uid,
+          amount: amount,
+          type: milestone,
+          description: description,
+        );
+        _coinTransactions = await AppDatabase.instance.getCoinTransactions(uid);
+        notifyListeners();
+        return true;
+      }
+    } catch (e) {
+      debugPrint('MonetizationService: Error awarding milestone coins ($milestone): $e');
+    }
+    return false;
   }
 
   /// Earn publishing coins by watching a rewarded ad.
