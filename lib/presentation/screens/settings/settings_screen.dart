@@ -270,7 +270,9 @@ class SettingsScreen extends StatelessWidget {
           children: [
             Icon(Icons.warning_amber_rounded, color: AppColors.error),
             SizedBox(width: 8),
-            Text('Reset Local Workspace Cache'),
+            Expanded(
+              child: Text('Reset Local Workspace Cache'),
+            ),
           ],
         ),
         content: const Text(

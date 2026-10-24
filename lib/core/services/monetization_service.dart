@@ -348,10 +348,6 @@ class MonetizationService extends ChangeNotifier {
           description: 'Rewarded Partner Video Ad',
         );
         _coinTransactions = await AppDatabase.instance.getCoinTransactions(uid);
-        unawaited(FirebaseSyncService.instance.pushWallet(uid, _postCoins));
-        if (_coinTransactions.isNotEmpty) {
-          unawaited(FirebaseSyncService.instance.pushCoinTransaction(uid, _coinTransactions.first));
-        }
         notifyListeners();
         return (
           success: true,
@@ -436,12 +432,8 @@ class MonetizationService extends ChangeNotifier {
         _coinTransactions = await AppDatabase.instance.getCoinTransactions(uid);
         notifyListeners();
 
-        // Immediately persist to Cloud Firestore
-        unawaited(FirebaseSyncService.instance.pushWallet(uid, _postCoins));
+        // Immediately persist publishing pass to Cloud Firestore
         unawaited(FirebaseSyncService.instance.pushPublishingPass(uid, newPass.toJson()));
-        if (_coinTransactions.isNotEmpty) {
-          unawaited(FirebaseSyncService.instance.pushCoinTransaction(uid, _coinTransactions.first));
-        }
 
         return (
           success: true,
@@ -508,10 +500,6 @@ class MonetizationService extends ChangeNotifier {
         description: description ?? 'Promotional Credit Grant',
       );
       _coinTransactions = await AppDatabase.instance.getCoinTransactions(uid);
-      unawaited(FirebaseSyncService.instance.pushWallet(uid, _postCoins));
-      if (_coinTransactions.isNotEmpty) {
-        unawaited(FirebaseSyncService.instance.pushCoinTransaction(uid, _coinTransactions.first));
-      }
       notifyListeners();
     } catch (e) {
       _postCoins += amount;
