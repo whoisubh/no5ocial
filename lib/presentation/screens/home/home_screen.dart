@@ -672,9 +672,10 @@ class HomeScreen extends StatelessWidget {
     final userName = appState.localUserName?.trim();
     final title = _getGreetingWish(userName, appState.currentLocale.languageCode);
     final scheduledCount = appState.scheduledCount;
+    final companyName = appState.brands.isNotEmpty ? appState.brands.first.name : 'Shaadow';
     final description = scheduledCount > 0
-        ? 'You have ${NumberFormatter.formatInt(scheduledCount, locale: appState.currentLocale.languageCode)} post${scheduledCount == 1 ? "" : "s"} scheduled in your pipeline today. Track or publish across connected channels.'
-        : 'Welcome to your publishing workspace. Plan, schedule, and track posts across your connected channels seamlessly.';
+        ? 'You have ${NumberFormatter.formatInt(scheduledCount, locale: appState.currentLocale.languageCode)} post${scheduledCount == 1 ? "" : "s"} scheduled for $companyName today. Track or publish across connected channels.'
+        : 'Publishing operations center for $companyName. Plan, schedule, and track posts across your connected channels seamlessly.';
 
     return LayoutBuilder(
       builder: (context, constraints) {

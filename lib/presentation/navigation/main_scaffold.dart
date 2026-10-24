@@ -589,8 +589,8 @@ class _MainScaffoldState extends State<MainScaffold> {
                     children: [
                       Text(
                         widget.appState.brands.isNotEmpty
-                            ? '${widget.appState.brands.first.name} Workspace'
-                            : l10n.growthWorkspace,
+                            ? widget.appState.brands.first.name
+                            : 'Shaadow',
                         style: const TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w700,

@@ -463,6 +463,7 @@ class AppState extends ChangeNotifier {
         if (isLoggedIn && brands.isEmpty) {
           await ensureDefaultBrandExists();
         }
+        _sanitizeBrandNames();
         notifyListeners();
       }
     } catch (e) {
@@ -470,9 +471,10 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  /// Automatically provision or restore a primary workspace brand for authenticated users
+  /// Automatically provision or restore a primary company brand for authenticated users
   Future<void> ensureDefaultBrandExists() async {
     if (brands.isNotEmpty) {
+      _sanitizeBrandNames();
       hasCompletedOnboarding = true;
       await SessionService.instance.saveBrandsCache(brands);
       await SessionService.instance.setCompletedOnboarding(true);
@@ -486,6 +488,7 @@ class AppState extends ChangeNotifier {
       for (final b in cached) {
         brandRepository.saveBrand(b);
       }
+      _sanitizeBrandNames();
       hasCompletedOnboarding = true;
       await SessionService.instance.setCompletedOnboarding(true);
       await initOrgMembers();
@@ -495,12 +498,9 @@ class AppState extends ChangeNotifier {
     }
 
     if (isLoggedIn) {
-      final rawName = localUserName?.trim();
-      final safeName = (rawName != null && rawName.isNotEmpty) ? rawName : 'My';
-      final brandName = safeName == 'My' ? 'My Workspace' : '$safeName\'s Workspace';
       final brand = createBrand(
-        name: brandName,
-        description: 'Primary workspace for ${localUserEmail ?? safeName}',
+        name: 'Shaadow',
+        description: 'Primary company brand',
       );
       hasCompletedOnboarding = true;
       await SessionService.instance.saveBrandsCache([brand]);
@@ -508,6 +508,24 @@ class AppState extends ChangeNotifier {
       await initOrgMembers();
       await ensureDefaultOrgOwner();
       notifyListeners();
+    }
+  }
+
+  /// Ensures company names are clean and never corrupted with synthetic "'s Workspace" suffixes
+  void _sanitizeBrandNames() {
+    for (final b in brands) {
+      if (b.name.contains("'s Workspace") || b.name == 'My Workspace' || b.name == 'Personal Workspace') {
+        final cleaned = b.name
+            .replaceAll(RegExp(r"'s Workspace$| Workspace$"), "")
+            .replaceAll('My Workspace', 'Shaadow')
+            .replaceAll('Personal Workspace', 'Shaadow')
+            .trim();
+        final finalName = (cleaned.isEmpty || cleaned == 'My' || cleaned == localUserName?.trim())
+            ? 'Shaadow'
+            : cleaned;
+        final updated = b.copyWith(name: finalName);
+        brandRepository.updateBrand(updated);
+      }
     }
   }
 
