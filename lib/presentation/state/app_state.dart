@@ -524,7 +524,7 @@ class AppState extends ChangeNotifier {
             ? 'Shaadow'
             : cleaned;
         final updated = b.copyWith(name: finalName);
-        brandRepository.updateBrand(updated);
+        brandRepository.saveBrand(updated);
       }
     }
   }
