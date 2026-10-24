@@ -17,11 +17,11 @@ class MonetizationConfig {
 
   /// Google AdMob Application ID (Configured in AndroidManifest)
   static String get admobAppId =>
-      EnvConfig.get('ADMOB_APP_ID', fallback: 'ca-app-pub-3940256099942544~3347511713'); // Official Google Test App ID
+      EnvConfig.get('ADMOB_APP_ID', fallback: 'ca-app-pub-7142385384774533~1890140979');
 
   /// Google AdMob Rewarded Bidding Unit ID
   static String get admobRewardedAdUnitId =>
-      EnvConfig.get('ADMOB_REWARDED_AD_UNIT_ID', fallback: 'ca-app-pub-3940256099942544/5224354917');
+      EnvConfig.get('ADMOB_REWARDED_AD_UNIT_ID', fallback: 'ca-app-pub-7142385384774533/7860652956');
 
   /// Meta Audience Network Placement ID
   static String get metaAudiencePlacementId =>
