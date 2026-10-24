@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
+import 'package:no5ocial/core/config/env_config.dart';
 
 /// Real LinkedIn Member Profile Metadata retrieved from official LinkedIn OpenID Connect API
 class LinkedInProfileInfo {
@@ -83,7 +84,7 @@ class LinkedInService {
     String accountType = 'personal',
     String returnUrl = '/accounts',
   }) {
-    const baseUrl = kIsWeb ? '' : 'https://no5ocial.vercel.app';
+    final baseUrl = kIsWeb ? '' : EnvConfig.webBaseUrl;
     return '$baseUrl/api/auth/linkedin/start?brandId=${Uri.encodeComponent(brandId)}&accountType=${Uri.encodeComponent(accountType)}&returnUrl=${Uri.encodeComponent(returnUrl)}';
   }
 

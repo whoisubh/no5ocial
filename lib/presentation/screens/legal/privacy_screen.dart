@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:no5ocial/core/config/env_config.dart';
 import 'legal_page_layout.dart';
 
 class PrivacyScreen extends StatelessWidget {
@@ -6,7 +7,7 @@ class PrivacyScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const LegalPageLayout(
+    return LegalPageLayout(
       currentTab: LegalTab.privacy,
       title: 'Privacy Policy & Google API User Data Disclosure',
       lastUpdated: 'October 2026',
@@ -99,9 +100,9 @@ class PrivacyScreen extends StatelessWidget {
           title: 'Contact Information & Inquiries',
           body:
               'If you have questions, feedback, or concerns regarding this Privacy Policy, our Google API data handling practices, or your data sovereignty, please contact our team:\n\n'
-              '• Legal & Privacy Contact: privacy@no5ocial.vercel.app\n'
+              '• Legal & Privacy Contact: privacy@${EnvConfig.appDomain}\n'
               '• Security & Development: support@shaadow.io\n'
-              '• Website: https://no5ocial.vercel.app',
+              '• Website: ${EnvConfig.webBaseUrl}',
         ),
       ],
     );

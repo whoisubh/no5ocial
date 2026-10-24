@@ -9,6 +9,8 @@ import 'package:no5ocial/data/database/app_database.dart';
 import 'package:no5ocial/domain/models/brand.dart';
 import 'package:no5ocial/domain/models/channel_group.dart';
 import 'package:no5ocial/domain/models/social_account.dart';
+import 'package:no5ocial/domain/models/org_invite.dart';
+import 'package:no5ocial/domain/models/org_member.dart';
 import 'package:no5ocial/domain/models/monetization/monetization_models.dart';
 
 enum FirebaseSyncStatus {
@@ -550,6 +552,111 @@ class FirebaseSyncService extends ChangeNotifier {
       debugPrint('FirebaseSyncService: Error pulling publishing pass: $e');
     }
     return null;
+  }
+
+  /// Push a generated workspace invitation to Cloud Firestore.
+  /// Stored globally under `org_invites/{token}` so it can be verified from any device or web app.
+  Future<void> pushOrgInvite({
+    required OrgInvite invite,
+    required String workspaceName,
+    required String inviterName,
+  }) async {
+    if (firestore == null) return;
+    try {
+      final map = invite.toJson();
+      map['workspace_name'] = workspaceName;
+      map['inviter_name'] = inviterName;
+      map['updated_at_utc'] = DateTime.now().toUtc().toIso8601String();
+
+      await firestore!
+          .collection('org_invites')
+          .doc(invite.token)
+          .set(map, SetOptions(merge: true));
+      debugPrint('FirebaseSyncService: Pushed global invite ${invite.token} to cloud DB');
+    } catch (e) {
+      debugPrint('FirebaseSyncService: Error pushing org invite: $e');
+    }
+  }
+
+  /// Fetch an invitation by token from Cloud Firestore.
+  Future<OrgInvite?> fetchOrgInvite(String token) async {
+    if (firestore == null || token.isEmpty) return null;
+    try {
+      final doc = await firestore!.collection('org_invites').doc(token.trim()).get();
+      if (doc.exists && doc.data() != null) {
+        return OrgInvite.fromJson(doc.data()!);
+      }
+    } catch (e) {
+      debugPrint('FirebaseSyncService: Error fetching remote invite: $e');
+    }
+    return null;
+  }
+
+  /// Mark remote invitation as accepted and record member in Cloud DB.
+  Future<void> acceptRemoteInvite({
+    required OrgInvite invite,
+    required OrgMember member,
+  }) async {
+    if (firestore == null) return;
+    try {
+      final nowUtc = DateTime.now().toUtc().toIso8601String();
+      // 1. Update invite status to accepted
+      await firestore!.collection('org_invites').doc(invite.token).update({
+        'status': 'accepted',
+        'accepted_by_user_id': member.userId,
+        'accepted_by_email': member.userEmail,
+        'accepted_at_utc': nowUtc,
+      });
+
+      // 2. Add member to workspace members collection
+      await firestore!
+          .collection('workspaces')
+          .doc(invite.orgId)
+          .collection('members')
+          .doc(member.userId)
+          .set(member.toJson(), SetOptions(merge: true));
+
+      // 3. Grant the workspace brand to the accepted member's cloud user profile
+      if (invite.workspaceName != null) {
+        await firestore!
+            .collection('users')
+            .doc(member.userId)
+            .collection('brands')
+            .doc(invite.orgId)
+            .set({
+          'id': invite.orgId,
+          'name': invite.workspaceName,
+          'role': member.role.name,
+          'created_at_utc': nowUtc,
+          'updated_at_utc': nowUtc,
+        }, SetOptions(merge: true));
+      }
+      debugPrint('FirebaseSyncService: Remote invite marked as accepted for ${member.userEmail}');
+    } catch (e) {
+      debugPrint('FirebaseSyncService: Error accepting remote invite: $e');
+    }
+  }
+
+  /// Pull workspace members from Cloud Firestore so the workspace lead catches members who joined!
+  Future<List<OrgMember>> pullWorkspaceMembers(String orgId) async {
+    if (firestore == null || orgId.isEmpty) return [];
+    try {
+      final snap = await firestore!
+          .collection('workspaces')
+          .doc(orgId)
+          .collection('members')
+          .get();
+      final members = <OrgMember>[];
+      for (final doc in snap.docs) {
+        try {
+          members.add(OrgMember.fromJson(doc.data()));
+        } catch (_) {}
+      }
+      return members;
+    } catch (e) {
+      debugPrint('FirebaseSyncService: Error pulling workspace members: $e');
+      return [];
+    }
   }
 
   /// Formatted last sync time string

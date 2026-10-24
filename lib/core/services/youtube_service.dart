@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
+import 'package:no5ocial/core/config/env_config.dart';
 import 'package:no5ocial/core/services/google_auth_service.dart';
 
 /// Real YouTube Channel Metadata retrieved from the official YouTube Data API v3
@@ -46,7 +47,7 @@ class YouTubeService {
 
   /// Generates the server-side OAuth initialization URL for YouTube linking
   String getOAuthStartUrl({required String brandId, String returnUrl = '/accounts'}) {
-    const baseUrl = kIsWeb ? '' : 'https://no5ocial.vercel.app';
+    final baseUrl = kIsWeb ? '' : EnvConfig.webBaseUrl;
     return '$baseUrl/api/auth/google/start?brandId=${Uri.encodeComponent(brandId)}&returnUrl=${Uri.encodeComponent(returnUrl)}';
   }
 

@@ -34,6 +34,13 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="no5ocial" android:host="auth" />
             </intent-filter>
+            <!-- Deep link intent filter for invitations: no5ocial://invite -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="no5ocial" android:host="invite" />
+            </intent-filter>
         </activity>
         <!-- AppLovin MAX SDK Key -->
         <meta-data

@@ -152,6 +152,14 @@ class EnvConfig {
         const val = String.fromEnvironment('APP_TITLE');
         if (val.isNotEmpty) return val;
         break;
+      case 'APP_DOMAIN':
+        const val = String.fromEnvironment('APP_DOMAIN');
+        if (val.isNotEmpty) return val;
+        break;
+      case 'WEB_BASE_URL':
+        const val = String.fromEnvironment('WEB_BASE_URL');
+        if (val.isNotEmpty) return val;
+        break;
     }
 
     // 3. Fallback
@@ -159,6 +167,21 @@ class EnvConfig {
   }
 
   // --- Convenience Getters (Completely dynamic, zero hardcoded values) ---
+
+  /// Branded root web domain (e.g. no5ocial.vercel.app or custom domain)
+  static String get appDomain {
+    final raw = get('APP_DOMAIN', fallback: get('WEB_DOMAIN', fallback: 'no5ocial.vercel.app')).trim();
+    return raw.replaceFirst(RegExp(r'^https?:\/\/'), '').replaceAll(RegExp(r'\/.*$'), '');
+  }
+
+  /// Full base URL for web links (e.g. https://no5ocial.vercel.app or branded domain)
+  static String get webBaseUrl {
+    final customUrl = get('WEB_BASE_URL', fallback: get('APP_BASE_URL')).trim();
+    if (customUrl.isNotEmpty) {
+      return customUrl.endsWith('/') ? customUrl.substring(0, customUrl.length - 1) : customUrl;
+    }
+    return 'https://$appDomain';
+  }
 
   static String get googleWebClientId =>
       get('GOOGLE_WEB_CLIENT_ID', fallback: get('GOOGLE_CLIENT_ID'));

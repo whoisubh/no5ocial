@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
+import 'package:no5ocial/core/config/env_config.dart';
 
 /// Real Instagram Account Profile Metadata retrieved via Meta / Instagram Graph API
 class InstagramProfileInfo {
@@ -28,7 +29,7 @@ class InstagramService {
 
   /// Generates the server-side OAuth initialization URL for Instagram linking
   String getOAuthStartUrl({required String brandId, String returnUrl = '/accounts'}) {
-    const baseUrl = kIsWeb ? '' : 'https://no5ocial.vercel.app';
+    final baseUrl = kIsWeb ? '' : EnvConfig.webBaseUrl;
     return '$baseUrl/api/auth/instagram/start?brandId=${Uri.encodeComponent(brandId)}&returnUrl=${Uri.encodeComponent(returnUrl)}';
   }
 

@@ -339,7 +339,7 @@ class _InviteAcceptScreenState extends State<InviteAcceptScreen> {
   }
 
   void _showSuccessAndRedirect() {
-    final workspaceName = _brand?.name ?? 'Workspace';
+    final workspaceName = _brand?.name ?? _invite?.workspaceName ?? 'Workspace';
     final roleLabel = _invite?.invitedRole.label ?? 'Member';
 
     showDialog(
@@ -524,7 +524,7 @@ class _InviteAcceptScreenState extends State<InviteAcceptScreen> {
 
   Widget _buildInviteDetailsCard(bool isDark) {
     final invite = _invite!;
-    final workspaceName = _brand?.name ?? 'Workspace';
+    final workspaceName = _brand?.name ?? invite.workspaceName ?? 'Workspace';
     final role = invite.invitedRole;
     final isLoggedIn = widget.appState.isLoggedIn;
     final currentUserEmail = widget.appState.localUserEmail?.trim().toLowerCase();

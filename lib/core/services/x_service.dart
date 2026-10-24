@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
+import 'package:no5ocial/core/config/env_config.dart';
 
 /// Real X (Twitter) Profile Metadata retrieved via Twitter API v2
 class XProfileInfo {
@@ -109,7 +110,7 @@ class XService {
     String accountType = 'standard',
     String returnUrl = '/accounts',
   }) {
-    const baseUrl = kIsWeb ? '' : 'https://no5ocial.vercel.app';
+    final baseUrl = kIsWeb ? '' : EnvConfig.webBaseUrl;
     return '$baseUrl/api/auth/x/start?brandId=${Uri.encodeComponent(brandId)}&accountType=${Uri.encodeComponent(accountType)}&returnUrl=${Uri.encodeComponent(returnUrl)}';
   }
 

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:no5ocial/core/config/env_config.dart';
 import 'package:no5ocial/core/theme/app_colors.dart';
 import 'package:no5ocial/domain/enums/org_role.dart';
 import 'package:no5ocial/domain/enums/workspace_mode.dart';
@@ -794,7 +795,7 @@ class _TeamManagementSheetState extends State<TeamManagementSheet> {
   }
 
   String _generateInviteLink(OrgInvite invite) {
-    final baseOrigin = kIsWeb ? Uri.base.origin : 'https://no5ocial.web.app';
+    final baseOrigin = kIsWeb ? Uri.base.origin : EnvConfig.webBaseUrl;
     return '$baseOrigin/#/invite?token=${invite.token}';
   }
 
@@ -811,217 +812,360 @@ $link''';
 
   void _showInviteCreatedDialog(BuildContext context, OrgInvite invite) {
     final appState = widget.appState;
-    final isDark = appState.isDarkMode;
     final workspaceName = appState.activeBrand?.name ?? 'Workspace';
     final inviteLink = _generateInviteLink(invite);
     final inviteMessage = _generateInviteMessage(invite, workspaceName);
 
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: isDark ? const Color(0xFF131A2B) : Colors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: BorderSide(color: isDark ? const Color(0xFF22304A) : AppColors.border),
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (ctx) => _InviteCreatedFullScreen(
+          invite: invite,
+          workspaceName: workspaceName,
+          inviteLink: inviteLink,
+          inviteMessage: inviteMessage,
+          isDark: appState.isDarkMode,
         ),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppColors.success.withAlpha(25),
-              ),
-              child: const Icon(Icons.link_rounded, color: AppColors.success, size: 20),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                'Invitation Link Ready',
-                style: GoogleFonts.plusJakartaSans(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 17,
-                  color: isDark ? Colors.white : AppColors.textPrimary,
-                ),
-              ),
-            ),
-          ],
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Because direct email sending is not configured, share this link or invitation message with your invitee:',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: isDark ? const Color(0xFF94A3B8) : AppColors.textSecondary,
-                  height: 1.4,
-                ),
-              ),
-              const SizedBox(height: 16),
+      ),
+    );
+  }
+}
 
-              // Summary card
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF1A233A) : const Color(0xFFF1F5F9),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: isDark ? const Color(0xFF283656) : AppColors.border),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+class _InviteCreatedFullScreen extends StatelessWidget {
+  final OrgInvite invite;
+  final String workspaceName;
+  final String inviteLink;
+  final String inviteMessage;
+  final bool isDark;
+
+  const _InviteCreatedFullScreen({
+    required this.invite,
+    required this.workspaceName,
+    required this.inviteLink,
+    required this.inviteMessage,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = isDark ? const Color(0xFF0F1523) : AppColors.background;
+    final cardBg = isDark ? const Color(0xFF161E2E) : Colors.white;
+    final borderColor = isDark ? const Color(0xFF22304A) : AppColors.border;
+    final innerBg = isDark ? const Color(0xFF0F1523) : const Color(0xFFF8FAFC);
+    final textPrimary = isDark ? Colors.white : AppColors.textPrimary;
+    final textSec = isDark ? const Color(0xFF94A3B8) : AppColors.textSecondary;
+
+    return Scaffold(
+      backgroundColor: bg,
+      appBar: AppBar(
+        backgroundColor: cardBg,
+        foregroundColor: textPrimary,
+        elevation: 0,
+        title: Text(
+          'Invitation Link Ready',
+          style: GoogleFonts.plusJakartaSans(
+            fontWeight: FontWeight.w700,
+            fontSize: 17,
+            color: textPrimary,
+          ),
+        ),
+        leading: IconButton(
+          icon: const Icon(Icons.close_rounded),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Done', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 620),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Hero Header Banner
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: cardBg,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: borderColor),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(Icons.person_outline, size: 14, color: AppColors.accent),
-                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: AppColors.success.withAlpha(25),
+                          ),
+                          child: const Icon(Icons.link_rounded, color: AppColors.success, size: 28),
+                        ),
+                        const SizedBox(width: 16),
                         Expanded(
-                          child: Text(
-                            invite.invitedEmail,
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              color: isDark ? Colors.white : AppColors.textPrimary,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Invite to "$workspaceName"',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 18,
+                                  color: textPrimary,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                'Because direct email delivery is not configured, share this universal link or the pre-formatted invitation message directly with your invitee.',
+                                style: TextStyle(fontSize: 12.5, color: textSec, height: 1.4),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+
+                  // Invitee Summary Card
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: cardBg,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: borderColor),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.person_outline, size: 16, color: AppColors.accent),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                invite.invitedEmail,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: textPrimary,
+                                ),
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: AppColors.accent.withAlpha(25),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                invite.invitedRole.label,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.accent,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Access Level: ${invite.invitedRole.description}',
+                          style: TextStyle(fontSize: 12, color: textSec),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+
+                  // Direct Link Section
+                  Container(
+                    padding: const EdgeInsets.all(18),
+                    decoration: BoxDecoration(
+                      color: cardBg,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: borderColor),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'DIRECT INVITATION LINK',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.6,
+                                color: textSec,
+                              ),
+                            ),
+                            TextButton.icon(
+                              onPressed: () {
+                                Clipboard.setData(ClipboardData(text: inviteLink));
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Invitation link copied to clipboard!')),
+                                );
+                              },
+                              icon: const Icon(Icons.copy_rounded, size: 14),
+                              label: const Text('Copy Link', style: TextStyle(fontSize: 12)),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: innerBg,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: borderColor),
+                          ),
+                          child: SelectableText(
+                            inviteLink,
+                            style: const TextStyle(
+                              fontSize: 12.5,
+                              fontFamily: 'monospace',
+                              color: AppColors.accent,
                             ),
                           ),
                         ),
-                        _buildRoleBadge(invite.invitedRole),
                       ],
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Access: ${invite.invitedRole.description}',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: isDark ? const Color(0xFF94A3B8) : AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // Direct Link Section
-              Text(
-                'Direct Invitation Link:',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: isDark ? Colors.white70 : AppColors.textSecondary,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF0F1523) : const Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: isDark ? const Color(0xFF22304A) : AppColors.border),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        inviteLink,
-                        style: const TextStyle(fontSize: 11, fontFamily: 'monospace', color: AppColors.accent),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.copy_rounded, size: 16, color: AppColors.accent),
-                      tooltip: 'Copy Link',
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                      onPressed: () {
-                        Clipboard.setData(ClipboardData(text: inviteLink));
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Invitation link copied to clipboard!')),
-                        );
-                      },
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // Pre-formatted message preview
-              Text(
-                'Pre-formatted Message Preview:',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: isDark ? Colors.white70 : AppColors.textSecondary,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF0F1523) : const Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: isDark ? const Color(0xFF22304A) : AppColors.border),
-                ),
-                child: Text(
-                  inviteMessage,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: isDark ? Colors.white70 : AppColors.textSecondary,
-                    height: 1.4,
                   ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: () {
-                    Clipboard.setData(ClipboardData(text: inviteMessage));
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Full invitation message copied to clipboard!')),
-                    );
-                  },
-                  icon: const Icon(Icons.chat_bubble_outline_rounded, size: 16),
-                  label: const Text('Copy Message (Ready to Send)'),
-                  style: OutlinedButton.styleFrom(
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  const SizedBox(height: 18),
+
+                  // Pre-formatted Message Preview
+                  Container(
+                    padding: const EdgeInsets.all(18),
+                    decoration: BoxDecoration(
+                      color: cardBg,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: borderColor),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'PRE-FORMATTED MESSAGE PREVIEW',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.6,
+                            color: textSec,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: innerBg,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: borderColor),
+                          ),
+                          child: SelectableText(
+                            inviteMessage,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isDark ? Colors.white70 : AppColors.textSecondary,
+                              height: 1.5,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: () {
+                              Clipboard.setData(ClipboardData(text: inviteMessage));
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Full invitation message copied to clipboard!')),
+                              );
+                            },
+                            icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18),
+                            label: const Text('Copy Message (Ready to Send)'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.accent,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ),
-              const SizedBox(height: 10),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(Icons.info_outline, size: 14, color: AppColors.accent),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      'When your invitee opens this link, they will be required to sign in with ${invite.invitedEmail} to claim their role.',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: isDark ? const Color(0xFF94A3B8) : AppColors.textSecondary,
-                        height: 1.3,
+                  const SizedBox(height: 18),
+
+                  // Security & Cloud Notice
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: innerBg,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: borderColor),
+                    ),
+                    child: Column(
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(Icons.cloud_done_rounded, size: 16, color: AppColors.success),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Cloud Verified: This invitation is stored in the cloud database and can be claimed worldwide from any device or browser.',
+                                style: TextStyle(fontSize: 11.5, color: textSec, height: 1.3),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(Icons.verified_user_outlined, size: 16, color: AppColors.accent),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Role Enforcement: When your invitee opens this link, they must sign in with ${invite.invitedEmail} to claim their role.',
+                                style: TextStyle(fontSize: 11.5, color: textSec, height: 1.3),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Done Button
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       ),
+                      child: const Text('Done'),
                     ),
                   ),
                 ],
               ),
-            ],
+            ),
           ),
         ),
-        actions: [
-          ElevatedButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.accent,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            child: const Text('Done'),
-          ),
-        ],
       ),
     );
   }

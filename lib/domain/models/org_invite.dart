@@ -28,6 +28,8 @@ class OrgInvite {
   final OrgRole invitedRole;
   final List<String>? brandScope;
   final String invitedByUserId;
+  final String? workspaceName;
+  final String? inviterName;
   final DateTime createdAtUtc;
   final DateTime expiresAtUtc;
   final InviteStatus status;
@@ -40,6 +42,8 @@ class OrgInvite {
     required this.invitedRole,
     this.brandScope,
     required this.invitedByUserId,
+    this.workspaceName,
+    this.inviterName,
     required this.createdAtUtc,
     required this.expiresAtUtc,
     this.status = InviteStatus.pending,
@@ -56,6 +60,8 @@ class OrgInvite {
         'invited_role': invitedRole.name,
         'brand_scope': brandScope != null ? jsonEncode(brandScope) : null,
         'invited_by_user_id': invitedByUserId,
+        if (workspaceName != null) 'workspace_name': workspaceName,
+        if (inviterName != null) 'inviter_name': inviterName,
         'created_at_utc': createdAtUtc.toIso8601String(),
         'expires_at_utc': expiresAtUtc.toIso8601String(),
         'status': status.name,
@@ -83,6 +89,8 @@ class OrgInvite {
       invitedRole: OrgRole.fromString(json['invited_role'] as String?),
       brandScope: parsedBrandScope,
       invitedByUserId: (json['invited_by_user_id'] as String?) ?? '',
+      workspaceName: json['workspace_name'] as String?,
+      inviterName: json['inviter_name'] as String?,
       createdAtUtc: DateTime.tryParse(json['created_at_utc'] as String? ?? '')?.toUtc() ??
           DateTime.now().toUtc(),
       expiresAtUtc: DateTime.tryParse(json['expires_at_utc'] as String? ?? '')?.toUtc() ??

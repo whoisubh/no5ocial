@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
+import 'package:no5ocial/core/config/env_config.dart';
 
 /// Real Threads Account Profile Metadata retrieved from official Meta Threads API v1.0
 class ThreadsProfileInfo {
@@ -32,7 +33,7 @@ class ThreadsService {
   }) {
     final baseUrl = kIsWeb
         ? Uri.base.origin
-        : 'https://no5ocial.vercel.app';
+        : EnvConfig.webBaseUrl;
     return '$baseUrl/api/auth/threads/start?brandId=${Uri.encodeComponent(brandId)}&returnUrl=${Uri.encodeComponent(returnUrl)}';
   }
 

@@ -5,6 +5,7 @@ import 'package:no5ocial/domain/enums/connection_status.dart';
 import 'package:no5ocial/domain/enums/platform_type.dart';
 import 'package:no5ocial/domain/models/social_account.dart';
 import 'package:no5ocial/presentation/state/app_state.dart';
+import 'package:no5ocial/presentation/screens/invite/invite_accept_screen.dart';
 import 'package:no5ocial/presentation/widgets/app_sheets.dart';
 import 'oauth_web_helper.dart';
 
@@ -88,13 +89,31 @@ class OAuthCallbackService {
   }
 
   void handleIncomingUri(String uriString) {
-    debugPrint('Received OAuth callback deep link: $uriString');
+    debugPrint('Received deep link callback: $uriString');
     try {
       final uri = Uri.parse(uriString);
       if (uri.scheme != 'no5ocial') return;
+
+      // Handle Workspace Invitation Deep Link: no5ocial://invite?token=...
+      if (uri.host == 'invite' || uri.path.contains('invite')) {
+        final token = uri.queryParameters['token'];
+        if (token != null && token.isNotEmpty && _appState != null) {
+          debugPrint('Routing to InviteAcceptScreen with token: $token');
+          _navigatorKey?.currentState?.push(
+            MaterialPageRoute(
+              builder: (_) => InviteAcceptScreen(
+                appState: _appState!,
+                token: token,
+              ),
+            ),
+          );
+          return;
+        }
+      }
+
       handleCallbackParams(uri.queryParameters);
     } catch (e) {
-      debugPrint('Error handling OAuth deep link callback: $e');
+      debugPrint('Error handling deep link callback: $e');
     }
   }
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:no5ocial/core/config/env_config.dart';
 import 'package:no5ocial/core/services/passkey_service.dart';
 import 'package:no5ocial/core/theme/app_colors.dart';
 import 'package:no5ocial/core/theme/app_typography.dart';
@@ -149,7 +150,7 @@ class _PasskeyManagementSheetState extends State<PasskeyManagementSheet> {
         String friendlyError = errStr.replaceAll('Exception:', '').trim();
         if (errStr.contains('RP ID cannot be validated')) {
           friendlyError =
-              'Android requires Digital Asset Links verification (assetlinks.json) at https://no5ocial.vercel.app/.well-known/assetlinks.json. Deploy the latest assetlinks.json to Vercel so Android Play Services can validate the domain.';
+              'Android requires Digital Asset Links verification (assetlinks.json) at ${EnvConfig.webBaseUrl}/.well-known/assetlinks.json. Deploy the latest assetlinks.json to Vercel so Android Play Services can validate the domain.';
         }
         setState(() {
           _isProcessing = false;

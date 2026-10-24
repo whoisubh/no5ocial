@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:passkeys/authenticator.dart';
 import 'package:passkeys/types.dart';
+import 'package:no5ocial/core/config/env_config.dart';
 import 'package:no5ocial/core/services/session_service.dart';
 import 'package:no5ocial/domain/models/passkey_credential.dart';
 
@@ -37,10 +38,8 @@ class PasskeyService {
     if (kIsWeb) {
       final host = Uri.base.host;
       if (host.isNotEmpty) return host;
-      return 'no5ocial.vercel.app';
     }
-    // On native mobile/desktop platforms, use official workspace domain
-    return 'no5ocial.vercel.app';
+    return EnvConfig.appDomain;
   }
 
   static const String relyingPartyName = 'no5ocial Workspace';

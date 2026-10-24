@@ -745,6 +745,11 @@ class AppState extends ChangeNotifier {
     final orgId = activeBrandId;
     if (orgId != null && orgMemberRepository is SqliteOrgMemberRepository) {
       await (orgMemberRepository as SqliteOrgMemberRepository).init(orgId);
+      // Catch any members who accepted invitations via Cloud Firestore!
+      final remoteMembers = await FirebaseSyncService.instance.pullWorkspaceMembers(orgId);
+      for (final rm in remoteMembers) {
+        orgMemberRepository.saveMember(rm);
+      }
       notifyListeners();
     }
   }
@@ -776,8 +781,18 @@ class AppState extends ChangeNotifier {
 
   /// Fetch an invite by its unique token
   Future<OrgInvite?> getInviteByToken(String token) async {
-    if (token.trim().isEmpty) return null;
-    return await orgMemberRepository.findInviteByToken(token.trim());
+    final cleanToken = token.trim();
+    if (cleanToken.isEmpty) return null;
+    final local = await orgMemberRepository.findInviteByToken(cleanToken);
+    if (local != null) return local;
+
+    // Fetch directly from Cloud Firestore so invitations work globally across all devices & browsers
+    final remoteInvite = await FirebaseSyncService.instance.fetchOrgInvite(cleanToken);
+    if (remoteInvite != null) {
+      orgMemberRepository.saveInvite(remoteInvite);
+      return remoteInvite;
+    }
+    return null;
   }
 
   /// Invites a new team member with an assigned role and optional brand scoping.
@@ -791,6 +806,9 @@ class AppState extends ChangeNotifier {
     final uid = localUserId ?? 'local_owner';
     if (orgId == null) return null;
 
+    final workspaceName = activeBrand?.name ?? 'Workspace';
+    final inviterName = localUserName ?? 'Workspace Lead';
+
     final invite = OrgInvite(
       id: _uuid.v4(),
       orgId: orgId,
@@ -799,12 +817,22 @@ class AppState extends ChangeNotifier {
       invitedRole: role,
       brandScope: brandScope,
       invitedByUserId: uid,
+      workspaceName: workspaceName,
+      inviterName: inviterName,
       createdAtUtc: DateTime.now().toUtc(),
       expiresAtUtc: DateTime.now().toUtc().add(const Duration(days: 7)),
       status: InviteStatus.pending,
     );
 
     orgMemberRepository.saveInvite(invite);
+
+    // Save invite to Cloud DB so anyone opening the link globally can verify and join!
+    await FirebaseSyncService.instance.pushOrgInvite(
+      invite: invite,
+      workspaceName: workspaceName,
+      inviterName: inviterName,
+    );
+
     notifyListeners();
     return invite;
   }
@@ -842,11 +870,24 @@ class AppState extends ChangeNotifier {
     orgMemberRepository.saveMember(newMember);
     orgMemberRepository.updateInviteStatus(invite.id, InviteStatus.accepted);
 
-    // If invited user does not have this brand loaded in local list yet, fetch from database
-    final existingBrand = brands.cast<Brand?>().firstWhere((b) => b?.id == invite.orgId, orElse: () => null);
+    // Record acceptance in Cloud Firestore
+    await FirebaseSyncService.instance.acceptRemoteInvite(
+      invite: invite,
+      member: newMember,
+    );
+
+    // If invited user does not have this brand loaded in local list yet, fetch from database or create from invite metadata
+    var existingBrand = brands.cast<Brand?>().firstWhere((b) => b?.id == invite.orgId, orElse: () => null);
     if (existingBrand == null) {
-      final brandFromDb = await AppDatabase.instance.getBrand(invite.orgId);
-      if (brandFromDb != null) {
+      var brandFromDb = brands.cast<Brand?>().firstWhere((b) => b?.id == invite.orgId, orElse: () => null);
+      if (brandFromDb == null && invite.workspaceName != null) {
+        brandFromDb = Brand(
+          id: invite.orgId,
+          name: invite.workspaceName!,
+          slug: invite.workspaceName!.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '-'),
+          description: 'Joined via invitation from ${invite.inviterName ?? "Workspace Lead"}',
+          createdAtUtc: DateTime.now().toUtc(),
+        );
         brandRepository.saveBrand(brandFromDb);
         await SessionService.instance.saveBrandsCache(brands);
       }
