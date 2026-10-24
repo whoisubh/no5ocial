@@ -786,43 +786,6 @@ class FirebaseSyncService extends ChangeNotifier {
     }
   }
 
-  /// Push real-time wallet balance to Cloud Firestore
-  Future<void> pushWallet(String userId, int balance) async {
-    if (userId.isEmpty || firestore == null) return;
-    try {
-      await firestore!
-          .collection('users')
-          .doc(userId)
-          .collection('wallet')
-          .doc('balance')
-          .set({
-        'balance': balance,
-        'updated_at_utc': DateTime.now().toUtc().toIso8601String(),
-      }, SetOptions(merge: true));
-    } catch (e) {
-      debugPrint('FirebaseSyncService: Error pushing wallet balance: $e');
-    }
-  }
-
-  /// Pull real-time wallet balance from Cloud Firestore
-  Future<int?> pullWallet(String userId) async {
-    if (userId.isEmpty || firestore == null) return null;
-    try {
-      final doc = await firestore!
-          .collection('users')
-          .doc(userId)
-          .collection('wallet')
-          .doc('balance')
-          .get();
-      if (doc.exists && doc.data() != null) {
-        return doc.data()!['balance'] as int?;
-      }
-    } catch (e) {
-      debugPrint('FirebaseSyncService: Error pulling wallet balance: $e');
-    }
-    return null;
-  }
-
   /// Push 2-day publishing pass status to Cloud Firestore
   Future<void> pushPublishingPass(String userId, Map<String, dynamic> passData) async {
     if (userId.isEmpty || firestore == null) return;
@@ -859,24 +822,6 @@ class FirebaseSyncService extends ChangeNotifier {
       debugPrint('FirebaseSyncService: Error pulling publishing pass: $e');
     }
     return null;
-  }
-
-  /// Push an individual coin transaction to Cloud Firestore
-  Future<void> pushCoinTransaction(String userId, Map<String, dynamic> tx) async {
-    if (userId.isEmpty || firestore == null) return;
-    try {
-      final txId = tx['id'] as String? ?? 'tx-${DateTime.now().millisecondsSinceEpoch}';
-      final mutable = Map<String, dynamic>.from(tx);
-      mutable['updated_at_utc'] = DateTime.now().toUtc().toIso8601String();
-      await firestore!
-          .collection('users')
-          .doc(userId)
-          .collection('wallet_transactions')
-          .doc(txId)
-          .set(mutable, SetOptions(merge: true));
-    } catch (e) {
-      debugPrint('FirebaseSyncService: Error pushing coin transaction: $e');
-    }
   }
 
   /// Formatted last sync time string

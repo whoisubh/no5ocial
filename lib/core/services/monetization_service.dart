@@ -472,9 +472,6 @@ class MonetizationService extends ChangeNotifier {
 
         // Immediately sync to Cloud Firestore
         unawaited(FirebaseSyncService.instance.pushPublishingPass(uid, updatedPass.toJson()));
-        if (_coinTransactions.isNotEmpty) {
-          unawaited(FirebaseSyncService.instance.pushCoinTransaction(uid, _coinTransactions.first));
-        }
         return true;
       }
       return false;
