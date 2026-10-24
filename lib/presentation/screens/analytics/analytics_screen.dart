@@ -6,6 +6,7 @@ import 'package:no5ocial/domain/enums/platform_type.dart';
 import 'package:no5ocial/domain/models/channel_growth_metric.dart';
 import 'package:no5ocial/presentation/state/app_state.dart';
 import 'package:no5ocial/presentation/widgets/platform_logo.dart';
+import 'package:no5ocial/core/utils/number_formatter.dart';
 
 class AnalyticsScreen extends StatefulWidget {
   final AppState appState;
@@ -613,13 +614,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   }
 
   String _formatNumber(int n) {
-    if (n >= 1000000) {
-      return '${(n / 1000000).toStringAsFixed(1)}M';
-    }
-    if (n >= 1000) {
-      return '${(n / 1000).toStringAsFixed(1)}K';
-    }
-    return n.toString();
+    return NumberFormatter.formatCompact(n, locale: widget.appState.currentLocale.languageCode);
   }
 }
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:no5ocial/core/services/monetization_service.dart';
 import 'package:no5ocial/core/theme/app_colors.dart';
+import 'package:no5ocial/core/utils/number_formatter.dart';
 import 'package:no5ocial/presentation/state/app_state.dart';
 
 /// Consumer Settings Section for the Ad-Supported Publishing & Coin System.
@@ -89,7 +90,7 @@ class _MonetizationSettingsViewState extends State<MonetizationSettingsView> {
                           children: [
                             const Text('🪙 ', style: TextStyle(fontSize: 13)),
                             Text(
-                              '${monetization.postCoins} Coins',
+                              '${NumberFormatter.formatInt(monetization.postCoins, locale: widget.appState.currentLocale.languageCode)} Coins',
                               style: const TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w800,

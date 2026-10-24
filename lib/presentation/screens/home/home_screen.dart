@@ -4,6 +4,7 @@ import 'package:no5ocial/core/extensions/l10n_extension.dart';
 import 'package:no5ocial/core/theme/app_colors.dart';
 import 'package:no5ocial/core/theme/app_typography.dart';
 import 'package:no5ocial/core/utils/date_formatter.dart';
+import 'package:no5ocial/core/utils/number_formatter.dart';
 import 'package:no5ocial/domain/enums/publish_status.dart';
 import 'package:no5ocial/domain/models/channel_group.dart';
 import 'package:no5ocial/domain/models/publish_job.dart';
@@ -607,12 +608,73 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
+  String _getGreetingWish(String? rawName, String langCode) {
+    final now = DateTime.now();
+    final hour = now.hour;
+    final firstName = (rawName != null && rawName.isNotEmpty && rawName != 'Local Admin')
+        ? rawName.split(' ').first
+        : null;
+
+    final hasName = firstName != null && firstName.isNotEmpty;
+
+    switch (langCode) {
+      case 'hi':
+        if (hour >= 5 && hour < 12) return hasName ? 'शुभ प्रभात, $firstName 🌅' : 'शुभ प्रभात 🌅';
+        if (hour >= 12 && hour < 17) return hasName ? 'नमस्ते, $firstName ☀️' : 'नमस्ते ☀️';
+        if (hour >= 17 && hour < 22) return hasName ? 'शुभ संध्या, $firstName 🌆' : 'शुभ संध्या 🌆';
+        return hasName ? 'शुभ रात्रि, $firstName 🌙' : 'शुभ रात्रि 🌙';
+
+      case 'es':
+        if (hour >= 5 && hour < 12) return hasName ? '¡Buenos días, $firstName! 🌅' : '¡Buenos días! 🌅';
+        if (hour >= 12 && hour < 17) return hasName ? '¡Buenas tardes, $firstName! ☀️' : '¡Buenas tardes! ☀️';
+        if (hour >= 17 && hour < 22) return hasName ? '¡Buenas noches, $firstName! 🌆' : '¡Buenas noches! 🌆';
+        return hasName ? '¡Buenas noches, $firstName! 🌙' : '¡Buenas noches! 🌙';
+
+      case 'de':
+        if (hour >= 5 && hour < 12) return hasName ? 'Guten Morgen, $firstName 🌅' : 'Guten Morgen 🌅';
+        if (hour >= 12 && hour < 17) return hasName ? 'Guten Tag, $firstName ☀️' : 'Guten Tag ☀️';
+        if (hour >= 17 && hour < 22) return hasName ? 'Guten Abend, $firstName 🌆' : 'Guten Abend 🌆';
+        return hasName ? 'Gute Nacht, $firstName 🌙' : 'Gute Nacht 🌙';
+
+      case 'ja':
+        if (hour >= 5 && hour < 12) return hasName ? 'おはようございます、$firstNameさん 🌅' : 'おはようございます 🌅';
+        if (hour >= 12 && hour < 17) return hasName ? 'こんにちは、$firstNameさん ☀️' : 'こんにちは ☀️';
+        if (hour >= 17 && hour < 22) return hasName ? 'こんばんは、$firstNameさん 🌆' : 'こんばんは 🌆';
+        return hasName ? 'おやすみなさい、$firstNameさん 🌙' : 'おやすみなさい 🌙';
+
+      case 'fr':
+        if (hour >= 5 && hour < 12) return hasName ? 'Bonjour, $firstName 🌅' : 'Bonjour 🌅';
+        if (hour >= 12 && hour < 17) return hasName ? 'Bon après-midi, $firstName ☀️' : 'Bon après-midi ☀️';
+        if (hour >= 17 && hour < 22) return hasName ? 'Bonsoir, $firstName 🌆' : 'Bonsoir 🌆';
+        return hasName ? 'Bonne nuit, $firstName 🌙' : 'Bonne nuit 🌙';
+
+      case 'ar':
+        if (hour >= 5 && hour < 12) return hasName ? 'صباح الخير، $firstName 🌅' : 'صباح الخير 🌅';
+        if (hour >= 12 && hour < 17) return hasName ? 'مساء الخير، $firstName ☀️' : 'مساء الخير ☀️';
+        if (hour >= 17 && hour < 22) return hasName ? 'مساء النور، $firstName 🌆' : 'مساء النور 🌆';
+        return hasName ? 'طابت ليلتك، $firstName 🌙' : 'طابت ليلتك 🌙';
+
+      case 'pt':
+        if (hour >= 5 && hour < 12) return hasName ? 'Bom dia, $firstName 🌅' : 'Bom dia 🌅';
+        if (hour >= 12 && hour < 17) return hasName ? 'Boa tarde, $firstName ☀️' : 'Boa tarde ☀️';
+        if (hour >= 17 && hour < 22) return hasName ? 'Boa noite, $firstName 🌆' : 'Boa noite 🌆';
+        return hasName ? 'Boa noite, $firstName 🌙' : 'Boa noite 🌙';
+
+      default: // English ('en') and other languages
+        if (hour >= 5 && hour < 12) return hasName ? 'Good morning, $firstName 🌅' : 'Good morning 🌅';
+        if (hour >= 12 && hour < 17) return hasName ? 'Good afternoon, $firstName ☀️' : 'Good afternoon ☀️';
+        if (hour >= 17 && hour < 22) return hasName ? 'Good evening, $firstName 🌆' : 'Good evening 🌆';
+        return hasName ? 'Good night, $firstName 🌙' : 'Good night 🌙';
+    }
+  }
+
   Widget _buildHeroBanner(BuildContext context, dynamic l10n) {
     final userName = appState.localUserName?.trim();
-    const title = 'Welcome to your publishing workspace';
-    final description = userName != null && userName.isNotEmpty && userName != 'Local Admin'
-        ? 'Signed in as $userName. Plan, schedule, and track posts across your connected channels.'
-        : 'Plan, schedule, and track posts across your connected channels seamlessly.';
+    final title = _getGreetingWish(userName, appState.currentLocale.languageCode);
+    final scheduledCount = appState.scheduledCount;
+    final description = scheduledCount > 0
+        ? 'You have ${NumberFormatter.formatInt(scheduledCount, locale: appState.currentLocale.languageCode)} post${scheduledCount == 1 ? "" : "s"} scheduled in your pipeline today. Track or publish across connected channels.'
+        : 'Welcome to your publishing workspace. Plan, schedule, and track posts across your connected channels seamlessly.';
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -830,7 +892,7 @@ class HomeScreen extends StatelessWidget {
                       child: Icon(icon, size: 20, color: color),
                     ),
                     Text(
-                      '$count',
+                      NumberFormatter.formatInt(count, locale: appState.currentLocale.languageCode),
                       style: TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.w800,

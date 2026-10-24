@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:no5ocial/core/theme/app_colors.dart';
 import 'package:no5ocial/core/theme/app_typography.dart';
 import 'package:no5ocial/core/utils/date_formatter.dart';
+import 'package:no5ocial/core/utils/number_formatter.dart';
 import 'package:no5ocial/domain/enums/media_type.dart';
 import 'package:no5ocial/domain/enums/platform_type.dart';
 import 'package:no5ocial/domain/models/brand.dart';
@@ -2966,7 +2967,7 @@ class _ComposerScreenState extends State<ComposerScreen>
                       children: [
                         const Text('🪙 ', style: TextStyle(fontSize: 12)),
                         Text(
-                          '$coins',
+                          NumberFormatter.formatInt(coins, locale: widget.appState.currentLocale.languageCode),
                           style: const TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w800,
