@@ -95,6 +95,8 @@ class _ComposerScreenState extends State<ComposerScreen>
   DateTime? _scheduledDateTime;
   bool _isSubmitting = false;
   String? _activePublishError;
+  bool _isWatchingAdInComposer = false;
+  bool _isActivatingPassInComposer = false;
 
   @override
   void initState() {
@@ -2739,6 +2741,9 @@ class _ComposerScreenState extends State<ComposerScreen>
                         const SizedBox(height: 16),
                       ],
 
+                      // 2-Day Publishing Pass Status & Watch Ad Action Card
+                      _buildPublishingPassCard(),
+
                       // WhatsApp-Style Destination Trigger Bar (opens destination & customizer lobby)
                       _buildWhatsAppDestinationBar(
                         brands: brands,
@@ -2844,6 +2849,288 @@ class _ComposerScreenState extends State<ComposerScreen>
           ),
         ],
       ),
+    );
+  }
+
+  // --- 2-Day Publishing Pass Status Card (Shows available posts, coins, and Watch Ad button) ---
+  Widget _buildPublishingPassCard() {
+    return ListenableBuilder(
+      listenable: MonetizationService.instance,
+      builder: (context, _) {
+        final monetization = MonetizationService.instance;
+        final pass = monetization.activePass;
+        final isPassActive = pass != null && pass.isValid;
+        final coins = monetization.postCoins;
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 14),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: isPassActive ? const Color(0xFFA7F3D0) : const Color(0xFFFDE68A),
+              width: 1.2,
+            ),
+            boxShadow: AppColors.cardShadow,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(7),
+                    decoration: BoxDecoration(
+                      color: isPassActive
+                          ? const Color(0xFFECFDF5)
+                          : const Color(0xFFFFFBEB),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      isPassActive
+                          ? Icons.confirmation_number_rounded
+                          : Icons.monetization_on_rounded,
+                      color: isPassActive
+                          ? const Color(0xFF059669)
+                          : const Color(0xFFD97706),
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              isPassActive
+                                  ? '2-Day Pass Active'
+                                  : 'Publishing Pass Required',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                                color: AppColors.ink,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: isPassActive
+                                    ? const Color(0xFFECFDF5)
+                                    : const Color(0xFFFEF3C7),
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(
+                                  color: isPassActive
+                                      ? const Color(0xFFA7F3D0)
+                                      : const Color(0xFFFDE68A),
+                                ),
+                              ),
+                              child: Text(
+                                isPassActive
+                                    ? '${pass.postsRemaining} of ${pass.maxPosts} Available'
+                                    : '10 Coins = 2 Posts',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: isPassActive
+                                      ? const Color(0xFF059669)
+                                      : const Color(0xFFB45309),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          isPassActive
+                              ? 'Valid for multi-platform publishing • Expires in ${pass.remainingTimeString}'
+                              : 'In 10 Coins you can post 2 times in 2 days across all channels.',
+                          style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Coin Badge
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFFBEB),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: const Color(0xFFFDE68A)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text('🪙 ', style: TextStyle(fontSize: 12)),
+                        Text(
+                          '$coins',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFFB45309),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+
+              if (isPassActive) ...[
+                const SizedBox(height: 10),
+                Row(
+                  children: List.generate(pass.maxPosts, (index) {
+                    final isUsed = index < pass.postsUsed;
+                    return Expanded(
+                      child: Container(
+                        margin: EdgeInsets.only(right: index == pass.maxPosts - 1 ? 0 : 8),
+                        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+                        decoration: BoxDecoration(
+                          color: isUsed ? AppColors.surfaceSecondary : const Color(0xFFECFDF5),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(
+                            color: isUsed ? AppColors.border : const Color(0xFFA7F3D0),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              isUsed ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+                              size: 14,
+                              color: isUsed ? AppColors.textSecondary : const Color(0xFF059669),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Post ${index + 1}: ${isUsed ? "Used" : "Available"}',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: isUsed ? AppColors.textSecondary : const Color(0xFF059669),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }),
+                ),
+              ] else ...[
+                const SizedBox(height: 10),
+                if (coins < 10) ...[
+                  // User has less coins -> show Watch Ad button
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'You have $coins Coins (${10 - coins} more needed). Watch short ads to earn coins.',
+                          style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton.icon(
+                        onPressed: _isWatchingAdInComposer
+                            ? null
+                            : () async {
+                                setState(() => _isWatchingAdInComposer = true);
+                                final messenger = ScaffoldMessenger.of(context);
+                                final res = await monetization.watchAdForCoins(
+                                  rewardAmount: 2,
+                                  userId: widget.appState.localUserId,
+                                );
+                                if (mounted) {
+                                  setState(() => _isWatchingAdInComposer = false);
+                                  messenger.showSnackBar(
+                                    SnackBar(
+                                      content: Text(res.message),
+                                      backgroundColor: res.success ? const Color(0xFF059669) : AppColors.error,
+                                    ),
+                                  );
+                                }
+                              },
+                        icon: _isWatchingAdInComposer
+                            ? const SizedBox(
+                                width: 14,
+                                height: 14,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              )
+                            : const Icon(Icons.play_circle_filled_rounded, size: 15),
+                        label: Text(
+                          _isWatchingAdInComposer ? 'Watching...' : 'Watch Ad (+2 Coins)',
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFD97706),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          visualDensity: VisualDensity.compact,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          elevation: 0,
+                        ),
+                      ),
+                    ],
+                  ),
+                ] else ...[
+                  // User has >= 10 coins -> show Activate Pass button
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'Ready to activate! Spend 10 Coins for 2 posts over 2 days.',
+                          style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton.icon(
+                        onPressed: _isActivatingPassInComposer
+                            ? null
+                            : () async {
+                                setState(() => _isActivatingPassInComposer = true);
+                                final messenger = ScaffoldMessenger.of(context);
+                                final res = await monetization.activateTwoDayPass(
+                                  userId: widget.appState.localUserId,
+                                );
+                                if (mounted) {
+                                  setState(() => _isActivatingPassInComposer = false);
+                                  messenger.showSnackBar(
+                                    SnackBar(
+                                      content: Text(res.message),
+                                      backgroundColor: res.success ? const Color(0xFF059669) : AppColors.error,
+                                    ),
+                                  );
+                                }
+                              },
+                        icon: _isActivatingPassInComposer
+                            ? const SizedBox(
+                                width: 14,
+                                height: 14,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              )
+                            : const Icon(Icons.bolt_rounded, size: 15),
+                        label: Text(
+                          _isActivatingPassInComposer ? 'Activating...' : 'Activate Pass (10 Coins)',
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF059669),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          visualDensity: VisualDensity.compact,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          elevation: 0,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ],
+          ),
+        );
+      },
     );
   }
 
