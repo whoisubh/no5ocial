@@ -1860,6 +1860,18 @@ class AppState extends ChangeNotifier {
     );
   }
 
+  /// Clears only temporary media assets and cached drafts on this device.
+  /// Does NOT touch auth, user profile, brands, connected channels, or wallet.
+  Future<int> clearWorkspaceCache() async {
+    final clearedCount = await AppDatabase.instance.clearTemporaryCache();
+    if (postRepository is SqlitePostRepository) {
+      await (postRepository as SqlitePostRepository).init();
+    }
+    notifyListeners();
+    return clearedCount;
+  }
+
+  /// Complete local data wipe (factory reset/delete local account data)
   Future<void> clearAllData() async {
     // 1. Wipe all SQLite tables
     await AppDatabase.instance.clearAllData();

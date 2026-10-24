@@ -262,7 +262,52 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
-  void _confirmResetData(BuildContext context) {
+  void _confirmClearCache(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.cleaning_services_outlined, color: AppColors.accent),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text('Clear Temporary App Cache'),
+            ),
+          ],
+        ),
+        content: const Text(
+          'This will free up storage by clearing local temporary media files and cached drafts. Your login session, brands, connected channels, and wallet balance will remain intact.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              final count = await appState.clearWorkspaceCache();
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('App cache cleared successfully ($count items cleaned).'),
+                    backgroundColor: AppColors.success,
+                  ),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.accent,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Clear Cache'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmDeleteLocalData(BuildContext context) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -271,12 +316,12 @@ class SettingsScreen extends StatelessWidget {
             Icon(Icons.warning_amber_rounded, color: AppColors.error),
             SizedBox(width: 8),
             Expanded(
-              child: Text('Reset Local Workspace Cache'),
+              child: Text('Reset Device & Logout'),
             ),
           ],
         ),
         content: const Text(
-          'Are you sure you want to clear your local workspace cache? Your connected channels and workspace data are securely stored and will reload upon sign-in.',
+          'This will wipe all local data and log out your account from this device. Cloud-synced data will remain preserved in your Google account.',
         ),
         actions: [
           TextButton(
@@ -295,7 +340,7 @@ class SettingsScreen extends StatelessWidget {
               backgroundColor: AppColors.error,
               foregroundColor: Colors.white,
             ),
-            child: const Text('Clear Cache'),
+            child: const Text('Logout & Wipe'),
           ),
         ],
       ),
@@ -1100,12 +1145,12 @@ class SettingsScreen extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'Local Workspace Cache',
+                      'Storage & Local Cache',
                       style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
                     ),
                     const SizedBox(height: 4),
                     const Text(
-                      'Clear temporary cached drafts and local offline data on this device.',
+                      'Clear temporary media cache to free disk space without logging out, or perform a full device reset.',
                       style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
                     ),
                     const SizedBox(height: 16),
@@ -1114,9 +1159,18 @@ class SettingsScreen extends StatelessWidget {
                       runSpacing: 10,
                       children: [
                         OutlinedButton.icon(
-                          onPressed: () => _confirmResetData(context),
-                          icon: const Icon(Icons.delete_sweep_outlined, size: 16, color: AppColors.error),
-                          label: const Text('Reset Workspace Cache', style: TextStyle(color: AppColors.error)),
+                          onPressed: () => _confirmClearCache(context),
+                          icon: const Icon(Icons.cleaning_services_outlined, size: 16, color: AppColors.accent),
+                          label: const Text('Clear App Cache', style: TextStyle(color: AppColors.accent)),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: AppColors.accent),
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          ),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: () => _confirmDeleteLocalData(context),
+                          icon: const Icon(Icons.delete_forever_outlined, size: 16, color: AppColors.error),
+                          label: const Text('Reset Device Data', style: TextStyle(color: AppColors.error)),
                           style: OutlinedButton.styleFrom(
                             side: const BorderSide(color: AppColors.errorBorder),
                             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),

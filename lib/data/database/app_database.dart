@@ -89,6 +89,17 @@ class AppDatabase {
     await db.delete('publishing_passes');
   }
 
+  /// Clears only temporary media assets and draft caches on the local device,
+  /// preserving user accounts, authentication session, linked channels, brands, and wallets.
+  Future<int> clearTemporaryCache() async {
+    final db = await database;
+    // Remove local cached media assets
+    final mediaCount = await db.delete('media_assets');
+    // Remove drafts that have not been published
+    final draftCount = await db.delete('content_posts', where: "status = 'draft'");
+    return mediaCount + draftCount;
+  }
+
   Future<void> seedDemoData() async {
     final db = await database;
     await _seedInitialData(db);
