@@ -86,6 +86,7 @@ class AppDatabase {
     await db.delete('org_invites');
     await db.delete('user_wallets');
     await db.delete('coin_transactions');
+    await db.delete('publishing_passes');
   }
 
   Future<void> seedDemoData() async {
@@ -1326,19 +1327,25 @@ class AppDatabase {
   /// Saves or reconciles a publishing pass from Firebase Cloud Firestore
   Future<void> savePublishingPass(Map<String, dynamic> passData) async {
     final db = await database;
-    final id = passData['id'] as String?;
-    if (id == null || id.isEmpty) return;
+    final pass = PublishingPass.fromJson(passData);
+    if (pass.id.isEmpty) return;
 
-    final existing = await db.query('publishing_passes', where: 'id = ?', whereArgs: [id], limit: 1);
-    final mutable = Map<String, dynamic>.from(passData);
-    if (!mutable.containsKey('updated_at_utc')) {
-      mutable['updated_at_utc'] = DateTime.now().toUtc().toIso8601String();
+    final dbMap = pass.toDbMap();
+    if (passData.containsKey('created_at_utc') && passData['created_at_utc'] != null) {
+      dbMap['created_at_utc'] = passData['created_at_utc'].toString();
+    }
+    if (passData.containsKey('updated_at_utc') && passData['updated_at_utc'] != null) {
+      dbMap['updated_at_utc'] = passData['updated_at_utc'].toString();
+    }
+    if (passData.containsKey('synced_at_utc') && passData['synced_at_utc'] != null) {
+      dbMap['synced_at_utc'] = passData['synced_at_utc'].toString();
     }
 
+    final existing = await db.query('publishing_passes', where: 'id = ?', whereArgs: [pass.id], limit: 1);
     if (existing.isEmpty) {
-      await db.insert('publishing_passes', mutable, conflictAlgorithm: ConflictAlgorithm.replace);
+      await db.insert('publishing_passes', dbMap, conflictAlgorithm: ConflictAlgorithm.replace);
     } else {
-      await db.update('publishing_passes', mutable, where: 'id = ?', whereArgs: [id]);
+      await db.update('publishing_passes', dbMap, where: 'id = ?', whereArgs: [pass.id]);
     }
   }
 

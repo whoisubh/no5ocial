@@ -354,6 +354,20 @@ class PublishingPass {
         'updated_at_utc': DateTime.now().toUtc().toIso8601String(),
       };
 
+  Map<String, dynamic> toDbMap() => {
+        'id': id,
+        'user_id': userId,
+        'cost_coins': costCoins,
+        'max_posts': maxPosts,
+        'posts_used': postsUsed,
+        'duration_days': durationDays,
+        'activated_at_utc': activatedAt.toUtc().toIso8601String(),
+        'expires_at_utc': expiresAt.toUtc().toIso8601String(),
+        'is_active': isActive ? 1 : 0,
+        'created_at_utc': activatedAt.toUtc().toIso8601String(),
+        'updated_at_utc': DateTime.now().toUtc().toIso8601String(),
+      };
+
   factory PublishingPass.fromJson(Map<String, dynamic> json) {
     final activated = DateTime.tryParse(json['activated_at_utc']?.toString() ?? json['activatedAt']?.toString() ?? '')?.toUtc() ?? DateTime.now().toUtc();
     final duration = json['duration_days'] as int? ?? json['durationDays'] as int? ?? 2;
