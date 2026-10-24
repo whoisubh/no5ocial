@@ -246,15 +246,16 @@ class _AccountsScreenState extends State<AccountsScreen> {
     SocialAccount account,
     Brand? brand,
   ) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (ctx) => Container(
         padding: const EdgeInsets.all(24),
-        decoration: const BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF161E2E) : AppColors.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -546,9 +547,10 @@ class _AccountsScreenState extends State<AccountsScreen> {
   }
 
   void _showMobileActionMenu(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppColors.surface,
+      backgroundColor: isDark ? const Color(0xFF161E2E) : AppColors.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -564,7 +566,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: AppColors.border,
+                    color: isDark ? const Color(0xFF334155) : AppColors.border,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),

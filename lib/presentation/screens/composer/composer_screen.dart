@@ -2905,14 +2905,17 @@ class _ComposerScreenState extends State<ComposerScreen>
                       children: [
                         Row(
                           children: [
-                            Text(
-                              isPassActive
-                                  ? '2-Day Pass Active'
-                                  : 'Publishing Pass Required',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                                color: AppColors.ink,
+                            Flexible(
+                              child: Text(
+                                isPassActive
+                                    ? '2-Day Pass Active'
+                                    : 'Publishing Pass Required',
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                  color: AppColors.ink,
+                                ),
                               ),
                             ),
                             const SizedBox(width: 8),

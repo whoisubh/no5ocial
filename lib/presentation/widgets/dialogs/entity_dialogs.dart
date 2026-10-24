@@ -29,6 +29,10 @@ class EntityDialogs {
         Theme.of(context).platform == TargetPlatform.android ||
         Theme.of(context).platform == TargetPlatform.iOS;
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surfaceColor = isDark ? const Color(0xFF161E2E) : AppColors.surface;
+    final handleColor = isDark ? const Color(0xFF334155) : AppColors.border;
+
     if (isMobile) {
       showModalBottomSheet(
         context: context,
@@ -40,7 +44,7 @@ class EntityDialogs {
           return Padding(
             padding: EdgeInsets.only(bottom: bottomInset),
             child: Material(
-              color: AppColors.surface,
+              color: surfaceColor,
               borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
               clipBehavior: Clip.antiAlias,
               child: ConstrainedBox(
@@ -64,7 +68,7 @@ class EntityDialogs {
                               height: 4,
                               margin: const EdgeInsets.only(bottom: 12),
                               decoration: BoxDecoration(
-                                color: AppColors.border,
+                                color: handleColor,
                                 borderRadius: BorderRadius.circular(2),
                               ),
                             ),

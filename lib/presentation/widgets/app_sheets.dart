@@ -177,15 +177,21 @@ class AppSheets {
   }) async {
     final isScheduled = scheduledDate != null;
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surfaceColor = isDark ? const Color(0xFF161E2E) : AppColors.surface;
+    final borderColor = isDark ? const Color(0xFF222E42) : AppColors.border;
+    final textPri = isDark ? Colors.white : AppColors.textPrimary;
+    final textSec = isDark ? Colors.white70 : AppColors.textSecondary;
+
     return showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (ctx) => Container(
         padding: const EdgeInsets.fromLTRB(24, 20, 24, 28),
-        decoration: const BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          border: Border(top: BorderSide(color: AppColors.border)),
+        decoration: BoxDecoration(
+          color: surfaceColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          border: Border(top: BorderSide(color: borderColor)),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -195,7 +201,7 @@ class AppSheets {
               height: 4,
               margin: const EdgeInsets.only(bottom: 20),
               decoration: BoxDecoration(
-                color: AppColors.border,
+                color: borderColor,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -211,7 +217,7 @@ class AppSheets {
             const SizedBox(height: 16),
             Text(
               isScheduled ? 'Post Queued & Scheduled!' : 'Publishing Dispatched!',
-              style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
+              style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: textPri),
             ),
             const SizedBox(height: 6),
             Text(
@@ -219,7 +225,7 @@ class AppSheets {
                   ? 'Great work! "$title" is scheduled across $destinationCount channel${destinationCount == 1 ? '' : 's'}.'
                   : 'Publication for "$title" dispatched to $destinationCount destination${destinationCount == 1 ? '' : 's'}.',
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 1.4),
+              style: TextStyle(fontSize: 13, color: textSec, height: 1.4),
             ),
             const SizedBox(height: 20),
             Row(
@@ -267,15 +273,21 @@ class AppSheets {
     required String handle,
     required String displayName,
   }) async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surfaceColor = isDark ? const Color(0xFF161E2E) : AppColors.surface;
+    final borderColor = isDark ? const Color(0xFF222E42) : AppColors.border;
+    final textPri = isDark ? Colors.white : AppColors.textPrimary;
+    final textSec = isDark ? Colors.white70 : AppColors.textSecondary;
+
     return showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (ctx) => Container(
         padding: const EdgeInsets.fromLTRB(24, 20, 24, 28),
-        decoration: const BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          border: Border(top: BorderSide(color: AppColors.border)),
+        decoration: BoxDecoration(
+          color: surfaceColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          border: Border(top: BorderSide(color: borderColor)),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -285,7 +297,7 @@ class AppSheets {
               height: 4,
               margin: const EdgeInsets.only(bottom: 20),
               decoration: BoxDecoration(
-                color: AppColors.border,
+                color: borderColor,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -301,13 +313,13 @@ class AppSheets {
             const SizedBox(height: 14),
             Text(
               '$platformName Connected!',
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: textPri),
             ),
             const SizedBox(height: 6),
             Text(
               '$displayName ($handle) is linked to your workspace. You can now target this channel in the composer.',
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 1.4),
+              style: TextStyle(fontSize: 13, color: textSec, height: 1.4),
             ),
             const SizedBox(height: 20),
             SizedBox(
@@ -337,15 +349,21 @@ class AppSheets {
     required String confirmLabel,
     bool isDestructive = false,
   }) async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surfaceColor = isDark ? const Color(0xFF161E2E) : AppColors.surface;
+    final borderColor = isDark ? const Color(0xFF222E42) : AppColors.border;
+    final textPri = isDark ? Colors.white : AppColors.textPrimary;
+    final textSec = isDark ? Colors.white70 : AppColors.textSecondary;
+
     final result = await showModalBottomSheet<bool>(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (ctx) => Container(
         padding: const EdgeInsets.fromLTRB(24, 20, 24, 28),
-        decoration: const BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          border: Border(top: BorderSide(color: AppColors.border)),
+        decoration: BoxDecoration(
+          color: surfaceColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          border: Border(top: BorderSide(color: borderColor)),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -356,7 +374,7 @@ class AppSheets {
               height: 4,
               margin: const EdgeInsets.only(bottom: 20),
               decoration: BoxDecoration(
-                color: AppColors.border,
+                color: borderColor,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -365,7 +383,9 @@ class AppSheets {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: isDestructive ? AppColors.errorBg : AppColors.surfaceSecondary,
+                    color: isDestructive
+                        ? (isDark ? const Color(0xFF451A1A) : AppColors.errorBg)
+                        : (isDark ? const Color(0xFF1E293B) : AppColors.surfaceSecondary),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
@@ -378,7 +398,7 @@ class AppSheets {
                 Expanded(
                   child: Text(
                     title,
-                    style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: textPri),
                   ),
                 ),
               ],
@@ -386,7 +406,7 @@ class AppSheets {
             const SizedBox(height: 12),
             Text(
               message,
-              style: const TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 1.4),
+              style: TextStyle(fontSize: 13, color: textSec, height: 1.4),
             ),
             const SizedBox(height: 22),
             Row(
@@ -435,6 +455,9 @@ class AppSheets {
     final isMobile = screenWidth < 860 ||
         Theme.of(context).platform == TargetPlatform.android ||
         Theme.of(context).platform == TargetPlatform.iOS;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surfaceColor = isDark ? const Color(0xFF161E2E) : AppColors.surface;
+    final borderColor = isDark ? const Color(0xFF222E42) : AppColors.border;
 
     if (isMobile) {
       return showModalBottomSheet<T>(
@@ -450,9 +473,9 @@ class AppSheets {
               constraints: BoxConstraints(
                 maxHeight: availableHeight * 0.88,
               ),
-              decoration: const BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+              decoration: BoxDecoration(
+                color: surfaceColor,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
               ),
               child: SafeArea(
                 top: false,
@@ -471,7 +494,7 @@ class AppSheets {
                               height: 4,
                               margin: const EdgeInsets.only(bottom: 12),
                               decoration: BoxDecoration(
-                                color: AppColors.border,
+                                color: borderColor,
                                 borderRadius: BorderRadius.circular(2),
                               ),
                             ),

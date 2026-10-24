@@ -304,7 +304,8 @@ class _CoinHistoryScreenState extends State<CoinHistoryScreen> {
                                         ),
                                       ),
                                       const SizedBox(height: 3),
-                                      Row(
+                                      Wrap(
+                                        crossAxisAlignment: WrapCrossAlignment.center,
                                         children: [
                                           Text(
                                             dateStr,
