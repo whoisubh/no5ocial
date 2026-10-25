@@ -42,7 +42,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Verify main console title in desktop top bar
-    expect(find.text('Shaadow Workspace'), findsOneWidget);
+    expect(find.text('Overview'), findsWidgets);
 
     // Verify operational metrics cards
     expect(find.text('Drafts'), findsOneWidget);
@@ -69,5 +69,8 @@ void main() {
     await tester.tap(find.byIcon(Icons.tune_outlined));
     await tester.pumpAndSettle();
     expect(find.byType(SettingsScreen), findsOneWidget);
+
+    // Drain background sync debounce timer
+    await tester.pump(const Duration(seconds: 5));
   });
 }

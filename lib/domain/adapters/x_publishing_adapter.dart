@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 
 import '../../core/services/media_hosting_service.dart';
@@ -201,11 +202,19 @@ class XPublishingAdapter implements PublishingAdapter {
           final uploadReq = http.MultipartRequest('POST', uploadUri);
           uploadReq.headers['Authorization'] = 'Bearer $token';
 
-          // Attach dummy test bytes or preview bytes
-          final dummyBytes = const [0, 0, 0, 0];
+          // Read actual file bytes from local storage
+          final filePath = media.localPreviewUrl;
+          if (filePath == null || filePath.isEmpty) {
+            continue; // Skip media without a valid local file path
+          }
+          final file = File(filePath);
+          if (!await file.exists()) {
+            continue; // Skip if file doesn't exist on disk
+          }
+          final fileBytes = await file.readAsBytes();
           uploadReq.files.add(http.MultipartFile.fromBytes(
             'media',
-            dummyBytes,
+            fileBytes,
             filename: media.fileName,
           ));
 

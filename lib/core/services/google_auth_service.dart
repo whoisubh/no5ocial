@@ -32,11 +32,18 @@ class GoogleAuthService {
 
   GoogleSignInAccount? get currentUser => client.currentUser;
 
-  /// Trigger the official Google Sign-In flow
+  /// Trigger the official Google Sign-In flow.
+  /// Always signs out first to force the account-picker popup — this prevents
+  /// the plugin from silently reusing a stale cached account after device wipe.
   Future<GoogleSignInAccount?> signIn() async {
     try {
+      // Force-clear any cached account so the system account picker always shows
+      try {
+        await client.signOut();
+      } catch (_) {}
+
       final account = await client.signIn().timeout(
-        const Duration(seconds: 25),
+        const Duration(seconds: 30),
         onTimeout: () {
           debugPrint('Google Sign-In timed out');
           return null;
@@ -96,13 +103,28 @@ class GoogleAuthService {
     }
   }
 
-  /// Sign out from Google Identity Services.
+  /// Sign out from Google Identity Services (app-level session only).
   Future<void> signOut() async {
     try {
-      await client.signOut().timeout(const Duration(seconds: 2), onTimeout: () => null);
+      await client.signOut().timeout(const Duration(seconds: 4), onTimeout: () => null);
     } catch (e) {
       debugPrint('Google Sign-Out error: $e');
     }
+    _googleSignIn = null;
+  }
+
+  /// Fully disconnect and revoke the OAuth token — clears native platform cache.
+  /// Must be called on device reset / "Reset Device & Logout" to ensure the
+  /// next signIn() always shows the account picker and never loops silently.
+  Future<void> disconnect() async {
+    try {
+      await client.disconnect().timeout(const Duration(seconds: 6), onTimeout: () => null);
+    } catch (e) {
+      debugPrint('Google Disconnect error (non-fatal): $e');
+    }
+    try {
+      await client.signOut().timeout(const Duration(seconds: 4), onTimeout: () => null);
+    } catch (_) {}
     _googleSignIn = null;
   }
 }

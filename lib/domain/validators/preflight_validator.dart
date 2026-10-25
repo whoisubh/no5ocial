@@ -123,6 +123,31 @@ abstract final class PreflightValidator {
       );
     }
 
+    // 5b. Title constraints (YouTube strictly enforces 100 characters)
+    if (platform == PlatformType.youtube) {
+      final title = post.title.trim();
+      if (title.isEmpty) {
+        issues.add(
+          const ValidationIssue(
+            severity: ValidationSeverity.blocker,
+            code: 'YOUTUBE_TITLE_REQUIRED',
+            message: 'YouTube requires a video title.',
+            remedy: 'Add a video title in the composer.',
+          ),
+        );
+      } else if (title.length > 100) {
+        issues.add(
+          ValidationIssue(
+            severity: ValidationSeverity.blocker,
+            code: 'YOUTUBE_TITLE_TOO_LONG',
+            message:
+                'YouTube video title exceeds 100 character limit (${title.length} / 100 characters).',
+            remedy: 'Shorten video title by ${title.length - 100} characters.',
+          ),
+        );
+      }
+    }
+
     // 6. Hashtag limits
     if (platform == PlatformType.threads && hashtagCount > 1) {
       issues.add(

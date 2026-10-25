@@ -4,7 +4,7 @@ enum PlatformType {
     displayName: 'Instagram',
     iconName: 'instagram',
     maxCaptionLength: 2200,
-    maxHashtags: 30,
+    maxHashtags: 5,
     supportsTextOnly: false,
     supportsImage: true,
     supportsVideo: true,

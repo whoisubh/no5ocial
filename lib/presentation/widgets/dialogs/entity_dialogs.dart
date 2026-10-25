@@ -16,6 +16,7 @@ import 'package:no5ocial/core/services/x_service.dart';
 import 'package:no5ocial/core/services/threads_service.dart';
 import 'package:no5ocial/core/services/firebase_sync_service.dart';
 import 'package:no5ocial/core/errors/app_error_handler.dart';
+import 'package:no5ocial/core/errors/app_error.dart';
 
 class EntityDialogs {
   /// Adaptive container: renders a native Bottom Sheet on mobile and an AlertDialog on desktop.
@@ -351,15 +352,7 @@ class EntityDialogs {
     String? preselectedBrandId,
     void Function(SocialAccount account)? onSaved,
   }) {
-    final brands = appState.brands;
-    if (brands.isEmpty) {
-      showRegisterCompanyDialog(context, appState, onSaved: (newBrand) {
-        showConnectChannelDialog(context, appState, preselectedBrandId: newBrand.id, onSaved: onSaved);
-      });
-      return;
-    }
-
-    String selectedBrandId = preselectedBrandId ?? brands.first.id;
+    final selectedBrandId = preselectedBrandId ?? appState.primaryBrandId;
     PlatformType selectedPlatform = PlatformType.youtube;
     PlatformSubtype selectedSubtype = PlatformConfigRegistry.getDefaultSubtype(selectedPlatform);
     List<String> selectedFormats = List<String>.from(selectedSubtype.defaultFormats);
@@ -384,30 +377,8 @@ class EntityDialogs {
         ],
       ),
       contentBuilder: (ctx, setDialogState, isMobile) {
-        final availableGroups = appState.groups
-            .where((g) => g.brandId == selectedBrandId)
-            .toList();
+        final availableGroups = appState.groups;
         final availableSubtypes = PlatformConfigRegistry.getSubtypes(selectedPlatform);
-
-        final companyDropdown = DropdownButtonFormField<String>(
-          initialValue: selectedBrandId,
-          decoration: const InputDecoration(
-            labelText: 'Company',
-            isDense: true,
-          ),
-          items: brands.map((b) => DropdownMenuItem(
-            value: b.id,
-            child: Text(b.name, overflow: TextOverflow.ellipsis),
-          )).toList(),
-          onChanged: (val) {
-            if (val != null) {
-              setDialogState(() {
-                selectedBrandId = val;
-                selectedGroupValue = 'standalone';
-              });
-            }
-          },
-        );
 
         final platformDropdown = DropdownButtonFormField<PlatformType>(
           initialValue: selectedPlatform,
@@ -520,8 +491,6 @@ class EntityDialogs {
           children: [
             // Responsive layout: Stack on mobile, grid row on desktop
             if (isMobile) ...[
-              companyDropdown,
-              const SizedBox(height: 10),
               platformDropdown,
               if (hasMultipleSubtypes) ...[
                 const SizedBox(height: 10),
@@ -533,9 +502,7 @@ class EntityDialogs {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Expanded(flex: 3, child: companyDropdown),
-                  const SizedBox(width: 8),
-                  Expanded(flex: 3, child: platformDropdown),
+                  Expanded(flex: 4, child: platformDropdown),
                   if (hasMultipleSubtypes) ...[
                     const SizedBox(width: 8),
                     Expanded(flex: 4, child: subtypeDropdown),
@@ -723,7 +690,7 @@ class EntityDialogs {
                     children: [
                       Icon(Icons.hub_outlined, size: 16, color: AppColors.textSecondary),
                       SizedBox(width: 8),
-                      Text('None (Standalone under Company)'),
+                      Text('None (Standalone Channel)'),
                     ],
                   ),
                 ),
@@ -743,7 +710,7 @@ class EntityDialogs {
                     children: [
                       Icon(Icons.add, size: 16, color: AppColors.accent),
                       SizedBox(width: 8),
-                      Text('+ Create New Product Group...'),
+                      Text('+ Create New Channel Group...'),
                     ],
                   ),
                 ),
@@ -815,14 +782,11 @@ class EntityDialogs {
                     ).then((ownership) {
                       if (!ownership.isAllowed) {
                         if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                'This social channel is already linked to another registered email (${ownership.conflictingEmail}). Free accounts cannot share linked channels.',
-                              ),
-                              backgroundColor: AppColors.error,
-                              duration: const Duration(seconds: 5),
-                            ),
+                          AppErrorHandler.showError(
+                            context,
+                            'This social channel is already linked to another registered email (${ownership.conflictingEmail}). Free accounts cannot share linked channels.',
+                            overrideErrorId: AppErrorCode.authPermissionDeniedId,
+                            fallbackTitle: 'Channel Already Linked',
                           );
                         }
                         return;
@@ -878,18 +842,10 @@ class EntityDialogs {
     ChannelGroup? existingGroup,
     void Function(ChannelGroup group)? onSaved,
   }) {
-    final brands = appState.brands;
-    if (brands.isEmpty) {
-      showRegisterCompanyDialog(context, appState);
-      return;
-    }
-
-    String selectedBrandId = existingGroup?.brandId ?? preselectedBrandId ?? brands.first.id;
+    final selectedBrandId = existingGroup?.brandId ?? preselectedBrandId ?? appState.primaryBrandId;
     final nameCtrl = TextEditingController(text: existingGroup?.name ?? '');
     final descCtrl = TextEditingController(text: existingGroup?.description ?? '');
     final Set<String> selectedAccountIds = Set.from(existingGroup?.accountIds ?? []);
-    // Null filter means show all workspace accounts
-    String? filterBrandId;
 
     _showAdaptiveModal(
       context,
@@ -902,12 +858,8 @@ class EntityDialogs {
       ),
       contentBuilder: (ctx, setDialogState, isMobile) {
         final allAccounts = appState.accounts;
-        final displayedAccounts = filterBrandId == null
-            ? allAccounts
-            : allAccounts.where((a) => a.brandId == filterBrandId).toList();
-
-        final allFilteredSelected = displayedAccounts.isNotEmpty &&
-            displayedAccounts.every((a) => selectedAccountIds.contains(a.id));
+        final allSelected = allAccounts.isNotEmpty &&
+            allAccounts.every((a) => selectedAccountIds.contains(a.id));
 
         return Column(
           mainAxisSize: MainAxisSize.min,
@@ -918,41 +870,6 @@ class EntityDialogs {
               style: AppTypography.bodySecondary,
             ),
             const SizedBox(height: 16),
-
-            // Owning Company / Brand
-            DropdownButtonFormField<String>(
-              initialValue: selectedBrandId,
-              decoration: const InputDecoration(
-                labelText: 'Primary Company / Workspace *',
-                prefixIcon: Icon(Icons.business_rounded, size: 18),
-              ),
-              items: brands.map((b) => DropdownMenuItem(
-                value: b.id,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(2.5),
-                      decoration: BoxDecoration(
-                        color: AppColors.accent.withAlpha(25),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: const Icon(Icons.business_rounded, size: 13, color: AppColors.accent),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(b.name, overflow: TextOverflow.ellipsis),
-                  ],
-                ),
-              )).toList(),
-              onChanged: (val) {
-                if (val != null) {
-                  setDialogState(() {
-                    selectedBrandId = val;
-                  });
-                }
-              },
-            ),
-            const SizedBox(height: 14),
 
             TextField(
               controller: nameCtrl,
@@ -983,16 +900,16 @@ class EntityDialogs {
                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.ink),
                   ),
                 ),
-                if (displayedAccounts.isNotEmpty)
+                if (allAccounts.isNotEmpty)
                   TextButton(
                     onPressed: () {
                       setDialogState(() {
-                        if (allFilteredSelected) {
-                          for (final a in displayedAccounts) {
+                        if (allSelected) {
+                          for (final a in allAccounts) {
                             selectedAccountIds.remove(a.id);
                           }
                         } else {
-                          for (final a in displayedAccounts) {
+                          for (final a in allAccounts) {
                             selectedAccountIds.add(a.id);
                           }
                         }
@@ -1003,57 +920,13 @@ class EntityDialogs {
                       visualDensity: VisualDensity.compact,
                     ),
                     child: Text(
-                      allFilteredSelected ? 'Clear Filtered' : 'Select All Filtered',
+                      allSelected ? 'Clear All' : 'Select All',
                       style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.accent),
                     ),
                   ),
               ],
             ),
             const SizedBox(height: 8),
-
-            // Quick Brand Filter Chips
-            if (brands.length > 1 && allAccounts.isNotEmpty) ...[
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    ChoiceChip(
-                      label: Text('All Channels (${allAccounts.length})'),
-                      selected: filterBrandId == null,
-                      onSelected: (val) {
-                        if (val) setDialogState(() => filterBrandId = null);
-                      },
-                      labelStyle: TextStyle(
-                        fontSize: 11,
-                        fontWeight: filterBrandId == null ? FontWeight.bold : FontWeight.normal,
-                      ),
-                      visualDensity: VisualDensity.compact,
-                    ),
-                    const SizedBox(width: 6),
-                    ...brands.map((b) {
-                      final count = allAccounts.where((a) => a.brandId == b.id).length;
-                      final isSelected = filterBrandId == b.id;
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 6),
-                        child: ChoiceChip(
-                          label: Text('${b.name} ($count)'),
-                          selected: isSelected,
-                          onSelected: (val) {
-                            setDialogState(() => filterBrandId = val ? b.id : null);
-                          },
-                          labelStyle: TextStyle(
-                            fontSize: 11,
-                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                          ),
-                          visualDensity: VisualDensity.compact,
-                        ),
-                      );
-                    }),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 8),
-            ],
 
             // Channels List
             if (allAccounts.isEmpty)
@@ -1077,31 +950,6 @@ class EntityDialogs {
                   ],
                 ),
               )
-            else if (displayedAccounts.isEmpty)
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceSecondary,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.border),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.filter_alt_off_outlined, size: 16, color: AppColors.textSecondary),
-                    const SizedBox(width: 8),
-                    const Expanded(
-                      child: Text(
-                        'No connected accounts for this specific filter.',
-                        style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () => setDialogState(() => filterBrandId = null),
-                      child: const Text('Show All', style: TextStyle(fontSize: 12)),
-                    ),
-                  ],
-                ),
-              )
             else
               Material(
                 color: AppColors.surface,
@@ -1115,12 +963,11 @@ class EntityDialogs {
                   ),
                   child: ListView.separated(
                     shrinkWrap: true,
-                    itemCount: displayedAccounts.length,
+                    itemCount: allAccounts.length,
                     separatorBuilder: (_, _) => const Divider(height: 1),
                     itemBuilder: (c, idx) {
-                      final acc = displayedAccounts[idx];
+                      final acc = allAccounts[idx];
                       final isChecked = selectedAccountIds.contains(acc.id);
-                      final accBrand = appState.getBrandById(acc.brandId);
                       final existingGroupForAcc = appState.getGroupForAccount(acc.id);
                       final isInAnotherGroup = existingGroupForAcc != null &&
                           existingGroupForAcc.id != existingGroup?.id;
@@ -1133,31 +980,11 @@ class EntityDialogs {
                           activeColor: AppColors.accent,
                           contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
                           secondary: PlatformLogo(platform: acc.platform, size: 22),
-                          title: Row(
-                            children: [
-                              Flexible(
-                                child: Text(
-                                  acc.displayName.isNotEmpty ? acc.displayName : acc.handle,
-                                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              if (accBrand != null) ...[
-                                const SizedBox(width: 6),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.accent.withAlpha(20),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Text(
-                                    accBrand.name,
-                                    style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: AppColors.accent),
-                                  ),
-                                ),
-                              ],
-                            ],
+                          title: Text(
+                            acc.displayName.isNotEmpty ? acc.displayName : acc.handle,
+                            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                           subtitle: Row(
                             children: [
@@ -1338,13 +1165,14 @@ class EntityDialogs {
                           final channel = await YouTubeService.instance.fetchMyChannel();
                           onSuccess(channel.title, channel.handle, channel.id);
                           if (authCtx.mounted) Navigator.of(authCtx).pop();
-                        } catch (e) {
+                        } catch (e, st) {
                           if (authCtx.mounted) {
-                            ScaffoldMessenger.of(authCtx).showSnackBar(
-                              SnackBar(
-                                content: Text(e.toString().replaceAll('Exception: ', '')),
-                                backgroundColor: AppColors.error,
-                              ),
+                            AppErrorHandler.showError(
+                              authCtx,
+                              e,
+                              stackTrace: st,
+                              overrideErrorId: AppErrorCode.publishTokenExpiredId,
+                              fallbackTitle: 'YouTube Sign-In Failed',
                             );
                           }
                         } finally {
@@ -1372,11 +1200,10 @@ class EntityDialogs {
                             returnUrl: '/accounts',
                           );
                           if (!launched && authCtx.mounted) {
-                            ScaffoldMessenger.of(authCtx).showSnackBar(
-                              const SnackBar(
-                                content: Text('Could not open browser for authorization.'),
-                                backgroundColor: AppColors.error,
-                              ),
+                            AppErrorHandler.showError(
+                              authCtx,
+                              'Could not open browser for authorization.',
+                              overrideErrorId: AppErrorCode.publishDispatchFailedId,
                             );
                           }
                         } catch (e, st) {
@@ -1405,18 +1232,15 @@ class EntityDialogs {
                             returnUrl: '/accounts',
                           );
                           if (!launched && authCtx.mounted) {
-                            ScaffoldMessenger.of(authCtx).showSnackBar(
-                              const SnackBar(
-                                content: Text('Could not open browser for authorization.'),
-                                backgroundColor: AppColors.error,
-                              ),
+                            AppErrorHandler.showError(
+                              authCtx,
+                              'Could not open browser for authorization.',
+                              overrideErrorId: AppErrorCode.publishDispatchFailedId,
                             );
                           } else if (authCtx.mounted) {
-                            ScaffoldMessenger.of(authCtx).showSnackBar(
-                              const SnackBar(
-                                content: Text('Opening Instagram authorization in browser...'),
-                                backgroundColor: AppColors.instagram,
-                              ),
+                            AppErrorHandler.showInfo(
+                              authCtx,
+                              'Opening Instagram authorization in browser...',
                             );
                           }
                         } catch (e, st) {
@@ -1448,18 +1272,15 @@ class EntityDialogs {
                             returnUrl: '/accounts',
                           );
                           if (!launched && authCtx.mounted) {
-                            ScaffoldMessenger.of(authCtx).showSnackBar(
-                              const SnackBar(
-                                content: Text('Could not open browser for authorization.'),
-                                backgroundColor: AppColors.error,
-                              ),
+                            AppErrorHandler.showError(
+                              authCtx,
+                              'Could not open browser for authorization.',
+                              overrideErrorId: AppErrorCode.publishDispatchFailedId,
                             );
                           } else if (authCtx.mounted) {
-                            ScaffoldMessenger.of(authCtx).showSnackBar(
-                              SnackBar(
-                                content: Text('Opening LinkedIn in browser to authorize ${isPage ? "Company Page" : "Personal Profile"}...'),
-                                backgroundColor: AppColors.linkedin,
-                              ),
+                            AppErrorHandler.showInfo(
+                              authCtx,
+                              'Opening LinkedIn in browser to authorize ${isPage ? "Company Page" : "Personal Profile"}...',
                             );
                           }
                         } catch (e, st) {

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 
 import '../enums/connection_status.dart';
@@ -215,10 +216,24 @@ class YouTubePublishingAdapter implements PublishingAdapter {
         );
       }
 
-      // Step 2: Upload Video File Stream (or test bytes)
-      final uploadBytes = (videoAsset.localPreviewUrl != null && videoAsset.localPreviewUrl!.isNotEmpty)
-          ? videoAsset.localPreviewUrl!.codeUnits
-          : const [0, 0, 0, 0];
+      // Step 2: Upload actual video file bytes
+      final filePath = videoAsset.localPreviewUrl;
+      if (filePath == null || filePath.isEmpty) {
+        return const PublishExecutionResult.failure(
+          errorCategory: ErrorCategory.validation,
+          rawErrorCode: 'MISSING_VIDEO_FILE',
+          sanitizedErrorMessage: 'Video file path is missing. Please re-attach the video.',
+        );
+      }
+      final videoFile = File(filePath);
+      if (!await videoFile.exists()) {
+        return const PublishExecutionResult.failure(
+          errorCategory: ErrorCategory.validation,
+          rawErrorCode: 'VIDEO_FILE_NOT_FOUND',
+          sanitizedErrorMessage: 'Video file not found on device. Please re-attach the video.',
+        );
+      }
+      final uploadBytes = await videoFile.readAsBytes();
       final uploadResponse = await _httpClient.put(
         Uri.parse(uploadUrl),
         headers: {'Content-Type': 'video/*'},

@@ -43,6 +43,8 @@ import 'package:no5ocial/core/config/firebase_config.dart';
 import 'package:no5ocial/core/services/firebase_sync_service.dart';
 import 'package:no5ocial/core/services/applovin_max_mediation_service.dart';
 import 'package:no5ocial/core/services/monetization_service.dart';
+import 'package:no5ocial/core/services/fcm_notification_service.dart';
+import 'package:no5ocial/core/services/connectivity_service.dart';
 
 void main() async {
   await bootstrap(flavor: AppFlavor.dev);
@@ -64,6 +66,10 @@ Future<void> bootstrap({AppFlavor flavor = AppFlavor.dev}) async {
   // Initialize Firebase Cloud services (fail-safe for offline and local-first operation)
   await FirebaseConfig.initialize();
   await FirebaseSyncService.instance.init();
+
+  // Initialize Network Connectivity and Push Notification services
+  await ConnectivityService.instance.init();
+  await FcmNotificationService.instance.init();
 
   // Initialize SQLite Database and Repositories
   try {
@@ -203,6 +209,7 @@ class _no5ocialAppState extends State<no5ocialApp> with WidgetsBindingObserver {
         final appState = widget.appState;
         return MaterialApp(
           navigatorKey: no5ocialApp.navigatorKey,
+          scaffoldMessengerKey: AppErrorHandler.scaffoldMessengerKey,
           title: 'no5ocial — Social Publishing & Scheduling Workspace',
           debugShowCheckedModeBanner: false,
           theme: AppTheme.lightTheme,

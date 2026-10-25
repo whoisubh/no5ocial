@@ -8,7 +8,6 @@ import 'package:no5ocial/core/utils/date_formatter.dart';
 import 'package:no5ocial/core/utils/number_formatter.dart';
 import 'package:no5ocial/domain/enums/media_type.dart';
 import 'package:no5ocial/domain/enums/platform_type.dart';
-import 'package:no5ocial/domain/models/brand.dart';
 import 'package:no5ocial/domain/models/channel_group.dart';
 import 'package:no5ocial/domain/models/content_post.dart';
 import 'package:no5ocial/domain/models/media_asset.dart';
@@ -25,14 +24,16 @@ import 'package:no5ocial/presentation/widgets/preflight_checklist_view.dart';
 import 'package:no5ocial/domain/enums/publish_status.dart';
 import 'package:no5ocial/presentation/widgets/status_badge.dart';
 import 'package:no5ocial/presentation/widgets/preview_card.dart';
+import 'package:no5ocial/presentation/screens/media/media_preview_screen.dart';
 import 'package:file_picker/file_picker.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:no5ocial/core/config/env_config.dart';
 import 'package:no5ocial/core/services/google_auth_service.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:no5ocial/core/services/video_thumbnail_service.dart';
 import 'package:no5ocial/core/services/monetization_service.dart';
+import 'package:no5ocial/presentation/widgets/tag_badge_input_field.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ComposerScreen extends StatefulWidget {
   final AppState appState;
@@ -99,6 +100,12 @@ class _ComposerScreenState extends State<ComposerScreen>
   bool _isWatchingAdInComposer = false;
   bool _isActivatingPassInComposer = false;
 
+  // Saved Destination Preferences
+  static const _prefKeyDefaultAccounts = 'no5ocial_pref_default_account_ids';
+  static const _prefKeyDefaultBrand = 'no5ocial_pref_default_brand_id';
+  List<String> _savedDefaultAccountIds = [];
+  String? _savedDefaultBrandId;
+
   @override
   void initState() {
     super.initState();
@@ -146,6 +153,9 @@ class _ComposerScreenState extends State<ComposerScreen>
       if (widget.initialScheduledDate != null) {
         _scheduledDateTime = widget.initialScheduledDate;
       }
+
+      // Check & apply saved default preferences if available
+      _loadSavedDestinationPreferences();
     }
 
     _ensureOverrideControllers();
@@ -156,6 +166,79 @@ class _ComposerScreenState extends State<ComposerScreen>
     // Attach listeners so shared edits mirror across platform controllers unless overridden
     _sharedCaptionController.addListener(_onSharedCaptionChanged);
     _titleController.addListener(_onSharedTitleChanged);
+  }
+
+  Future<void> _loadSavedDestinationPreferences() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedAccounts = prefs.getStringList(_prefKeyDefaultAccounts);
+      final savedBrand = prefs.getString(_prefKeyDefaultBrand);
+
+      if (!mounted) return;
+
+      setState(() {
+        _savedDefaultAccountIds = savedAccounts ?? [];
+        _savedDefaultBrandId = savedBrand;
+      });
+
+      if (widget.initialPost == null && savedAccounts != null && savedAccounts.isNotEmpty) {
+        final existingIds = widget.appState.accounts.map((a) => a.id).toSet();
+        final validIds = savedAccounts.where((id) => existingIds.contains(id)).toList();
+
+        if (validIds.isNotEmpty) {
+          setState(() {
+            if (savedBrand != null && widget.appState.brands.any((b) => b.id == savedBrand)) {
+              _selectedBrandId = savedBrand;
+            }
+            _selectedAccountIds.clear();
+            _selectedAccountIds.addAll(validIds);
+            _activePreviewAccountId = validIds.first;
+          });
+          _ensureOverrideControllers();
+        }
+      }
+    } catch (_) {
+      // Graceful fallback to default brand selection
+    }
+  }
+
+  bool get _isCurrentSelectionDefaultPreference {
+    if (_savedDefaultAccountIds.isEmpty && _selectedAccountIds.isEmpty) return false;
+    if (_savedDefaultBrandId != null && _selectedBrandId != _savedDefaultBrandId) return false;
+    if (_savedDefaultAccountIds.length != _selectedAccountIds.length) return false;
+    final savedSet = _savedDefaultAccountIds.toSet();
+    return _selectedAccountIds.length == savedSet.length && _selectedAccountIds.containsAll(savedSet);
+  }
+
+  Future<void> _saveCurrentDestinationAsDefault({BuildContext? hostContext}) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final accountList = _selectedAccountIds.toList();
+      await prefs.setStringList(_prefKeyDefaultAccounts, accountList);
+      if (_selectedBrandId != null) {
+        await prefs.setString(_prefKeyDefaultBrand, _selectedBrandId!);
+      }
+      if (mounted) {
+        setState(() {
+          _savedDefaultAccountIds = accountList;
+          _savedDefaultBrandId = _selectedBrandId;
+        });
+      }
+      final targetContext = hostContext ?? context;
+      if (targetContext.mounted) {
+        AppErrorHandler.showSuccess(
+          targetContext,
+          accountList.isEmpty
+              ? 'Default destination preferences cleared'
+              : 'Saved ${accountList.length} destination${accountList.length > 1 ? "s" : ""} as default preference',
+        );
+      }
+    } catch (e) {
+      final targetContext = hostContext ?? context;
+      if (targetContext.mounted) {
+        AppErrorHandler.showError(targetContext, 'Failed to save preference: $e');
+      }
+    }
   }
 
   void _initPlatformControllers(String title, String caption, String tags) {
@@ -412,12 +495,136 @@ class _ComposerScreenState extends State<ComposerScreen>
     }
   }
 
+  Widget _buildTitleBrandingBadge(TextEditingController controller) {
+    if (!widget.appState.titleBrandingEnabled) return const SizedBox.shrink();
+
+    final ytAccount = widget.appState.accounts
+        .where((a) => a.platform == PlatformType.youtube && _selectedAccountIds.contains(a.id))
+        .firstOrNull;
+    final brand = widget.appState.brands
+        .where((b) => b.id == _selectedBrandId)
+        .firstOrNull;
+    final suffix = widget.appState.resolveBrandingSuffix(
+      channelName: ytAccount?.displayName ?? ytAccount?.handle,
+      brandName: brand?.name,
+      platform: PlatformType.youtube,
+    );
+
+    if (suffix.isEmpty) return const SizedBox.shrink();
+
+    final baseText = controller.text.trim();
+    final combinedTitle = widget.appState.resolveBrandedTitle(
+      baseTitle: baseText,
+      channelName: ytAccount?.displayName ?? ytAccount?.handle,
+      brandName: brand?.name,
+      platform: PlatformType.youtube,
+    );
+
+    final totalLength = baseText.isEmpty ? suffix.trim().length : combinedTitle.length;
+    final isExceeded = totalLength > 100;
+    final excess = totalLength - 100;
+
+    final badgeColor = isExceeded ? AppColors.error : AppColors.accent;
+    final badgeBg = isExceeded
+        ? AppColors.error.withValues(alpha: 0.12)
+        : AppColors.accent.withValues(alpha: 0.10);
+
+    return GestureDetector(
+      onTap: isExceeded
+          ? () {
+              final allowedBase = 100 - suffix.length;
+              if (allowedBase > 0 && baseText.length > allowedBase) {
+                controller.text = baseText.substring(0, allowedBase).trim();
+                setState(() {});
+              }
+            }
+          : null,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+        decoration: BoxDecoration(
+          color: badgeBg,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: badgeColor.withValues(alpha: 0.3), width: 0.8),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isExceeded ? Icons.warning_amber_rounded : Icons.auto_awesome,
+              size: 11,
+              color: badgeColor,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              isExceeded ? 'Trim (−$excess)' : 'Branding: $suffix',
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                color: badgeColor,
+                letterSpacing: 0.1,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Compact badge displayed directly next to Description / Caption header
+  Widget _buildDescriptionSignatureBadge() {
+    if (!widget.appState.descriptionSignatureEnabled) return const SizedBox.shrink();
+    final sig = widget.appState.descriptionSignature.trim();
+    if (sig.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: AppColors.accent.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.accent.withValues(alpha: 0.25), width: 0.8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.draw_rounded, size: 11, color: AppColors.accent),
+          const SizedBox(width: 4),
+          Text(
+            'Branding: ${sig.length > 20 ? '${sig.substring(0, 20)}…' : sig}',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: AppColors.accent,
+              letterSpacing: 0.1,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   String _resolveDerivedPostTitle() {
+    final ytAccount = widget.appState.accounts
+        .where((a) => a.platform == PlatformType.youtube && _selectedAccountIds.contains(a.id))
+        .firstOrNull;
+    final brand = widget.appState.brands
+        .where((b) => b.id == _selectedBrandId)
+        .firstOrNull;
+
     if (_ytTitleController.text.trim().isNotEmpty) {
-      return _ytTitleController.text.trim();
+      return widget.appState.resolveBrandedTitle(
+        baseTitle: _ytTitleController.text.trim(),
+        channelName: ytAccount?.displayName ?? ytAccount?.handle,
+        brandName: brand?.name,
+        platform: PlatformType.youtube,
+      );
     }
     if (_titleController.text.trim().isNotEmpty) {
-      return _titleController.text.trim();
+      return widget.appState.resolveBrandedTitle(
+        baseTitle: _titleController.text.trim(),
+        channelName: ytAccount?.displayName ?? ytAccount?.handle,
+        brandName: brand?.name,
+        platform: PlatformType.youtube,
+      );
     }
     if (_campaignController.text.trim().isNotEmpty) {
       return _campaignController.text.trim();
@@ -445,11 +652,21 @@ class _ComposerScreenState extends State<ComposerScreen>
     );
 
     // Only YouTube requires an explicit external video title
-    final effectiveTitle = account.platform == PlatformType.youtube
+    final brand = widget.appState.brands.where((b) => b.id == _selectedBrandId).firstOrNull;
+    final rawTitle = account.platform == PlatformType.youtube
         ? (_ytTitleController.text.trim().isNotEmpty
             ? _ytTitleController.text.trim()
             : _titleController.text.trim())
         : _resolveDerivedPostTitle();
+
+    final effectiveTitle = account.platform == PlatformType.youtube
+        ? widget.appState.resolveBrandedTitle(
+            baseTitle: rawTitle,
+            channelName: account.displayName,
+            brandName: brand?.name,
+            platform: PlatformType.youtube,
+          )
+        : rawTitle;
 
     final post = ContentPost(
       id: widget.initialPost?.id ?? 'temp_post',
@@ -551,12 +768,12 @@ class _ComposerScreenState extends State<ComposerScreen>
     }
 
     if (_selectedBrandId == null || _selectedBrandId!.isEmpty) {
-      setState(() => _activePublishError = 'Please select a company in the destination lobby above before publishing.');
+      setState(() => _activePublishError = 'Please select a company in the destination bar above before publishing.');
       return;
     }
 
     if (_selectedAccountIds.isEmpty) {
-      setState(() => _activePublishError = 'Please select at least one destination channel in the lobby above.');
+      setState(() => _activePublishError = 'Please select at least one publishing channel above.');
       return;
     }
 
@@ -837,33 +1054,656 @@ class _ComposerScreenState extends State<ComposerScreen>
 
   Future<void> _pickScheduleTime() async {
     final now = DateTime.now();
-    final pickedDate = await showDatePicker(
+
+    // Calculate smart platform recommendations based on destination accounts
+    final selectedPlatforms = _selectedAccountIds
+        .map((id) => widget.appState.getAccountById(id)?.platform)
+        .whereType<PlatformType>()
+        .toSet();
+
+    final List<Map<String, dynamic>> recommendations = [];
+
+    DateTime slotFor(int hour, int minute) {
+      DateTime target = DateTime(now.year, now.month, now.day, hour, minute);
+      if (target.isBefore(now.add(const Duration(minutes: 15)))) {
+        target = target.add(const Duration(days: 1));
+      }
+      return target;
+    }
+
+    if (selectedPlatforms.contains(PlatformType.youtube)) {
+      recommendations.add({
+        'title': 'YouTube Prime Viewing Slot',
+        'subtitle': 'Peak evening audience activity (5:00 PM)',
+        'icon': Icons.smart_display_rounded,
+        'color': AppColors.youtube,
+        'time': slotFor(17, 0),
+      });
+    }
+
+    if (selectedPlatforms.contains(PlatformType.linkedin)) {
+      DateTime liTarget = slotFor(8, 30);
+      if (liTarget.weekday == DateTime.saturday) {
+        liTarget = liTarget.add(const Duration(days: 2));
+      } else if (liTarget.weekday == DateTime.sunday) {
+        liTarget = liTarget.add(const Duration(days: 1));
+      }
+      recommendations.add({
+        'title': 'LinkedIn Professional Window',
+        'subtitle': 'Peak morning business commute (8:30 AM)',
+        'icon': Icons.business_center_rounded,
+        'color': AppColors.linkedin,
+        'time': liTarget,
+      });
+    }
+
+    if (selectedPlatforms.contains(PlatformType.instagram)) {
+      recommendations.add({
+        'title': 'Instagram Lunch Discovery',
+        'subtitle': 'High feed scrolling activity (12:15 PM)',
+        'icon': Icons.camera_alt_rounded,
+        'color': AppColors.instagram,
+        'time': slotFor(12, 15),
+      });
+      recommendations.add({
+        'title': 'Instagram Evening Prime',
+        'subtitle': 'Peak Reels engagement window (7:30 PM)',
+        'icon': Icons.movie_filter_rounded,
+        'color': AppColors.instagram,
+        'time': slotFor(19, 30),
+      });
+    }
+
+    if (selectedPlatforms.contains(PlatformType.x)) {
+      recommendations.add({
+        'title': 'X (Twitter) Morning Conversation',
+        'subtitle': 'Morning news & discussion peak (9:00 AM)',
+        'icon': Icons.bolt_rounded,
+        'color': AppColors.x,
+        'time': slotFor(9, 0),
+      });
+    }
+
+    if (selectedPlatforms.contains(PlatformType.facebook)) {
+      recommendations.add({
+        'title': 'Facebook Afternoon Slot',
+        'subtitle': 'Steady midday feed browsing (2:00 PM)',
+        'icon': Icons.thumb_up_rounded,
+        'color': AppColors.facebook,
+        'time': slotFor(14, 0),
+      });
+    }
+
+    if (!mounted) return;
+
+    showModalBottomSheet(
       context: context,
-      initialDate: _scheduledDateTime?.toLocal() ?? now.add(const Duration(hours: 1)),
-      firstDate: now,
-      lastDate: now.add(const Duration(days: 90)),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) {
+          final currentScheduledLocal = _scheduledDateTime?.toLocal();
+
+          return Container(
+            decoration: BoxDecoration(
+              color: AppColors.surfaceOf(ctx),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+            ),
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 36,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 14),
+                      decoration: BoxDecoration(
+                        color: AppColors.borderOf(ctx),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      const Icon(Icons.schedule_rounded, color: AppColors.accent, size: 22),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Smart Publishing Schedule',
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textOf(ctx),
+                        ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(Icons.close, size: 20),
+                        onPressed: () => Navigator.of(ctx).pop(),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Timezone: ${now.timeZoneName} (Stored safely in UTC)',
+                    style: TextStyle(fontSize: 11.5, color: AppColors.textSecOf(ctx)),
+                  ),
+                  const SizedBox(height: 14),
+
+                  if (currentScheduledLocal != null) ...[
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColors.accent.withAlpha(25),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: AppColors.accent.withAlpha(70)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.event_available, color: AppColors.accent, size: 20),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Currently Scheduled For:',
+                                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.accent),
+                                ),
+                                Text(
+                                  DateFormatter.formatToLocal(_scheduledDateTime),
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.textOf(ctx),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          TextButton.icon(
+                            onPressed: () {
+                              setState(() => _scheduledDateTime = null);
+                              Navigator.of(ctx).pop();
+                            },
+                            icon: const Icon(Icons.delete_outline, size: 16, color: AppColors.error),
+                            label: const Text('Clear', style: TextStyle(color: AppColors.error, fontSize: 12)),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+
+                  if (recommendations.isNotEmpty) ...[
+                    Row(
+                      children: [
+                        const Icon(Icons.auto_awesome, color: Color(0xFFD97706), size: 16),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Recommended Peak Windows (for your channels)',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textOf(ctx),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    ...recommendations.map((rec) {
+                      final DateTime recTime = rec['time'] as DateTime;
+                      final isToday = recTime.day == now.day;
+                      final dayLabel = isToday ? 'Today' : (recTime.difference(now).inDays <= 1 ? 'Tomorrow' : '${recTime.month}/${recTime.day}');
+                      final hourStr = recTime.hour > 12 ? '${recTime.hour - 12}' : (recTime.hour == 0 ? '12' : '${recTime.hour}');
+                      final minStr = recTime.minute.toString().padLeft(2, '0');
+                      final amPm = recTime.hour >= 12 ? 'PM' : 'AM';
+                      final timeBadge = '$dayLabel $hourStr:$minStr $amPm';
+
+                      return InkWell(
+                        onTap: () {
+                          setState(() => _scheduledDateTime = recTime.toUtc());
+                          Navigator.of(ctx).pop();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Scheduled for $timeBadge (${rec['title']})'),
+                              backgroundColor: AppColors.accent,
+                            ),
+                          );
+                        },
+                        borderRadius: BorderRadius.circular(10),
+                        child: Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceSecOf(ctx),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: AppColors.borderOf(ctx)),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(rec['icon'] as IconData, size: 18, color: rec['color'] as Color),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      rec['title'] as String,
+                                      style: TextStyle(
+                                        fontSize: 12.5,
+                                        fontWeight: FontWeight.bold,
+                                        color: AppColors.textOf(ctx),
+                                      ),
+                                    ),
+                                    Text(
+                                      rec['subtitle'] as String,
+                                      style: TextStyle(fontSize: 10.5, color: AppColors.textSecOf(ctx)),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: AppColors.accent.withAlpha(20),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: AppColors.accent.withAlpha(60)),
+                                ),
+                                child: Text(
+                                  timeBadge,
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.accent,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }),
+                    const SizedBox(height: 12),
+                  ],
+
+                  Text(
+                    'Quick Slots',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textOf(ctx),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _buildQuickSlotChip(
+                        ctx: ctx,
+                        label: 'In 2 Hours',
+                        time: now.add(const Duration(hours: 2)),
+                      ),
+                      _buildQuickSlotChip(
+                        ctx: ctx,
+                        label: 'Tonight 8:00 PM',
+                        time: slotFor(20, 0),
+                      ),
+                      _buildQuickSlotChip(
+                        ctx: ctx,
+                        label: 'Tomorrow 9:00 AM',
+                        time: DateTime(now.year, now.month, now.day + 1, 9, 0),
+                      ),
+                      _buildQuickSlotChip(
+                        ctx: ctx,
+                        label: 'Tomorrow 5:00 PM',
+                        time: DateTime(now.year, now.month, now.day + 1, 17, 0),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      Navigator.of(ctx).pop();
+                      final pickedDate = await showDatePicker(
+                        context: context,
+                        initialDate: _scheduledDateTime?.toLocal() ?? now.add(const Duration(hours: 1)),
+                        firstDate: now,
+                        lastDate: now.add(const Duration(days: 90)),
+                      );
+
+                      if (pickedDate != null && mounted) {
+                        final pickedTime = await showTimePicker(
+                          context: context,
+                          initialTime: _scheduledDateTime != null
+                              ? TimeOfDay(
+                                  hour: _scheduledDateTime!.toLocal().hour,
+                                  minute: _scheduledDateTime!.toLocal().minute,
+                                )
+                              : const TimeOfDay(hour: 12, minute: 0),
+                        );
+
+                        if (pickedTime != null) {
+                          setState(() {
+                            _scheduledDateTime = DateTime(
+                              pickedDate.year,
+                              pickedDate.month,
+                              pickedDate.day,
+                              pickedTime.hour,
+                              pickedTime.minute,
+                            ).toUtc();
+                          });
+                        }
+                      }
+                    },
+                    icon: const Icon(Icons.date_range_outlined, size: 16),
+                    label: const Text('Custom Date & Time Picker...'),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      side: BorderSide(color: AppColors.borderOf(ctx)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
     );
+  }
 
-    if (pickedDate != null && mounted) {
-      final pickedTime = await showTimePicker(
-        context: context,
-        initialTime: _scheduledDateTime != null
-            ? TimeOfDay(hour: _scheduledDateTime!.toLocal().hour, minute: _scheduledDateTime!.toLocal().minute)
-            : const TimeOfDay(hour: 12, minute: 0),
-      );
+  Widget _buildQuickSlotChip({
+    required BuildContext ctx,
+    required String label,
+    required DateTime time,
+  }) {
+    return ActionChip(
+      label: Text(label),
+      avatar: const Icon(Icons.flash_on_rounded, size: 14, color: AppColors.accent),
+      labelStyle: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600),
+      backgroundColor: AppColors.surfaceSecOf(ctx),
+      side: BorderSide(color: AppColors.borderOf(ctx)),
+      onPressed: () {
+        setState(() => _scheduledDateTime = time.toUtc());
+        Navigator.of(ctx).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Scheduled for $label (${DateFormatter.formatToLocal(time.toUtc())})'),
+            backgroundColor: AppColors.accent,
+          ),
+        );
+      },
+    );
+  }
 
-      if (pickedTime != null) {
-        setState(() {
-          _scheduledDateTime = DateTime(
-            pickedDate.year,
-            pickedDate.month,
-            pickedDate.day,
-            pickedTime.hour,
-            pickedTime.minute,
-          ).toUtc();
-        });
+  // --- Hashtag Vault & Presets Sheet ---
+  void _showHashtagVaultModal() {
+    final Map<String, List<String>> presetGroups = {
+      'Tech & Innovation': ['#tech', '#innovation', '#ai', '#software', '#engineering', '#saas'],
+      'Content Creators & Reels': ['#contentcreator', '#reels', '#trending', '#viral', '#explorepage', '#shortformvideo'],
+      'Business & Growth': ['#business', '#growth', '#strategy', '#startups', '#entrepreneur', '#b2b'],
+      'Social Media & Marketing': ['#marketing', '#socialmediamarketing', '#branding', '#community', '#digitalmarketing'],
+      'Lifestyle & Productivity': ['#productivity', '#workflow', '#motivation', '#focus', '#worksmart'],
+    };
+
+    final customTagCtrl = TextEditingController();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) {
+          return Container(
+            decoration: BoxDecoration(
+              color: AppColors.surfaceOf(ctx),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+            ),
+            padding: EdgeInsets.only(
+              left: 20,
+              right: 20,
+              top: 16,
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 36,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 14),
+                      decoration: BoxDecoration(
+                        color: AppColors.borderOf(ctx),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      const Icon(Icons.tag_rounded, color: AppColors.accent, size: 22),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Hashtag Vault & Snippets',
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textOf(ctx),
+                        ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(Icons.close, size: 20),
+                        onPressed: () => Navigator.of(ctx).pop(),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '1-Tap to insert curated hashtag groups into your caption without repetitive typing.',
+                    style: TextStyle(fontSize: 12, color: AppColors.textSecOf(ctx)),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Algorithmic Limits & Efficiency Guidance (Internet-Verified Meta / X / YouTube Best Practices)
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.accent.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AppColors.accent.withValues(alpha: 0.25)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.bolt_rounded, size: 16, color: AppColors.accent),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Algorithmic Tag Limits & Best Practices',
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.textOf(ctx),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          '• Instagram: Max 5 hashtags hard cap (3–5 hyper-targeted niche tags give best search discovery)\n'
+                          '• Meta Threads: 1 topic tag natively indexed (multiple hashtags decrease reach)\n'
+                          '• LinkedIn: 3–5 targeted industry tags for optimal algorithm distribution\n'
+                          '• X (Twitter): 1–2 hashtags recommended (2+ reduces engagement by 17%)\n'
+                          '• YouTube: 8–15 focused tags (500 chars max; lead with primary keyword)',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: AppColors.textSecOf(ctx),
+                            height: 1.45,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  ...presetGroups.entries.map((entry) {
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceSecOf(ctx),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: AppColors.borderOf(ctx)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Text(
+                                entry.key,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.textOf(ctx),
+                                ),
+                              ),
+                              const Spacer(),
+                              ElevatedButton.icon(
+                                onPressed: () {
+                                  _insertHashtags(entry.value.join(' '));
+                                  Navigator.of(ctx).pop();
+                                },
+                                icon: const Icon(Icons.add, size: 14),
+                                label: const Text('Insert All'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.accent,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                  visualDensity: VisualDensity.compact,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            children: entry.value.map((tag) {
+                              return InkWell(
+                                onTap: () {
+                                  _insertHashtags(tag);
+                                  Navigator.of(ctx).pop();
+                                },
+                                borderRadius: BorderRadius.circular(4),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.surfaceOf(ctx),
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: Border.all(color: AppColors.borderOf(ctx)),
+                                  ),
+                                  child: Text(
+                                    tag,
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.accent,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+
+                  const SizedBox(height: 8),
+                  Text(
+                    'Quick Custom Hashtags (comma , or space will divide with badges)',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textOf(ctx),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: TagBadgeInputField(
+                          controller: customTagCtrl,
+                          isHashtag: true,
+                          hintText: 'Type tag and press comma or space...',
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        onPressed: () {
+                          final text = customTagCtrl.text.trim();
+                          if (text.isNotEmpty) {
+                            final tags = text
+                                .split(',')
+                                .map((t) => t.trim())
+                                .where((t) => t.isNotEmpty)
+                                .map((t) => t.startsWith('#') ? t : '#$t')
+                                .join(' ');
+                            _insertHashtags(tags);
+                            Navigator.of(ctx).pop();
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.inkOf(ctx),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        child: const Text('Insert'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  void _insertHashtags(String tags) {
+    if (_activeContentTab == 'master') {
+      final current = _sharedCaptionController.text.trim();
+      final newText = current.isEmpty ? tags : '$current\n\n$tags';
+      _sharedCaptionController.text = newText;
+      _syncCaptionToOthers(_sharedCaptionController, newText);
+    } else {
+      final ctrl = _overrideControllers[_activeContentTab];
+      if (ctrl != null) {
+        final current = ctrl.text.trim();
+        ctrl.text = current.isEmpty ? tags : '$current\n\n$tags';
       }
     }
+    setState(() {});
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Inserted tags: $tags'),
+        backgroundColor: AppColors.accent,
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   // --- WhatsApp-Style Minimal Attach Media Modal & Sub-Sheets ---
@@ -978,43 +1818,7 @@ class _ComposerScreenState extends State<ComposerScreen>
             ),
             const SizedBox(height: 12),
 
-            // Row 2: Google Photos | Stock Photos
-            Row(
-              children: [
-                Expanded(
-                  child: _buildWhatsAppMediaActionBtn(
-                    icon: Icons.photo_library_rounded,
-                    label: 'Google Photos',
-                    subtitle: 'Account Library',
-                    bgColor: const Color(0xFFFEF2F2),
-                    iconColor: const Color(0xFFDC2626),
-                    borderColor: const Color(0xFFFECACA),
-                    onTap: () {
-                      Navigator.of(ctx).pop();
-                      _showGooglePhotosSheet();
-                    },
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildWhatsAppMediaActionBtn(
-                    icon: Icons.image_search_rounded,
-                    label: 'Stock Photos',
-                    subtitle: 'Unsplash CDN',
-                    bgColor: const Color(0xFFECFDF5),
-                    iconColor: const Color(0xFF059669),
-                    borderColor: const Color(0xFFA7F3D0),
-                    onTap: () {
-                      Navigator.of(ctx).pop();
-                      _showStockPhotosSheet();
-                    },
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-
-            // Row 3: AI Image | Direct Web URL
+            // Row 2: AI Image | Direct Web URL
             Row(
               children: [
                 Expanded(
@@ -1434,719 +2238,7 @@ class _ComposerScreenState extends State<ComposerScreen>
     );
   }
 
-  // 3. Real Google Photos Dedicated Sheet
-  void _showGooglePhotosSheet() {
-    bool isLoading = true;
-    String? errorMessage;
-    String? pickerUri;
-    String? pickerSessionId;
-    List<Map<String, dynamic>> photoItems = [];
-    bool hasInitialized = false;
-
-    AppSheets.showAdaptiveFormSheet(
-      context,
-      title: const Row(
-        children: [
-          Icon(Icons.photo_library_rounded, color: Color(0xFFDC2626), size: 22),
-          SizedBox(width: 8),
-          Text('Google Photos Library'),
-        ],
-      ),
-      builder: (ctx, setSheetState) {
-        Future<void> fetchPhotos({bool forceReauth = false}) async {
-          setSheetState(() {
-            isLoading = true;
-            errorMessage = null;
-          });
-
-          try {
-            final token = await GoogleAuthService.instance.getOrRequestAccessToken(
-              additionalScopes: [
-                'https://www.googleapis.com/auth/photospicker.mediaitems.readonly',
-                'https://www.googleapis.com/auth/photoslibrary.readonly',
-              ],
-              forceRefresh: forceReauth,
-            );
-
-            if (token == null || token.isEmpty) {
-              setSheetState(() {
-                isLoading = false;
-                errorMessage = 'Google Photos authorization was not granted. Please approve access to connect your library.';
-              });
-              return;
-            }
-
-            // 1. If we already opened a picker session, check if media was selected
-            if (pickerSessionId != null) {
-              try {
-                final getPickedRes = await http.get(
-                  Uri.parse('https://photospicker.googleapis.com/v1/mediaItems?sessionId=$pickerSessionId'),
-                  headers: {'Authorization': 'Bearer $token'},
-                ).timeout(const Duration(seconds: 12));
-
-                if (getPickedRes.statusCode == 200) {
-                  final data = jsonDecode(getPickedRes.body) as Map<String, dynamic>;
-                  final List items = data['mediaItems'] as List? ?? [];
-                  if (items.isNotEmpty) {
-                    final normalized = items.map<Map<String, dynamic>>((it) {
-                      final mf = it['mediaFile'] as Map<String, dynamic>? ?? {};
-                      final isVideo = (mf['mimeType'] as String? ?? '').startsWith('video/');
-                      return {
-                        'id': it['id'] ?? DateTime.now().millisecondsSinceEpoch.toString(),
-                        'filename': mf['filename'] ?? (isVideo ? 'google_video.mp4' : 'google_photo.jpg'),
-                        'baseUrl': mf['baseUrl'] ?? '',
-                        'isVideo': isVideo,
-                      };
-                    }).where((m) => (m['baseUrl'] as String).isNotEmpty).toList();
-
-                    setSheetState(() {
-                      isLoading = false;
-                      photoItems = normalized;
-                    });
-                    return;
-                  }
-                }
-              } catch (_) {}
-            }
-
-            // 2. Attempt Google Photos Picker API Session creation
-            try {
-              final sessionRes = await http.post(
-                Uri.parse('https://photospicker.googleapis.com/v1/sessions'),
-                headers: {
-                  'Authorization': 'Bearer $token',
-                  'Content-Type': 'application/json',
-                },
-                body: jsonEncode({}),
-              ).timeout(const Duration(seconds: 12));
-
-              if (sessionRes.statusCode == 200) {
-                final sessionData = jsonDecode(sessionRes.body) as Map<String, dynamic>;
-                pickerUri = sessionData['pickerUri'] as String?;
-                pickerSessionId = sessionData['id'] as String?;
-              }
-            } catch (_) {}
-
-            // 3. Attempt direct query to Photos Library API (if enabled/authorized)
-            final url = Uri.parse('https://photoslibrary.googleapis.com/v1/mediaItems?pageSize=30');
-            final response = await http.get(
-              url,
-              headers: {'Authorization': 'Bearer $token'},
-            ).timeout(const Duration(seconds: 12));
-
-            if (response.statusCode == 200) {
-              final data = jsonDecode(response.body) as Map<String, dynamic>;
-              final List items = data['mediaItems'] as List? ?? [];
-              final normalized = items.map<Map<String, dynamic>>((it) {
-                return {
-                  'id': it['id'] ?? '',
-                  'filename': it['filename'] ?? 'photo.jpg',
-                  'baseUrl': it['baseUrl'] ?? '',
-                  'isVideo': (it['mediaMetadata']?['video'] != null),
-                };
-              }).toList();
-
-              setSheetState(() {
-                isLoading = false;
-                photoItems = normalized;
-              });
-              return;
-            }
-
-            // 4. If session created, show Picker CTA
-            if (pickerUri != null && pickerUri!.isNotEmpty) {
-              setSheetState(() {
-                isLoading = false;
-              });
-              return;
-            }
-
-            // 5. Format informative error
-            String errorDetail;
-            try {
-              final errorBody = jsonDecode(response.body);
-              errorDetail = errorBody['error']?['message'] ?? 'Status: ${response.statusCode}';
-            } catch (_) {
-              errorDetail = 'HTTP ${response.statusCode}: ${response.body}';
-            }
-
-            setSheetState(() {
-              isLoading = false;
-              errorMessage = errorDetail;
-            });
-          } catch (e) {
-            setSheetState(() {
-              isLoading = false;
-              errorMessage = 'Connection error: $e';
-            });
-          }
-        }
-
-        if (!hasInitialized) {
-          hasInitialized = true;
-          fetchPhotos();
-        }
-
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFEF2F2),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFFFECACA)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.verified_user_outlined, size: 16, color: Color(0xFFDC2626)),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Account: ${widget.appState.localUserEmail ?? "Connected Google Account"}',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF991B1B)),
-                    ),
-                  ),
-                  if (!isLoading)
-                    IconButton(
-                      icon: const Icon(Icons.refresh, size: 18, color: Color(0xFFDC2626)),
-                      tooltip: 'Refresh Photos',
-                      visualDensity: VisualDensity.compact,
-                      onPressed: () => fetchPhotos(),
-                    ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 14),
-
-            if (isLoading) ...[
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 36),
-                child: Center(
-                  child: Column(
-                    children: [
-                      CircularProgressIndicator(strokeWidth: 2.5, color: Color(0xFFDC2626)),
-                      SizedBox(height: 12),
-                      Text('Connecting to Google Photos...', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                    ],
-                  ),
-                ),
-              ),
-            ] else if (errorMessage != null) ...[
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: AppColors.warningBg,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppColors.warningBorder),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Row(
-                      children: [
-                        Icon(Icons.warning_amber_rounded, color: AppColors.warning, size: 18),
-                        SizedBox(width: 8),
-                        Text('Google Photos Access Notice', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.warning)),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      errorMessage!,
-                      style: const TextStyle(fontSize: 12, color: AppColors.textPrimary, height: 1.4),
-                    ),
-                    const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        ElevatedButton.icon(
-                          onPressed: () => fetchPhotos(forceReauth: true),
-                          icon: const Icon(Icons.lock_open_rounded, size: 16),
-                          label: const Text('Authorize & Retry'),
-                          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFDC2626), foregroundColor: Colors.white),
-                        ),
-                        OutlinedButton.icon(
-                          onPressed: () async {
-                            final uri = Uri.parse('https://console.cloud.google.com/apis/library');
-                            if (await canLaunchUrl(uri)) {
-                              await launchUrl(uri, mode: LaunchMode.externalApplication);
-                            }
-                          },
-                          icon: const Icon(Icons.open_in_browser, size: 16),
-                          label: const Text('Cloud Console'),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ] else ...[
-              if (pickerUri != null && pickerUri!.isNotEmpty) ...[
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  margin: const EdgeInsets.only(bottom: 12),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFEFF6FF),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFFBFDBFE)),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Row(
-                        children: [
-                          Icon(Icons.photo_library_outlined, color: Color(0xFF2563EB), size: 18),
-                          SizedBox(width: 8),
-                          Text('Google Photos Picker', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF1E40AF))),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      const Text(
-                        'Select photos from your Google account via Google’s secure picker, then tap "Import Selected" below.',
-                        style: TextStyle(fontSize: 12, color: Color(0xFF1E3A8A)),
-                      ),
-                      const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: ElevatedButton.icon(
-                              onPressed: () async {
-                                final uri = Uri.parse(pickerUri!);
-                                if (await canLaunchUrl(uri)) {
-                                  await launchUrl(uri, mode: LaunchMode.externalApplication);
-                                }
-                              },
-                              icon: const Icon(Icons.open_in_new, size: 16),
-                              label: const Text('Pick Photos in Google'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF2563EB),
-                                foregroundColor: Colors.white,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          OutlinedButton.icon(
-                            onPressed: () => fetchPhotos(),
-                            icon: const Icon(Icons.download_rounded, size: 16),
-                            label: const Text('Import Selected'),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-
-              if (photoItems.isEmpty) ...[
-                Container(
-                  padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 16),
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceSecondary,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: AppColors.border),
-                  ),
-                  child: const Column(
-                    children: [
-                      Icon(Icons.photo_library_outlined, size: 36, color: AppColors.textSecondary),
-                      SizedBox(height: 8),
-                      Text('No media found in Google Photos', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.ink)),
-                      SizedBox(height: 4),
-                      Text('Take or upload photos to your Google Photos account or pick them above.', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                    ],
-                  ),
-                ),
-              ] else ...[
-                Text('Google Photos (${photoItems.length}):', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-                const SizedBox(height: 8),
-                ...photoItems.map((item) {
-                  final filename = item['filename'] as String? ?? 'photo.jpg';
-                  final baseUrl = item['baseUrl'] as String? ?? '';
-                  final isVideo = (item['isVideo'] == true);
-
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceSecondary,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AppColors.border),
-                    ),
-                    child: ListTile(
-                      dense: true,
-                      leading: baseUrl.isNotEmpty
-                          ? ClipRRect(
-                              borderRadius: BorderRadius.circular(6),
-                              child: Image.network(
-                                '$baseUrl=w100-h100',
-                                width: 40,
-                                height: 40,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, _, _) => Icon(isVideo ? Icons.videocam : Icons.photo, color: const Color(0xFFDC2626)),
-                              ),
-                            )
-                          : Icon(isVideo ? Icons.videocam : Icons.photo, color: const Color(0xFFDC2626)),
-                      title: Text(filename, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold)),
-                      subtitle: Text(isVideo ? 'Video' : 'Photo'),
-                      trailing: ElevatedButton(
-                        onPressed: () {
-                          final newAsset = MediaAsset(
-                            id: 'media_photo_${item['id'] ?? DateTime.now().millisecondsSinceEpoch}',
-                            fileName: filename,
-                            mimeType: isVideo ? 'video/mp4' : 'image/jpeg',
-                            sizeBytes: 1024 * 1024 * 2,
-                            mediaType: isVideo ? MediaType.video : MediaType.image,
-                            localPreviewUrl: baseUrl,
-                            createdAtUtc: DateTime.now().toUtc(),
-                          );
-                          widget.appState.addMediaAsset(newAsset);
-                          setState(() {
-                            _selectedMediaIds.add(newAsset.id);
-                            _activePublishError = null;
-                          });
-                          Navigator.of(ctx).pop();
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFDC2626),
-                          foregroundColor: Colors.white,
-                          visualDensity: VisualDensity.compact,
-                        ),
-                        child: const Text('Attach', style: TextStyle(fontSize: 12)),
-                      ),
-                    ),
-                  );
-                }),
-              ],
-            ],
-          ],
-        );
-      },
-      actionsBuilder: (ctx) => [
-        TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Close')),
-      ],
-    );
-  }
-
-  // 4. Real Stock Photos Dedicated Sheet (Live Unsplash API Integration)
-  void _showStockPhotosSheet() {
-    final searchCtrl = TextEditingController(text: 'minimal tech');
-    final apiKeyCtrl = TextEditingController(text: EnvConfig.get('UNSPLASH_ACCESS_KEY'));
-    String selectedCategory = 'Tech';
-    bool isSearching = false;
-    bool hasInitialized = false;
-    String? searchError;
-    bool showKeyInput = false;
-    List<Map<String, String>> currentPhotos = [];
-
-    AppSheets.showAdaptiveFormSheet(
-      context,
-      title: const Row(
-        children: [
-          Icon(Icons.image_search_rounded, color: Color(0xFF059669), size: 22),
-          SizedBox(width: 8),
-          Text('Stock Imagery (Unsplash)'),
-        ],
-      ),
-      builder: (ctx, setSheetState) {
-        Future<void> executeLiveSearch(String query) async {
-          if (query.trim().isEmpty) return;
-          setSheetState(() {
-            isSearching = true;
-            searchError = null;
-          });
-
-          var unsplashKey = EnvConfig.get('UNSPLASH_ACCESS_KEY');
-          if (unsplashKey.isEmpty) {
-            await EnvConfig.init();
-            unsplashKey = EnvConfig.get('UNSPLASH_ACCESS_KEY');
-          }
-
-          if (unsplashKey.isEmpty) {
-            setSheetState(() {
-              isSearching = false;
-              showKeyInput = true;
-              searchError = 'Unsplash Access Key not detected. Enter your Unsplash Access Key below or configure UNSPLASH_ACCESS_KEY in .env.';
-            });
-            return;
-          }
-
-          try {
-            final res = await http.get(
-              Uri.parse('https://api.unsplash.com/search/photos?query=${Uri.encodeComponent(query)}&per_page=20&client_id=$unsplashKey'),
-            ).timeout(const Duration(seconds: 12));
-
-            if (res.statusCode == 200) {
-              final json = jsonDecode(res.body) as Map<String, dynamic>;
-              final results = json['results'] as List? ?? [];
-              final mapped = results.map<Map<String, String>>((r) => {
-                'title': (r['description'] ?? r['alt_description'] ?? 'Stock Photo') as String,
-                'url': (r['urls']?['regular'] ?? r['urls']?['small'] ?? '') as String,
-                'photographer': (r['user']?['name'] ?? 'Unsplash Contributor') as String,
-              }).where((m) => (m['url'] ?? '').isNotEmpty).toList();
-
-              setSheetState(() {
-                isSearching = false;
-                showKeyInput = false;
-                currentPhotos = mapped;
-              });
-            } else {
-              String errorMsg = 'HTTP ${res.statusCode}';
-              try {
-                final errorBody = jsonDecode(res.body);
-                if (errorBody['errors'] is List) {
-                  errorMsg = (errorBody['errors'] as List).join(', ');
-                }
-              } catch (_) {}
-              setSheetState(() {
-                isSearching = false;
-                showKeyInput = true;
-                searchError = 'Unsplash API error ($errorMsg)';
-              });
-            }
-          } catch (e) {
-            setSheetState(() {
-              isSearching = false;
-              searchError = 'Connection failed: $e';
-            });
-          }
-        }
-
-        if (!hasInitialized) {
-          hasInitialized = true;
-          executeLiveSearch(searchCtrl.text);
-        }
-
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Search Bar
-            TextField(
-              controller: searchCtrl,
-              decoration: InputDecoration(
-                hintText: 'Search high-res photos on Unsplash...',
-                prefixIcon: const Icon(Icons.search, size: 20, color: Color(0xFF059669)),
-                suffixIcon: IconButton(
-                  icon: const Icon(Icons.arrow_forward_rounded, color: Color(0xFF059669)),
-                  onPressed: () => executeLiveSearch(searchCtrl.text),
-                ),
-                isDense: true,
-                filled: true,
-                fillColor: AppColors.surfaceSecondary,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-              ),
-              onSubmitted: (val) => executeLiveSearch(val),
-            ),
-            const SizedBox(height: 10),
-
-            // Quick Category Chips
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: ['Tech', 'Business', 'Creative', 'Nature', 'Workspace', 'Architecture'].map((cat) {
-                  final isSelected = selectedCategory == cat;
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: ChoiceChip(
-                      label: Text(cat),
-                      selected: isSelected,
-                      selectedColor: const Color(0xFF059669),
-                      labelStyle: TextStyle(
-                        color: isSelected ? Colors.white : AppColors.ink,
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w600,
-                      ),
-                      onSelected: (val) {
-                        if (val) {
-                          setSheetState(() => selectedCategory = cat);
-                          searchCtrl.text = cat.toLowerCase();
-                          executeLiveSearch(cat.toLowerCase());
-                        }
-                      },
-                    ),
-                  );
-                }).toList(),
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            // API Key prompt if missing or failed
-            if (showKeyInput || searchError != null) ...[
-              Container(
-                margin: const EdgeInsets.only(bottom: 12),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppColors.warningBg,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppColors.warningBorder),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(Icons.vpn_key_outlined, size: 16, color: AppColors.warning),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            searchError ?? 'Configure Unsplash API Key',
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.warning),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: apiKeyCtrl,
-                            decoration: InputDecoration(
-                              hintText: 'Paste Unsplash Access Key...',
-                              isDense: true,
-                              filled: true,
-                              fillColor: Colors.white,
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        ElevatedButton(
-                          onPressed: () async {
-                            final key = apiKeyCtrl.text.trim();
-                            if (key.isNotEmpty) {
-                              await EnvConfig.set('UNSPLASH_ACCESS_KEY', key);
-                              executeLiveSearch(searchCtrl.text);
-                            }
-                          },
-                          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF059669), foregroundColor: Colors.white),
-                          child: const Text('Save & Search', style: TextStyle(fontSize: 11.5)),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-
-            if (isSearching) ...[
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 36),
-                child: Center(
-                  child: Column(
-                    children: [
-                      CircularProgressIndicator(strokeWidth: 2.5, color: Color(0xFF059669)),
-                      SizedBox(height: 12),
-                      Text('Searching Unsplash live photo library...', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                    ],
-                  ),
-                ),
-              ),
-            ] else if (currentPhotos.isEmpty && searchError == null) ...[
-              Container(
-                padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 16),
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceSecondary,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppColors.border),
-                ),
-                child: Column(
-                  children: [
-                    const Icon(Icons.image_search_outlined, size: 36, color: AppColors.textSecondary),
-                    const SizedBox(height: 8),
-                    Text('No stock photos found for "${searchCtrl.text}"', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.ink)),
-                    const SizedBox(height: 4),
-                    const Text('Try searching with different keywords like "workspace", "nature", or "tech".', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                  ],
-                ),
-              ),
-            ] else ...[
-              Text('Unsplash Results (${currentPhotos.length} photos):', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-              const SizedBox(height: 8),
-              ...currentPhotos.map((item) => Container(
-                    margin: const EdgeInsets.only(bottom: 10),
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceSecondary,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: AppColors.border),
-                    ),
-                    child: Row(
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Image.network(
-                            item['url']!,
-                            width: 64,
-                            height: 64,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, _, _) => Container(
-                              width: 64,
-                              height: 64,
-                              color: AppColors.border,
-                              child: const Icon(Icons.broken_image, size: 20),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                item['title']!,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.ink),
-                              ),
-                              const SizedBox(height: 3),
-                              Text(
-                                'Photo by ${item['photographer']} • Unsplash',
-                                style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
-                              ),
-                            ],
-                          ),
-                        ),
-                        ElevatedButton(
-                          onPressed: () {
-                            final newAsset = MediaAsset(
-                              id: 'media_stock_${DateTime.now().millisecondsSinceEpoch}',
-                              fileName: '${item['title']!.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_').toLowerCase()}.jpg',
-                              mimeType: 'image/jpeg',
-                              sizeBytes: 1024 * 1024 * 2,
-                              mediaType: MediaType.image,
-                              localPreviewUrl: item['url']!,
-                              createdAtUtc: DateTime.now().toUtc(),
-                            );
-                            widget.appState.addMediaAsset(newAsset);
-                            setState(() {
-                              _selectedMediaIds.add(newAsset.id);
-                              _activePublishError = null;
-                            });
-                            Navigator.of(ctx).pop();
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF059669),
-                            foregroundColor: Colors.white,
-                            visualDensity: VisualDensity.compact,
-                          ),
-                          child: const Text('Attach', style: TextStyle(fontSize: 12)),
-                        ),
-                      ],
-                    ),
-                  )),
-            ],
-          ],
-        );
-      },
-      actionsBuilder: (ctx) => [
-        TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Close')),
-      ],
-    );
-  }
-
-  // 5. Real AI Image Generation Dedicated Sheet (Direct OpenAI DALL-E & Gemini API)
+  // 3. Real AI Image Generation Dedicated Sheet (Direct OpenAI DALL-E & Gemini API)
   void _showAiImageSheet() {
     final promptCtrl = TextEditingController();
     final apiKeyCtrl = TextEditingController(
@@ -2616,14 +2708,6 @@ class _ComposerScreenState extends State<ComposerScreen>
           _selectedBrandId = null;
         }
 
-        final brandGroups = _selectedBrandId != null
-            ? widget.appState.getGroupsByBrand(_selectedBrandId!)
-            : <ChannelGroup>[];
-
-        final companyAccounts = _selectedBrandId != null
-            ? allAccounts.where((a) => a.brandId == _selectedBrandId).toList()
-            : allAccounts;
-
         final selectedAccounts = _selectedAccountIds
             .map((id) => widget.appState.getAccountById(id))
             .whereType<SocialAccount>()
@@ -2648,6 +2732,10 @@ class _ComposerScreenState extends State<ComposerScreen>
               style: AppTypography.titleLarge,
             ),
             actions: [
+              // 🎫 Minimal Pass Badge: Available count + pass icon (tap for info)
+              _buildMinimalPassBadge(),
+              const SizedBox(width: 8),
+
               // Active Role Badge
               Container(
                 margin: const EdgeInsets.symmetric(vertical: 12),
@@ -2736,21 +2824,16 @@ class _ComposerScreenState extends State<ComposerScreen>
                         const SizedBox(height: 14),
                       ],
 
-                      // Condition Guardrail Check (Google profile must have >=1 company & >=1 channel)
-                      if (brands.isEmpty || allAccounts.isEmpty) ...[
-                        _buildGuardrailRequirementBanner(brands, allAccounts),
+                      // Condition Guardrail Check (Workspace must have >=1 connected channel)
+                      if (allAccounts.isEmpty) ...[
+                        _buildGuardrailRequirementBanner(allAccounts),
                         const SizedBox(height: 16),
                       ],
 
-                      // 2-Day Publishing Pass Status & Watch Ad Action Card
-                      _buildPublishingPassCard(),
-
-                      // WhatsApp-Style Destination Trigger Bar (opens destination & customizer lobby)
-                      _buildWhatsAppDestinationBar(
-                        brands: brands,
-                        brandGroups: brandGroups,
+                      // Destination Trigger Bar (opens publishing destinations sheet)
+                      _buildDestinationBar(
+                        groups: widget.appState.groups,
                         allAccounts: allAccounts,
-                        companyAccounts: companyAccounts,
                       ),
                       if (_activePublishError != null) ...[
                         const SizedBox(height: 12),
@@ -2849,6 +2932,127 @@ class _ComposerScreenState extends State<ComposerScreen>
             onPressed: () => setState(() => _activePublishError = null),
           ),
         ],
+      ),
+    );
+  }
+
+  // --- Minimal Pass Badge (Shown in AppBar right before Role) ---
+  Widget _buildMinimalPassBadge() {
+    return ListenableBuilder(
+      listenable: MonetizationService.instance,
+      builder: (context, _) {
+        final monetization = MonetizationService.instance;
+        final pass = monetization.activePass;
+        final isPassActive = pass != null && pass.isValid;
+        final remaining = isPassActive ? pass.postsRemaining : 0;
+        final maxP = isPassActive ? pass.maxPosts : 2;
+
+        final badgeBg = isPassActive ? const Color(0xFFECFDF5) : const Color(0xFFFFFBEB);
+        final badgeBorder = isPassActive ? const Color(0xFFA7F3D0) : const Color(0xFFFDE68A);
+        final badgeColor = isPassActive ? const Color(0xFF059669) : const Color(0xFFD97706);
+
+        return Tooltip(
+          message: isPassActive
+              ? '2-Day Pass Active: $remaining of $maxP posts available. Tap for details.'
+              : 'Publishing Pass Required. Tap for details.',
+          child: InkWell(
+            onTap: () => _showPassInformationSheet(context),
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              margin: const EdgeInsets.symmetric(vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: badgeBg,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: badgeBorder),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    isPassActive
+                        ? Icons.confirmation_number_rounded
+                        : Icons.confirmation_number_outlined,
+                    size: 13,
+                    color: badgeColor,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    isPassActive ? '$remaining/$maxP' : 'Pass',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: badgeColor,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// Adaptive bottom sheet displaying publishing pass status, available posts, and coins
+  void _showPassInformationSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) {
+          return Container(
+            decoration: BoxDecoration(
+              color: AppColors.surfaceOf(ctx),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+            ),
+            padding: EdgeInsets.only(
+              left: 20,
+              right: 20,
+              top: 16,
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 14),
+                    decoration: BoxDecoration(
+                      color: AppColors.borderOf(ctx),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                Row(
+                  children: [
+                    const Icon(Icons.confirmation_number_rounded, color: AppColors.accent, size: 22),
+                    const SizedBox(width: 8),
+                    Text(
+                      '2-Day Publishing Pass',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textOf(ctx),
+                      ),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.close, size: 20),
+                      onPressed: () => Navigator.of(ctx).pop(),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                _buildPublishingPassCard(),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
@@ -3139,7 +3343,7 @@ class _ComposerScreenState extends State<ComposerScreen>
   }
 
   // --- Guardrail Banner ---
-  Widget _buildGuardrailRequirementBanner(List<Brand> brands, List<SocialAccount> accounts) {
+  Widget _buildGuardrailRequirementBanner(List<SocialAccount> accounts) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -3157,54 +3361,31 @@ class _ComposerScreenState extends State<ComposerScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Profile Readiness Requirement',
+                  'Channel Setup Requirement',
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.ink),
                 ),
                 const SizedBox(height: 4),
                 const Text(
-                  'Every user profile must have at least 1 registered company and 1 connected social channel before publishing or scheduling posts.',
+                  'Connect at least 1 social channel to start composing and publishing posts.',
                   style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
                 ),
                 const SizedBox(height: 12),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: [
-                    if (brands.isEmpty)
-                      ElevatedButton.icon(
-                        onPressed: () => EntityDialogs.showRegisterCompanyDialog(
-                          context,
-                          widget.appState,
-                          onSaved: (b) => setState(() => _selectedBrandId = b.id),
-                        ),
-                        icon: const Icon(Icons.add, size: 16),
-                        label: const Text('Register Company'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.ink,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                        ),
-                      ),
-                    if (accounts.isEmpty)
-                      ElevatedButton.icon(
-                        onPressed: () => EntityDialogs.showConnectChannelDialog(
-                          context,
-                          widget.appState,
-                          preselectedBrandId: _selectedBrandId,
-                          onSaved: (acc) => setState(() {
-                            _selectedAccountIds.add(acc.id);
-                            _activePreviewAccountId = acc.id;
-                          }),
-                        ),
-                        icon: const Icon(Icons.add_link, size: 16),
-                        label: const Text('Connect Channel'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.accent,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                        ),
-                      ),
-                  ],
+                ElevatedButton.icon(
+                  onPressed: () => EntityDialogs.showConnectChannelDialog(
+                    context,
+                    widget.appState,
+                    onSaved: (acc) => setState(() {
+                      _selectedAccountIds.add(acc.id);
+                      _activePreviewAccountId = acc.id;
+                    }),
+                  ),
+                  icon: const Icon(Icons.add_link, size: 16),
+                  label: const Text('Connect Channel'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.accent,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  ),
                 ),
               ],
             ),
@@ -3280,19 +3461,16 @@ class _ComposerScreenState extends State<ComposerScreen>
     );
   }
 
-  // --- WhatsApp Style Destination Bar ---
-  Widget _buildWhatsAppDestinationBar({
-    required List<Brand> brands,
-    required List<ChannelGroup> brandGroups,
+  // --- Modern Destination Bar (Redesigned with no5ocial aesthetic & preference indicator) ---
+  Widget _buildDestinationBar({
+    required List<ChannelGroup> groups,
     required List<SocialAccount> allAccounts,
-    required List<SocialAccount> companyAccounts,
   }) {
     final totalSelected = _selectedAccountIds.length;
-    final selectedAccounts = companyAccounts.where((a) => _selectedAccountIds.contains(a.id)).toList();
-    final selectedBrand = brands.where((b) => b.id == _selectedBrandId).firstOrNull ?? brands.firstOrNull;
+    final selectedAccounts = allAccounts.where((a) => _selectedAccountIds.contains(a.id)).toList();
 
     ChannelGroup? matchedGroup;
-    for (final g in brandGroups) {
+    for (final g in groups) {
       if (g.accountIds.isNotEmpty &&
           g.accountIds.length == totalSelected &&
           g.accountIds.every((id) => _selectedAccountIds.contains(id))) {
@@ -3301,12 +3479,16 @@ class _ComposerScreenState extends State<ComposerScreen>
       }
     }
 
+    final isDefault = _isCurrentSelectionDefaultPreference;
+
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: totalSelected > 0 ? const Color(0xFF25D366).withAlpha(120) : AppColors.border,
+          color: totalSelected > 0
+              ? const Color(0xFF6366F1).withAlpha(80)
+              : AppColors.border,
           width: totalSelected > 0 ? 1.5 : 1,
         ),
         boxShadow: AppColors.cardShadow,
@@ -3315,23 +3497,23 @@ class _ComposerScreenState extends State<ComposerScreen>
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
-          onTap: () => _showWhatsAppDestinationLobby(
-            brands: brands,
-            brandGroups: brandGroups,
+          onTap: () => _showDestinationsSheet(
+            groups: groups,
             allAccounts: allAccounts,
           ),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             child: Row(
               children: [
-                // Avatar Cluster or WhatsApp Lobby Icon
+                // Avatar Cluster with platform logos
                 _buildAvatarCluster(selectedAccounts),
-                const SizedBox(width: 14),
+                const SizedBox(width: 12),
 
                 // Destination Summary
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Row(
                         children: [
@@ -3339,11 +3521,11 @@ class _ComposerScreenState extends State<ComposerScreen>
                             child: Text(
                               totalSelected == 0
                                   ? 'No destinations selected'
-                                  : '$totalSelected Target Channel${totalSelected > 1 ? 's' : ''}',
+                                  : '$totalSelected Destination${totalSelected > 1 ? 's' : ''}',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
-                                fontWeight: FontWeight.bold,
+                                fontWeight: FontWeight.w700,
                                 fontSize: 14,
                                 color: totalSelected == 0 ? AppColors.textSecondary : AppColors.ink,
                               ),
@@ -3351,17 +3533,41 @@ class _ComposerScreenState extends State<ComposerScreen>
                           ),
                           if (totalSelected > 0) ...[
                             const SizedBox(width: 6),
-                            Flexible(
-                              child: Container(
+                            if (isDefault)
+                              Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF25D366).withAlpha(30),
-                                  borderRadius: BorderRadius.circular(10),
+                                  color: const Color(0xFFFEF3C7),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: const Color(0xFFFDE68A)),
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.star_rounded, size: 11, color: Color(0xFFD97706)),
+                                    SizedBox(width: 2),
+                                    Text(
+                                      'Default',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFFB45309),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            else
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF6366F1).withAlpha(25),
+                                  borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: Text(
                                   matchedGroup != null
                                       ? matchedGroup.name
-                                      : (selectedAccounts.length == companyAccounts.length && companyAccounts.isNotEmpty
+                                      : (selectedAccounts.length == allAccounts.length && allAccounts.isNotEmpty
                                           ? 'All Channels'
                                           : 'Custom Target'),
                                   maxLines: 1,
@@ -3369,23 +3575,22 @@ class _ComposerScreenState extends State<ComposerScreen>
                                   style: const TextStyle(
                                     fontSize: 10,
                                     fontWeight: FontWeight.bold,
-                                    color: Color(0xFF075E54),
+                                    color: Color(0xFF6366F1),
                                   ),
                                 ),
                               ),
-                            ),
                           ],
                         ],
                       ),
                       const SizedBox(height: 3),
                       Text(
                         totalSelected == 0
-                            ? 'Tap to open WhatsApp destination lobby & customize targets'
-                            : '${selectedBrand?.name ?? 'Company'} • ${selectedAccounts.map((a) => a.displayName).join(', ')}',
+                            ? 'Tap to select publishing channels'
+                            : selectedAccounts.map((a) => a.displayName.isNotEmpty ? a.displayName : a.handle).join(', '),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          fontSize: 12,
+                          fontSize: 11.5,
                           color: AppColors.textSecondary,
                         ),
                       ),
@@ -3397,13 +3602,17 @@ class _ComposerScreenState extends State<ComposerScreen>
 
                 // Manage Destinations Pill / Trigger Button
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                  padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF075E54),
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF1E293B), Color(0xFF0F172A)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
                     borderRadius: BorderRadius.circular(20),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF075E54).withAlpha(40),
+                        color: const Color(0xFF0F172A).withAlpha(50),
                         blurRadius: 6,
                         offset: const Offset(0, 2),
                       ),
@@ -3412,18 +3621,18 @@ class _ComposerScreenState extends State<ComposerScreen>
                   child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.hub_outlined, size: 14, color: Colors.white),
-                      SizedBox(width: 6),
+                      Icon(Icons.tune_rounded, size: 13, color: Colors.white),
+                      SizedBox(width: 5),
                       Text(
-                        'Lobby',
+                        'Channels',
                         style: TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
                           fontSize: 12,
                         ),
                       ),
-                      SizedBox(width: 4),
-                      Icon(Icons.arrow_forward_ios_rounded, size: 10, color: Colors.white70),
+                      SizedBox(width: 3),
+                      Icon(Icons.arrow_forward_ios_rounded, size: 9, color: Colors.white70),
                     ],
                   ),
                 ),
@@ -3438,14 +3647,14 @@ class _ComposerScreenState extends State<ComposerScreen>
   Widget _buildAvatarCluster(List<SocialAccount> selectedAccounts) {
     if (selectedAccounts.isEmpty) {
       return Container(
-        width: 44,
-        height: 44,
+        width: 42,
+        height: 42,
         decoration: BoxDecoration(
-          color: const Color(0xFF075E54).withAlpha(20),
+          color: AppColors.surfaceSecondary,
           shape: BoxShape.circle,
-          border: Border.all(color: const Color(0xFF075E54).withAlpha(60)),
+          border: Border.all(color: AppColors.border),
         ),
-        child: const Icon(Icons.hub_outlined, color: Color(0xFF075E54), size: 22),
+        child: const Icon(Icons.share_outlined, color: AppColors.textSecondary, size: 20),
       );
     }
 
@@ -3454,22 +3663,23 @@ class _ComposerScreenState extends State<ComposerScreen>
     final remaining = selectedAccounts.length - maxToShow;
 
     return SizedBox(
-      width: 40.0 + (displayAccounts.length - 1) * 16.0 + (remaining > 0 ? 20.0 : 0.0),
-      height: 40,
+      width: 36.0 + (displayAccounts.length - 1) * 16.0 + (remaining > 0 ? 18.0 : 0.0),
+      height: 38,
       child: Stack(
+        alignment: Alignment.centerLeft,
         children: [
           for (int i = 0; i < displayAccounts.length; i++)
             Positioned(
               left: i * 16.0,
               child: Container(
-                width: 36,
-                height: 36,
+                width: 34,
+                height: 34,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: AppColors.surface,
                   border: Border.all(color: Colors.white, width: 2),
                   boxShadow: [
-                    BoxShadow(color: Colors.black.withAlpha(25), blurRadius: 4, offset: const Offset(0, 1)),
+                    BoxShadow(color: Colors.black.withAlpha(30), blurRadius: 4, offset: const Offset(0, 1)),
                   ],
                 ),
                 child: Center(
@@ -3481,17 +3691,17 @@ class _ComposerScreenState extends State<ComposerScreen>
             Positioned(
               left: displayAccounts.length * 16.0,
               child: Container(
-                width: 36,
-                height: 36,
+                width: 34,
+                height: 34,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: const Color(0xFF075E54),
+                  color: const Color(0xFF1E293B),
                   border: Border.all(color: Colors.white, width: 2),
                 ),
                 child: Center(
                   child: Text(
                     '+$remaining',
-                    style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Colors.white),
+                    style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white),
                   ),
                 ),
               ),
@@ -3501,466 +3711,529 @@ class _ComposerScreenState extends State<ComposerScreen>
     );
   }
 
-  // --- WhatsApp-Style Destination Lobby Sheet ---
-  void _showWhatsAppDestinationLobby({
-    required List<Brand> brands,
-    required List<ChannelGroup> brandGroups,
+  // --- Publishing Destinations Sheet (Redesigned with no5ocial aesthetic & Save Preference) ---
+  void _showDestinationsSheet({
+    required List<ChannelGroup> groups,
     required List<SocialAccount> allAccounts,
   }) {
     String searchQuery = '';
-    String? filterBrandId = _selectedBrandId ?? (brands.isNotEmpty ? brands.first.id : null);
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setLobbyState) {
+        builder: (ctx, setSheetState) {
           final scopedAccounts = allAccounts.where((a) {
-            final matchesBrand = filterBrandId == null || a.brandId == filterBrandId;
             final matchesQuery = searchQuery.isEmpty ||
                 a.displayName.toLowerCase().contains(searchQuery.toLowerCase()) ||
                 a.handle.toLowerCase().contains(searchQuery.toLowerCase()) ||
                 a.platform.displayName.toLowerCase().contains(searchQuery.toLowerCase());
-            return matchesBrand && matchesQuery;
+            return matchesQuery;
           }).toList();
 
-          final currentCompanyAccounts = allAccounts.where((a) => a.brandId == filterBrandId).toList();
-          final allCompanySelected = currentCompanyAccounts.isNotEmpty &&
-              currentCompanyAccounts.every((a) => _selectedAccountIds.contains(a.id));
+          final allAccountsSelected = allAccounts.isNotEmpty &&
+              allAccounts.every((a) => _selectedAccountIds.contains(a.id));
 
-          return Container(
-            height: MediaQuery.of(context).size.height * 0.88,
-            decoration: const BoxDecoration(
-              color: AppColors.background,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // 1. WhatsApp Themed Header Bar (#075E54)
-                Container(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF075E54),
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
-                  ),
-                  child: SafeArea(
-                    bottom: false,
-                    child: Row(
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.arrow_back, color: Colors.white),
-                          onPressed: () => Navigator.of(ctx).pop(),
-                        ),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+          return Material(
+            color: AppColors.background,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            clipBehavior: Clip.antiAlias,
+            child: SizedBox(
+              height: MediaQuery.of(context).size.height * 0.88,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // 1. Sleek Modern Header Bar
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Color(0xFF0F172A), Color(0xFF1E293B)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                    ),
+                    child: SafeArea(
+                      bottom: false,
+                      child: Column(
+                        children: [
+                          // Drag Indicator
+                          Container(
+                            width: 38,
+                            height: 4,
+                            margin: const EdgeInsets.only(bottom: 12),
+                            decoration: BoxDecoration(
+                              color: Colors.white30,
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                          Row(
                             children: [
-                              const Text(
-                                'Select Target Channels',
-                                style: TextStyle(
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                ),
+                              IconButton(
+                                icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 18),
+                                visualDensity: VisualDensity.compact,
+                                onPressed: () => Navigator.of(ctx).pop(),
                               ),
-                              Text(
-                                '${_selectedAccountIds.length} of ${allAccounts.length} channels selected',
-                                style: const TextStyle(fontSize: 12, color: Colors.white70),
-                              ),
-                            ],
-                          ),
-                        ),
-                        // Platform Specs & Limit Guide Icon
-                        IconButton(
-                          icon: const Icon(Icons.info_outline, color: Colors.white70, size: 20),
-                          tooltip: 'Platform Specs & Publishing Limits',
-                          onPressed: _showAllPlatformSpecsDialog,
-                        ),
-                        // Select All / Deselect All for current company
-                        TextButton(
-                          onPressed: () {
-                            setLobbyState(() {
-                              if (allCompanySelected) {
-                                _clearSelection();
-                              } else {
-                                _selectAllCompanyChannels(currentCompanyAccounts);
-                              }
-                            });
-                          },
-                          child: Text(
-                            allCompanySelected ? 'Deselect All' : 'Select All',
-                            style: const TextStyle(color: Color(0xFF25D366), fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-                // 2. WhatsApp Search Bar
-                Container(
-                  color: const Color(0xFF075E54),
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                  child: Container(
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 14),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.search, size: 20, color: AppColors.textSecondary),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: TextField(
-                            onChanged: (val) => setLobbyState(() => searchQuery = val.trim()),
-                            decoration: const InputDecoration(
-                              hintText: 'Search channel or platform...',
-                              hintStyle: TextStyle(fontSize: 13, color: AppColors.textSecondary),
-                              border: InputBorder.none,
-                              isDense: true,
-                              contentPadding: EdgeInsets.zero,
-                            ),
-                          ),
-                        ),
-                        if (searchQuery.isNotEmpty)
-                          GestureDetector(
-                            onTap: () => setLobbyState(() => searchQuery = ''),
-                            child: const Icon(Icons.clear, size: 18, color: AppColors.textSecondary),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-
-                // 3. Tier 1: Companies / Brands Pills Bar (WhatsApp Community Style)
-                Container(
-                  color: AppColors.surface,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        const Icon(Icons.business_rounded, size: 14, color: AppColors.accent),
-                        const SizedBox(width: 6),
-                        ...brands.map((b) {
-                          final isSelectedBrand = filterBrandId == b.id;
-                          final brandAccounts = allAccounts.where((a) => a.brandId == b.id).length;
-                          return Padding(
-                            padding: const EdgeInsets.only(right: 6),
-                            child: ChoiceChip(
-                              selected: isSelectedBrand,
-                              label: Text('${b.name} ($brandAccounts)'),
-                              selectedColor: const Color(0xFF075E54),
-                              labelStyle: TextStyle(
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.bold,
-                                color: isSelectedBrand ? Colors.white : AppColors.textPrimary,
-                              ),
-                              onSelected: (val) {
-                                if (val) {
-                                  setLobbyState(() {
-                                    filterBrandId = b.id;
-                                    setState(() => _selectedBrandId = b.id);
-                                  });
-                                }
-                              },
-                            ),
-                          );
-                        }),
-                        ActionChip(
-                          avatar: const Icon(Icons.add, size: 14),
-                          label: const Text('Add Company'),
-                          onPressed: () {
-                            EntityDialogs.showRegisterCompanyDialog(
-                              context,
-                              widget.appState,
-                              onSaved: (nb) {
-                                setLobbyState(() {
-                                  filterBrandId = nb.id;
-                                  setState(() => _selectedBrandId = nb.id);
-                                });
-                              },
-                            );
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-                // 4. Tier 2: Channel Groups Preset Strip
-                Container(
-                  color: AppColors.surfaceSecondary,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        const Icon(Icons.folder_open_outlined, size: 14, color: Color(0xFF6366F1)),
-                        const SizedBox(width: 6),
-                        const Text('Groups: ', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.textSecondary)),
-                        ...brandGroups.map((g) {
-                          final isGroupActive = g.accountIds.isNotEmpty &&
-                              g.accountIds.every((id) => _selectedAccountIds.contains(id));
-                          return Padding(
-                            padding: const EdgeInsets.only(right: 6),
-                            child: FilterChip(
-                              selected: isGroupActive,
-                              label: Text('${g.name} (${g.accountIds.length})'),
-                              selectedColor: const Color(0xFF6366F1).withAlpha(40),
-                              checkmarkColor: const Color(0xFF6366F1),
-                              labelStyle: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: isGroupActive ? const Color(0xFF6366F1) : AppColors.textPrimary,
-                              ),
-                              onSelected: (val) {
-                                setLobbyState(() {
-                                  _toggleGroupChannels(g);
-                                });
-                              },
-                            ),
-                          );
-                        }),
-                        ActionChip(
-                          avatar: const Icon(Icons.add, size: 14),
-                          label: const Text('Add Group'),
-                          onPressed: () {
-                            EntityDialogs.showCreateGroupDialog(
-                              context,
-                              widget.appState,
-                              preselectedBrandId: filterBrandId,
-                              onSaved: (newG) {
-                                setLobbyState(() {});
-                              },
-                            );
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-                // 5. Tier 3: WhatsApp Chat-Style Channel Rows
-                Expanded(
-                  child: scopedAccounts.isEmpty
-                      ? Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(Icons.sensors_off_outlined, size: 44, color: AppColors.textSecondary),
-                              const SizedBox(height: 12),
-                              Text(
-                                searchQuery.isNotEmpty
-                                    ? 'No channels match "$searchQuery"'
-                                    : 'No social channels registered for this company.',
-                                style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.ink),
-                              ),
-                              const SizedBox(height: 8),
-                              ElevatedButton.icon(
-                                onPressed: () {
-                                  EntityDialogs.showConnectChannelDialog(
-                                    context,
-                                    widget.appState,
-                                    preselectedBrandId: filterBrandId,
-                                    onSaved: (acc) {
-                                      setLobbyState(() {
-                                        setState(() {
-                                          _selectedAccountIds.add(acc.id);
-                                          _activePreviewAccountId = acc.id;
-                                        });
-                                      });
-                                    },
-                                  );
-                                },
-                                icon: const Icon(Icons.add_link),
-                                label: const Text('Connect Channel'),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF075E54),
-                                  foregroundColor: Colors.white,
-                                ),
-                              ),
-                            ],
-                          ),
-                        )
-                      : ListView.separated(
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          itemCount: scopedAccounts.length,
-                          separatorBuilder: (context, index) => const Divider(height: 1, indent: 72),
-                          itemBuilder: (ctx, idx) {
-                            final acc = scopedAccounts[idx];
-                            final isSelected = _selectedAccountIds.contains(acc.id);
-                            final channelGroup = widget.appState.getGroupForAccount(acc.id);
-                            final hasOverride = _overrideControllers[acc.id]?.text.trim().isNotEmpty == true &&
-                                _overrideControllers[acc.id]?.text.trim() != _sharedCaptionController.text.trim();
-
-                            return ListTile(
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                              leading: Stack(
-                                children: [
-                                  CircleAvatar(
-                                    radius: 24,
-                                    backgroundColor: _getPlatformColor(acc.platform).withAlpha(25),
-                                    child: Text(
-                                      acc.displayName.isNotEmpty ? acc.displayName.substring(0, 1).toUpperCase() : '?',
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'Publishing Destinations',
                                       style: TextStyle(
-                                        fontSize: 18,
+                                        fontSize: 17,
                                         fontWeight: FontWeight.bold,
-                                        color: _getPlatformColor(acc.platform),
-                                      ),
-                                    ),
-                                  ),
-                                  Positioned(
-                                    bottom: 0,
-                                    right: 0,
-                                    child: Container(
-                                      padding: const EdgeInsets.all(2),
-                                      decoration: const BoxDecoration(
                                         color: Colors.white,
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: PlatformLogo(platform: acc.platform, size: 14),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              title: Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      acc.displayName,
-                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.ink),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: _getPlatformColor(acc.platform).withAlpha(20),
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: Text(
-                                      acc.platform.displayName,
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.bold,
-                                        color: _getPlatformColor(acc.platform),
+                                        letterSpacing: -0.2,
                                       ),
                                     ),
-                                  ),
-                                ],
-                              ),
-                              subtitle: Row(
-                                children: [
-                                  Flexible(
-                                    child: Text(
-                                      acc.handle.isNotEmpty ? acc.handle : 'Connected Channel',
-                                      style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                  if (channelGroup != null) ...[
-                                    const SizedBox(width: 6),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFF6366F1).withAlpha(20),
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                      child: Text(
-                                        channelGroup.name,
-                                        style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: Color(0xFF6366F1)),
-                                      ),
+                                    Text(
+                                      '${_selectedAccountIds.length} of ${allAccounts.length} channels selected',
+                                      style: const TextStyle(fontSize: 12, color: Colors.white70),
                                     ),
                                   ],
-                                  if (hasOverride) ...[
-                                    const SizedBox(width: 6),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFF25D366).withAlpha(30),
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                      child: const Text(
-                                        'Customized Copy',
-                                        style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: Color(0xFF075E54)),
-                                      ),
-                                    ),
-                                  ],
-                                ],
+                                ),
                               ),
-                              trailing: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  // Override pencil tool
-                                  IconButton(
-                                    icon: Icon(
-                                      hasOverride ? Icons.edit_note : Icons.edit_outlined,
-                                      size: 20,
-                                      color: hasOverride ? const Color(0xFF075E54) : AppColors.textSecondary,
-                                    ),
-                                    tooltip: 'Customize copy for this channel',
-                                    onPressed: () => _showChannelCustomizerSheet(acc),
-                                  ),
-                                  Checkbox(
-                                    value: isSelected,
-                                    activeColor: const Color(0xFF25D366),
-                                    checkColor: Colors.white,
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-                                    onChanged: (val) {
-                                      setLobbyState(() {
-                                        _toggleAccountSelection(acc.id);
-                                      });
-                                    },
-                                  ),
-                                ],
+                              // Platform Specs & Limit Guide Icon
+                              IconButton(
+                                icon: const Icon(Icons.info_outline_rounded, color: Colors.white70, size: 20),
+                                tooltip: 'Platform Specs & Publishing Limits',
+                                onPressed: _showAllPlatformSpecsDialog,
                               ),
-                              onTap: () {
-                                setLobbyState(() {
-                                  _toggleAccountSelection(acc.id);
-                                });
-                              },
-                            );
-                          },
-                        ),
-                ),
-
-                // 6. Bottom WhatsApp Confirm Destinations FAB Button
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  decoration: const BoxDecoration(
-                    color: AppColors.surface,
-                    border: Border(top: BorderSide(color: AppColors.border)),
-                  ),
-                  child: SafeArea(
-                    top: false,
-                    child: ElevatedButton.icon(
-                      onPressed: () => Navigator.of(ctx).pop(),
-                      icon: const Icon(Icons.check_circle_rounded, size: 20),
-                      label: Text(
-                        _selectedAccountIds.isEmpty
-                            ? 'Dismiss (No Targets Selected)'
-                            : 'Confirm Destinations (${_selectedAccountIds.length} Selected)',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF25D366),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              // Select All / Deselect All for workspace
+                              TextButton(
+                                style: TextButton.styleFrom(
+                                  backgroundColor: Colors.white.withAlpha(20),
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                  visualDensity: VisualDensity.compact,
+                                ),
+                                onPressed: () {
+                                  setSheetState(() {
+                                    if (allAccountsSelected) {
+                                      _clearSelection();
+                                    } else {
+                                      _selectAllCompanyChannels(allAccounts);
+                                    }
+                                  });
+                                },
+                                child: Text(
+                                  allAccountsSelected ? 'Clear' : 'Select All',
+                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
                     ),
                   ),
-                ),
-              ],
+
+                  // 2. Search Bar
+                  Container(
+                    color: const Color(0xFF1E293B),
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                    child: Container(
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withAlpha(25),
+                            blurRadius: 4,
+                            offset: const Offset(0, 1),
+                          ),
+                        ],
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.search_rounded, size: 20, color: AppColors.textSecondary),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: TextField(
+                              onChanged: (val) => setSheetState(() => searchQuery = val.trim()),
+                              decoration: const InputDecoration(
+                                hintText: 'Search channel, handle, or platform...',
+                                hintStyle: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                                border: InputBorder.none,
+                                isDense: true,
+                                contentPadding: EdgeInsets.zero,
+                              ),
+                            ),
+                          ),
+                          if (searchQuery.isNotEmpty)
+                            GestureDetector(
+                              onTap: () => setSheetState(() => searchQuery = ''),
+                              child: const Icon(Icons.cancel, size: 18, color: AppColors.textSecondary),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // 3. Channel Groups Preset Strip
+                  if (groups.isNotEmpty)
+                    Container(
+                      color: AppColors.surfaceSecondary,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            const Icon(Icons.folder_open_outlined, size: 14, color: Color(0xFF6366F1)),
+                            const SizedBox(width: 6),
+                            const Text('Groups: ', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.textSecondary)),
+                            ...groups.map((g) {
+                              final isGroupActive = g.accountIds.isNotEmpty &&
+                                  g.accountIds.every((id) => _selectedAccountIds.contains(id));
+                              return Padding(
+                                padding: const EdgeInsets.only(right: 6),
+                                child: FilterChip(
+                                  selected: isGroupActive,
+                                  label: Text('${g.name} (${g.accountIds.length})'),
+                                  selectedColor: const Color(0xFF6366F1).withAlpha(40),
+                                  checkmarkColor: const Color(0xFF6366F1),
+                                  labelStyle: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: isGroupActive ? const Color(0xFF6366F1) : AppColors.textPrimary,
+                                  ),
+                                  onSelected: (val) {
+                                    setSheetState(() {
+                                      _toggleGroupChannels(g);
+                                    });
+                                  },
+                                ),
+                              );
+                            }),
+                            ActionChip(
+                              avatar: const Icon(Icons.add, size: 14),
+                              label: const Text('Add Group'),
+                              onPressed: () {
+                                EntityDialogs.showCreateGroupDialog(
+                                  context,
+                                  widget.appState,
+                                  onSaved: (newG) {
+                                    setSheetState(() {});
+                                  },
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                  // 4. Channels List
+                  Expanded(
+                    child: scopedAccounts.isEmpty
+                        ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.sensors_off_outlined, size: 44, color: AppColors.textSecondary),
+                                const SizedBox(height: 12),
+                                Text(
+                                  searchQuery.isNotEmpty
+                                      ? 'No channels match "$searchQuery"'
+                                      : 'No social channels connected yet.',
+                                  style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.ink),
+                                ),
+                                const SizedBox(height: 8),
+                                ElevatedButton.icon(
+                                  onPressed: () {
+                                    EntityDialogs.showConnectChannelDialog(
+                                      context,
+                                      widget.appState,
+                                      onSaved: (acc) {
+                                        setSheetState(() {
+                                          setState(() {
+                                            _selectedAccountIds.add(acc.id);
+                                            _activePreviewAccountId = acc.id;
+                                          });
+                                        });
+                                      },
+                                    );
+                                  },
+                                  icon: const Icon(Icons.add_link),
+                                  label: const Text('Connect Channel'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF0F172A),
+                                    foregroundColor: Colors.white,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        : ListView.separated(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            itemCount: scopedAccounts.length,
+                            separatorBuilder: (context, index) => const Divider(height: 1, indent: 72),
+                            itemBuilder: (ctx, idx) {
+                              final acc = scopedAccounts[idx];
+                              final isSelected = _selectedAccountIds.contains(acc.id);
+                              final channelGroup = widget.appState.getGroupForAccount(acc.id);
+                              final hasOverride = _overrideControllers[acc.id]?.text.trim().isNotEmpty == true &&
+                                  _overrideControllers[acc.id]?.text.trim() != _sharedCaptionController.text.trim();
+
+                              return Material(
+                                color: Colors.transparent,
+                                child: ListTile(
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                                  leading: Stack(
+                                    children: [
+                                      CircleAvatar(
+                                        radius: 24,
+                                        backgroundColor: _getPlatformColor(acc.platform).withAlpha(25),
+                                        child: Text(
+                                          acc.displayName.isNotEmpty ? acc.displayName.substring(0, 1).toUpperCase() : '?',
+                                          style: TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.bold,
+                                            color: _getPlatformColor(acc.platform),
+                                          ),
+                                        ),
+                                      ),
+                                      Positioned(
+                                        bottom: 0,
+                                        right: 0,
+                                        child: Container(
+                                          padding: const EdgeInsets.all(2),
+                                          decoration: const BoxDecoration(
+                                            color: Colors.white,
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: PlatformLogo(platform: acc.platform, size: 14),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  title: Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          acc.displayName,
+                                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.ink),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: _getPlatformColor(acc.platform).withAlpha(20),
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                        child: Text(
+                                          acc.platform.displayName,
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                            color: _getPlatformColor(acc.platform),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  subtitle: Row(
+                                    children: [
+                                      Flexible(
+                                        child: Text(
+                                          acc.handle.isNotEmpty ? acc.handle : 'Connected Channel',
+                                          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      if (channelGroup != null) ...[
+                                        const SizedBox(width: 6),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFF6366F1).withAlpha(20),
+                                            borderRadius: BorderRadius.circular(4),
+                                          ),
+                                          child: Text(
+                                            channelGroup.name,
+                                            style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: Color(0xFF6366F1)),
+                                          ),
+                                        ),
+                                      ],
+                                      if (hasOverride) ...[
+                                        const SizedBox(width: 6),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFF6366F1).withAlpha(20),
+                                            borderRadius: BorderRadius.circular(4),
+                                          ),
+                                          child: const Text(
+                                            'Customized Copy',
+                                            style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: Color(0xFF4F46E5)),
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                  trailing: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      // Override pencil tool
+                                      IconButton(
+                                        icon: Icon(
+                                          hasOverride ? Icons.edit_note : Icons.edit_outlined,
+                                          size: 20,
+                                          color: hasOverride ? const Color(0xFF4F46E5) : AppColors.textSecondary,
+                                        ),
+                                        tooltip: 'Customize copy for this channel',
+                                        onPressed: () => _showChannelCustomizerSheet(acc),
+                                      ),
+                                      Checkbox(
+                                        value: isSelected,
+                                        activeColor: const Color(0xFF6366F1),
+                                        checkColor: Colors.white,
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                                        onChanged: (val) {
+                                          setSheetState(() {
+                                            _toggleAccountSelection(acc.id);
+                                          });
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                  onTap: () {
+                                    setSheetState(() {
+                                      _toggleAccountSelection(acc.id);
+                                    });
+                                  },
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+
+                  // 6. Bottom Actions: Save Preference + Confirm Destinations
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: const BoxDecoration(
+                      color: AppColors.surface,
+                      border: Border(top: BorderSide(color: AppColors.border)),
+                    ),
+                    child: SafeArea(
+                      top: false,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // Save Preference Banner / Action
+                          Container(
+                            margin: const EdgeInsets.only(bottom: 10),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: _isCurrentSelectionDefaultPreference
+                                  ? const Color(0xFFFEF3C7)
+                                  : AppColors.surfaceSecondary,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: _isCurrentSelectionDefaultPreference
+                                    ? const Color(0xFFFDE68A)
+                                    : AppColors.border,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  _isCurrentSelectionDefaultPreference
+                                      ? Icons.star_rounded
+                                      : Icons.bookmark_add_outlined,
+                                  size: 20,
+                                  color: _isCurrentSelectionDefaultPreference
+                                      ? const Color(0xFFD97706)
+                                      : AppColors.accent,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        _isCurrentSelectionDefaultPreference
+                                            ? 'Default Preference Active'
+                                            : 'Save Target Preferences',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                          color: _isCurrentSelectionDefaultPreference
+                                              ? const Color(0xFF92400E)
+                                              : AppColors.ink,
+                                        ),
+                                      ),
+                                      Text(
+                                        _isCurrentSelectionDefaultPreference
+                                            ? 'These ${_selectedAccountIds.length} channels are pre-selected for new posts'
+                                            : 'Auto-select these channels on new post creation',
+                                        style: const TextStyle(fontSize: 10.5, color: AppColors.textSecondary),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                TextButton.icon(
+                                  onPressed: () async {
+                                    await _saveCurrentDestinationAsDefault(hostContext: ctx);
+                                    setSheetState(() {});
+                                  },
+                                  icon: Icon(
+                                    _isCurrentSelectionDefaultPreference ? Icons.check_circle_rounded : Icons.save_outlined,
+                                    size: 15,
+                                  ),
+                                  label: Text(
+                                    _isCurrentSelectionDefaultPreference ? 'Saved' : 'Save Default',
+                                    style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold),
+                                  ),
+                                  style: TextButton.styleFrom(
+                                    backgroundColor: _isCurrentSelectionDefaultPreference
+                                        ? const Color(0xFFF59E0B)
+                                        : AppColors.accent,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                    visualDensity: VisualDensity.compact,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          // Confirm Destinations Button
+                          ElevatedButton.icon(
+                            onPressed: () => Navigator.of(ctx).pop(),
+                            icon: const Icon(Icons.check_circle_rounded, size: 20),
+                            label: Text(
+                              _selectedAccountIds.isEmpty
+                                  ? 'Dismiss (No Targets Selected)'
+                                  : 'Confirm Destinations (${_selectedAccountIds.length} Selected)',
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF0F172A),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           );
         },
@@ -4648,22 +4921,36 @@ class _ComposerScreenState extends State<ComposerScreen>
                     ),
                     const SizedBox(height: 10),
 
+                    // Video Title Header: Label + Branding Badge + Counter
+                    Row(
+                      children: [
+                        const Text(
+                          'Video Title *',
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textSecondary),
+                        ),
+                        const SizedBox(width: 6),
+                        _buildTitleBrandingBadge(_titleController),
+                        const Spacer(),
+                        Text(
+                          '${_titleController.text.length} / 100',
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w600,
+                            color: _titleController.text.length > 100 ? AppColors.error : AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+
                     // Video Title Input
                     TextField(
                       controller: _titleController,
                       maxLength: 100,
+                      buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
                       style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: AppColors.ink),
                       decoration: InputDecoration(
-                        labelText: 'Video Title *',
                         hintText: 'Enter YouTube video headline...',
-                        labelStyle: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                        floatingLabelBehavior: FloatingLabelBehavior.always,
-                        counterText: '${_titleController.text.length} / 100',
-                        counterStyle: TextStyle(
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w600,
-                          color: _titleController.text.length > 100 ? AppColors.error : AppColors.textSecondary,
-                        ),
                         filled: true,
                         fillColor: AppColors.surface,
                         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -4685,40 +4972,42 @@ class _ComposerScreenState extends State<ComposerScreen>
                         setState(() {});
                       },
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 10),
 
-                    // Video Tags Input
-                    TextField(
+                    // Video Tags Header: Label + Counter
+                    Row(
+                      children: [
+                        const Text(
+                          'Video Tags (Optional)',
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textSecondary),
+                        ),
+                        const Spacer(),
+                        Builder(
+                          builder: (context) {
+                            final count = _ytTagsController.text
+                                .split(',')
+                                .where((t) => t.trim().isNotEmpty)
+                                .length;
+                            return Text(
+                              '$count tags • ${_ytTagsController.text.length} / 500',
+                              style: TextStyle(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w600,
+                                color: _ytTagsController.text.length > 500 ? AppColors.error : AppColors.textSecondary,
+                              ),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+
+                    // Video Tags Input with Comma / Space Badge Division
+                    TagBadgeInputField(
                       controller: _ytTagsController,
-                      maxLength: 500,
-                      style: const TextStyle(fontSize: 13, color: AppColors.ink),
-                      decoration: InputDecoration(
-                        labelText: 'Video Tags (Optional)',
-                        hintText: 'Comma-separated (e.g. tech, tutorial, news, product)...',
-                        labelStyle: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                        floatingLabelBehavior: FloatingLabelBehavior.always,
-                        counterText: '${_ytTagsController.text.length} / 500',
-                        counterStyle: TextStyle(
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w600,
-                          color: _ytTagsController.text.length > 500 ? AppColors.error : AppColors.textSecondary,
-                        ),
-                        filled: true,
-                        fillColor: AppColors.surface,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: AppColors.border),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: AppColors.border),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: AppColors.accent, width: 1.2),
-                        ),
-                      ),
+                      hintText: 'Type tag and press comma or space to add badge...',
+                      maxCharacters: 500,
+                      platformNotice: 'YouTube: 8–15 focused tags recommended (max 500 chars). Lead with your primary keyword.',
                       onChanged: (val) {
                         _tagsController.text = val;
                         setState(() {});
@@ -4728,6 +5017,21 @@ class _ComposerScreenState extends State<ComposerScreen>
                 ),
               ),
             ],
+
+            // Description / Caption Header with inline branding badge
+            Padding(
+              padding: const EdgeInsets.only(left: 4, top: 4, bottom: 2),
+              child: Row(
+                children: [
+                  Text(
+                    hasYouTube ? 'Description' : 'Caption',
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textSecondary),
+                  ),
+                  const SizedBox(width: 6),
+                  _buildDescriptionSignatureBadge(),
+                ],
+              ),
+            ),
 
             // 2. Post Copy / Caption Area (Clean, Expansive)
             TextField(
@@ -4776,6 +5080,16 @@ class _ComposerScreenState extends State<ComposerScreen>
                     color: _selectedMediaIds.isNotEmpty ? AppColors.accent : AppColors.textSecondary,
                     visualDensity: VisualDensity.compact,
                     onPressed: _showAttachMediaModal,
+                  ),
+                  const SizedBox(width: 4),
+
+                  // 🏷️ Hashtag Vault & Snippets
+                  IconButton(
+                    icon: const Icon(Icons.tag_rounded, size: 20),
+                    tooltip: 'Hashtag Vault & Snippets',
+                    color: AppColors.textSecondary,
+                    visualDensity: VisualDensity.compact,
+                    onPressed: _showHashtagVaultModal,
                   ),
 
                   const Spacer(),
@@ -5319,7 +5633,44 @@ class _ComposerScreenState extends State<ComposerScreen>
       child: Stack(
         fit: StackFit.expand,
         children: [
-          content,
+          GestureDetector(
+            onTap: () {
+              final idx = _attachedMediaAssets.indexOf(asset);
+              MediaPreviewScreen.show(
+                context,
+                assets: _attachedMediaAssets,
+                initialIndex: idx >= 0 ? idx : 0,
+                onRemoveAsset: (id) => _toggleMediaSelection(id),
+              );
+            },
+            child: Tooltip(
+              message: 'Click to preview ${asset.fileName}',
+              child: content,
+            ),
+          ),
+          Positioned(
+            top: 4,
+            left: 4,
+            child: GestureDetector(
+              onTap: () {
+                final idx = _attachedMediaAssets.indexOf(asset);
+                MediaPreviewScreen.show(
+                  context,
+                  assets: _attachedMediaAssets,
+                  initialIndex: idx >= 0 ? idx : 0,
+                  onRemoveAsset: (id) => _toggleMediaSelection(id),
+                );
+              },
+              child: Container(
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.55),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.fullscreen_rounded, size: 12, color: Colors.white),
+              ),
+            ),
+          ),
           Positioned(
             top: 4,
             right: 4,
@@ -5397,41 +5748,113 @@ class _ComposerScreenState extends State<ComposerScreen>
           note: 'YouTube requires separate Video Title, Description, and Tags. Video attachment required.',
         ),
         const SizedBox(height: 12),
+        Row(
+          children: [
+            const Text(
+              'Video Title *',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textSecondary),
+            ),
+            const SizedBox(width: 6),
+            _buildTitleBrandingBadge(_ytTitleController),
+            const Spacer(),
+            Text(
+              '${_ytTitleController.text.length}/100',
+              style: TextStyle(
+                fontSize: 10.5,
+                fontWeight: FontWeight.w600,
+                color: _ytTitleController.text.length > 100 ? AppColors.error : AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
         TextField(
           controller: _ytTitleController,
           maxLength: 100,
-          decoration: InputDecoration(
-            labelText: 'Video Title *',
+          buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
+          decoration: const InputDecoration(
             hintText: 'Catchy, searchable video headline',
-            suffixText: '${_ytTitleController.text.length}/100',
           ),
-          onChanged: (val) => _syncTitleToOthers(_ytTitleController, val),
+          onChanged: (val) {
+            _syncTitleToOthers(_ytTitleController, val);
+            setState(() {});
+          },
         ),
         const SizedBox(height: 10),
+        Row(
+          children: [
+            const Text(
+              'Video Description',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textSecondary),
+            ),
+            const SizedBox(width: 6),
+            _buildDescriptionSignatureBadge(),
+            const Spacer(),
+            Text(
+              '${_ytDescriptionController.text.length}/5000',
+              style: TextStyle(
+                fontSize: 10.5,
+                fontWeight: FontWeight.w600,
+                color: _ytDescriptionController.text.length > 5000 ? AppColors.error : AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
         TextField(
           controller: _ytDescriptionController,
           maxLength: 5000,
           maxLines: 5,
+          buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
           decoration: const InputDecoration(
-            labelText: 'Video Description',
             hintText: 'Explain your video, include timestamps, links, and hashtags (#tag)...',
             alignLabelWithHint: true,
           ),
-          onChanged: (val) => _syncCaptionToOthers(_ytDescriptionController, val),
+          onChanged: (val) {
+            _syncCaptionToOthers(_ytDescriptionController, val);
+            setState(() {});
+          },
         ),
         const SizedBox(height: 10),
         Row(
           children: [
             Expanded(
               flex: 3,
-              child: TextField(
-                controller: _ytTagsController,
-                decoration: const InputDecoration(
-                  labelText: 'Tags (Comma-separated)',
-                  hintText: 'e.g. podcast, tutorial, tech review',
-                  isDense: true,
-                ),
-                onChanged: (val) => _tagsController.text = val,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Text(
+                        'Tags',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textSecondary),
+                      ),
+                      const Spacer(),
+                      Builder(
+                        builder: (context) {
+                          final count = _ytTagsController.text
+                              .split(',')
+                              .where((t) => t.trim().isNotEmpty)
+                              .length;
+                          return Text(
+                            '$count tags • ${_ytTagsController.text.length}/500',
+                            style: const TextStyle(fontSize: 10.5, color: AppColors.textSecondary),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  TagBadgeInputField(
+                    controller: _ytTagsController,
+                    hintText: 'Comma or space to divide tags...',
+                    platformNotice: '8–15 tags recommended for algorithmic reach',
+                    onChanged: (val) {
+                      _tagsController.text = val;
+                      setState(() {});
+                    },
+                  ),
+                ],
               ),
             ),
             const SizedBox(width: 12),
@@ -5460,6 +5883,8 @@ class _ComposerScreenState extends State<ComposerScreen>
   Widget _buildInstagramForm() {
     final caption = _igCaptionController.text;
     final hashtagCount = RegExp(r'#[a-zA-Z0-9_]+').allMatches(caption).length;
+    final urlRegex = RegExp(r'https?://[^\s]+|www\.[^\s]+', caseSensitive: false);
+    final detectedUrls = urlRegex.allMatches(caption).map((m) => m.group(0)!).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -5469,6 +5894,66 @@ class _ComposerScreenState extends State<ComposerScreen>
           note: 'Instagram combines post copy and hashtags into one single caption (max 2,200 chars). Media required.',
         ),
         const SizedBox(height: 12),
+        if (detectedUrls.isNotEmpty) ...[
+          Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFFBEB),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFFDE68A)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  children: [
+                    Icon(Icons.link_off, size: 16, color: Color(0xFFD97706)),
+                    SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'Dead Link Notice: Instagram caption links are not clickable!',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF92400E)),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Found URL: ${detectedUrls.first}. Followers cannot click raw links in captions. Move it to the 1st Comment to keep it discoverable.',
+                  style: const TextStyle(fontSize: 11, color: Color(0xFF78350F)),
+                ),
+                const SizedBox(height: 8),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    String newCaption = caption;
+                    for (final u in detectedUrls) {
+                      newCaption = newCaption.replaceAll(u, 'Link in bio 🔗');
+                    }
+                    final existingComment = _igFirstCommentController.text.trim();
+                    final addedLinks = detectedUrls.join('\n');
+                    final newComment = existingComment.isEmpty
+                        ? addedLinks
+                        : '$existingComment\n$addedLinks';
+
+                    setState(() {
+                      _igCaptionController.text = newCaption;
+                      _igFirstCommentController.text = newComment;
+                    });
+                  },
+                  icon: const Icon(Icons.swap_vert_circle_outlined, size: 14),
+                  label: const Text('Move URL to 1st Comment & use "Link in bio 🔗"'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFD97706),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
         TextField(
           controller: _igCaptionController,
           maxLength: 2200,
@@ -5477,17 +5962,23 @@ class _ComposerScreenState extends State<ComposerScreen>
             labelText: 'Instagram Caption *',
             hintText: 'Write your story and include your #hashtags here...',
             alignLabelWithHint: true,
-            helperText: '$hashtagCount / 30 hashtags used',
+            helperText: '$hashtagCount / 5 hashtags used ${hashtagCount > 5 ? "(Exceeded! Instagram caps at 5)" : "(Best reach: 3-5 targeted tags)"}',
+            helperStyle: TextStyle(
+              color: hashtagCount > 5 ? AppColors.error : AppColors.textSecondary,
+              fontWeight: hashtagCount > 5 ? FontWeight.bold : FontWeight.normal,
+            ),
           ),
           onChanged: (val) => _syncCaptionToOthers(_igCaptionController, val),
         ),
         const SizedBox(height: 10),
         TextField(
           controller: _igFirstCommentController,
+          maxLines: 2,
           decoration: const InputDecoration(
-            labelText: 'First Comment (Optional)',
-            hintText: 'Keep main caption clean by placing additional hashtags or links in 1st comment',
+            labelText: 'First Comment (Auto-Publishes Immediately)',
+            hintText: 'Place links or extra hashtag bundles here to keep caption uncluttered...',
             isDense: true,
+            alignLabelWithHint: true,
           ),
         ),
       ],
@@ -5532,6 +6023,9 @@ class _ComposerScreenState extends State<ComposerScreen>
 
   // 4. LinkedIn Form: Post Commentary (max 3000)
   Widget _buildLinkedInForm() {
+    final text = _liCommentaryController.text;
+    final tagsCount = RegExp(r'#[a-zA-Z0-9_]+').allMatches(text).length;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -5544,10 +6038,16 @@ class _ComposerScreenState extends State<ComposerScreen>
           controller: _liCommentaryController,
           maxLength: 3000,
           maxLines: 6,
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             labelText: 'Post Commentary *',
             hintText: 'Share professional insights, case studies, or company milestones...',
             alignLabelWithHint: true,
+            helperText: '$tagsCount hashtags used (Recommended: 3 to 5 targeted tags for optimal algorithm reach)',
+            helperStyle: TextStyle(
+              fontSize: 11,
+              color: tagsCount > 5 ? AppColors.warning : AppColors.textSecondary,
+              fontWeight: tagsCount > 5 ? FontWeight.bold : FontWeight.normal,
+            ),
           ),
           onChanged: (val) => _syncCaptionToOthers(_liCommentaryController, val),
         ),
@@ -5583,7 +6083,10 @@ class _ComposerScreenState extends State<ComposerScreen>
 
   // 8. Threads Form: Thread Text (max 500)
   Widget _buildThreadsForm() {
-    final remaining = 500 - _threadsTextController.text.length;
+    final text = _threadsTextController.text;
+    final remaining = 500 - text.length;
+    final hashtagRegex = RegExp(r'#[a-zA-Z0-9_]+');
+    final tags = hashtagRegex.allMatches(text).map((m) => m.group(0)!).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -5593,6 +6096,60 @@ class _ComposerScreenState extends State<ComposerScreen>
           note: 'Threads text update (max 500 characters). Share conversational ideas and media.',
         ),
         const SizedBox(height: 12),
+        if (tags.length > 1) ...[
+          Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFCBD5E1)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.tag, size: 16, color: Color(0xFF334155)),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'Threads Best Practice: ${tags.length} topic tags detected',
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Meta Threads natively indexes only 1 topic tag per post. Multiple hashtags can flag your post as spam or reduce feed reach.',
+                  style: TextStyle(fontSize: 11, color: Color(0xFF475569)),
+                ),
+                const SizedBox(height: 8),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    String cleaned = text;
+                    for (int i = 1; i < tags.length; i++) {
+                      cleaned = cleaned.replaceAll(tags[i], '').trim();
+                    }
+                    cleaned = cleaned.replaceAll(RegExp(r'\s{2,}'), ' ');
+                    setState(() {
+                      _threadsTextController.text = cleaned;
+                    });
+                  },
+                  icon: const Icon(Icons.cleaning_services_outlined, size: 14),
+                  label: Text('Keep only "${tags.first}" & clean others'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1E293B),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
         TextField(
           controller: _threadsTextController,
           maxLength: 500,
@@ -5601,7 +6158,7 @@ class _ComposerScreenState extends State<ComposerScreen>
             labelText: 'Thread Text *',
             hintText: 'Start a thread...',
             alignLabelWithHint: true,
-            helperText: '$remaining characters remaining',
+            helperText: '$remaining characters remaining • ${tags.length} tag(s)',
           ),
           onChanged: (val) {
             _syncCaptionToOthers(_threadsTextController, val);

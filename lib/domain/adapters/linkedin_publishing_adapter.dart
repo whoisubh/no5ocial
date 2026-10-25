@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 
 import '../../core/services/media_hosting_service.dart';
@@ -231,10 +232,22 @@ class LinkedInPublishingAdapter implements PublishingAdapter {
             final uploadUrl = uploadInstructions?.firstOrNull?['uploadUrl'] as String?;
 
             if (uploadUrl != null && uploadUrl.isNotEmpty) {
+              // Read actual video file bytes
+              final videoPath = firstMedia.localPreviewUrl;
+              final videoBytes = (videoPath != null && videoPath.isNotEmpty && await File(videoPath).exists())
+                  ? await File(videoPath).readAsBytes()
+                  : <int>[];
+              if (videoBytes.isEmpty) {
+                return PublishExecutionResult.failure(
+                  errorCategory: ErrorCategory.validation,
+                  rawErrorCode: 'MISSING_VIDEO_FILE',
+                  sanitizedErrorMessage: 'Video file not found on device. Please re-attach the media.',
+                );
+              }
               await _httpClient.put(
                 Uri.parse(uploadUrl),
                 headers: {'Content-Type': 'application/octet-stream'},
-                body: const [0, 0, 0, 0],
+                body: videoBytes,
               ).timeout(const Duration(minutes: 5));
 
               payload['content'] = {
@@ -266,10 +279,22 @@ class LinkedInPublishingAdapter implements PublishingAdapter {
             final uploadUrl = initData['value']?['uploadUrl'] as String? ?? '';
 
             if (uploadUrl.isNotEmpty) {
+              // Read actual image file bytes
+              final imgPath = firstMedia.localPreviewUrl;
+              final imgBytes = (imgPath != null && imgPath.isNotEmpty && await File(imgPath).exists())
+                  ? await File(imgPath).readAsBytes()
+                  : <int>[];
+              if (imgBytes.isEmpty) {
+                return PublishExecutionResult.failure(
+                  errorCategory: ErrorCategory.validation,
+                  rawErrorCode: 'MISSING_IMAGE_FILE',
+                  sanitizedErrorMessage: 'Image file not found on device. Please re-attach the media.',
+                );
+              }
               await _httpClient.put(
                 Uri.parse(uploadUrl),
                 headers: {'Content-Type': firstMedia.mimeType.isNotEmpty ? firstMedia.mimeType : 'image/jpeg'},
-                body: const [0, 0, 0, 0],
+                body: imgBytes,
               ).timeout(const Duration(seconds: 60));
 
               payload['content'] = {

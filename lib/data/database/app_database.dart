@@ -361,6 +361,17 @@ class AppDatabase {
       )
     ''');
 
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS anti_abuse_tombstones (
+        identity_hash TEXT PRIMARY KEY,
+        email TEXT NOT NULL,
+        device_id TEXT,
+        deleted_at_utc TEXT NOT NULL,
+        lifetime_coins_exhausted INTEGER NOT NULL DEFAULT 1,
+        metadata_json TEXT
+      )
+    ''');
+
     // Run schema migrations safely to add sync tracking metadata columns
     await _ensureSyncColumns(db, 'brands');
     await _ensureSyncColumns(db, 'channel_groups');
@@ -956,6 +967,90 @@ class AppDatabase {
       }
     }
     return result;
+  }
+
+  // ==============================================================================
+  // Anti-Abuse & Lifetime Free Bonus Protection (Survives Account Deletions)
+  // ==============================================================================
+
+  /// Records an immutable anti-abuse tombstone entry when an account is deleted.
+  /// This table survives normal account reset to prevent bonus farming cycles.
+  Future<void> recordAntiAbuseTombstone({
+    required String email,
+    required String deviceId,
+    List<String> channelIds = const [],
+    Map<String, dynamic>? telemetry,
+  }) async {
+    final db = await database;
+    final cleanEmail = email.trim().toLowerCase();
+    final identityKey = cleanEmail.replaceAll(RegExp(r'[^a-z0-9]'), '_');
+    final nowUtc = DateTime.now().toUtc().toIso8601String();
+
+    await db.insert(
+      'anti_abuse_tombstones',
+      {
+        'identity_hash': identityKey,
+        'email': cleanEmail,
+        'device_id': deviceId,
+        'deleted_at_utc': nowUtc,
+        'lifetime_coins_exhausted': 1,
+        'metadata_json': jsonEncode({
+          'channel_ids': channelIds,
+          'telemetry': telemetry,
+          'deleted_at': nowUtc,
+        }),
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+
+    // Also tombstone by device hardware signature if available
+    if (deviceId.isNotEmpty && deviceId != 'unknown_device') {
+      final devKey = 'dev_${deviceId.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_')}';
+      await db.insert(
+        'anti_abuse_tombstones',
+        {
+          'identity_hash': devKey,
+          'email': cleanEmail,
+          'device_id': deviceId,
+          'deleted_at_utc': nowUtc,
+          'lifetime_coins_exhausted': 1,
+          'metadata_json': jsonEncode({
+            'channel_ids': channelIds,
+            'is_device_record': true,
+          }),
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    }
+  }
+
+  /// Checks if an email or physical device has an active anti-abuse tombstone recorded
+  Future<bool> isIdentityTombstoned({required String email, String? deviceId}) async {
+    final db = await database;
+    final cleanEmail = email.trim().toLowerCase();
+    if (cleanEmail.isNotEmpty) {
+      final identityKey = cleanEmail.replaceAll(RegExp(r'[^a-z0-9]'), '_');
+      final byEmail = await db.query(
+        'anti_abuse_tombstones',
+        where: 'identity_hash = ? OR email = ?',
+        whereArgs: [identityKey, cleanEmail],
+        limit: 1,
+      );
+      if (byEmail.isNotEmpty) return true;
+    }
+
+    if (deviceId != null && deviceId.isNotEmpty && deviceId != 'unknown_device') {
+      final devKey = 'dev_${deviceId.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_')}';
+      final byDev = await db.query(
+        'anti_abuse_tombstones',
+        where: 'identity_hash = ? OR device_id = ?',
+        whereArgs: [devKey, deviceId],
+        limit: 1,
+      );
+      if (byDev.isNotEmpty) return true;
+    }
+
+    return false;
   }
 
   // ==============================================================================

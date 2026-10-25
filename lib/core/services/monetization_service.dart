@@ -27,6 +27,7 @@ class MonetizationService extends ChangeNotifier {
   String? _activeUserId;
   PublishingPass? _activePass;
   List<Map<String, dynamic>> _coinTransactions = const [];
+  bool _isLifetimeBonusExhausted = false;
   bool _isInitialized = false;
 
   AccountPlanTier get currentPlan => _currentPlan;
@@ -37,6 +38,7 @@ class MonetizationService extends ChangeNotifier {
   String? get activeUserId => _activeUserId;
   PublishingPass? get activePass => _activePass;
   List<Map<String, dynamic>> get coinTransactions => _coinTransactions;
+  bool get isLifetimeBonusExhausted => _isLifetimeBonusExhausted;
   bool get isInitialized => _isInitialized;
 
   /// Initialize service state from persistent storage
@@ -317,14 +319,19 @@ class MonetizationService extends ChangeNotifier {
     _activeUserId = userId;
     try {
       final userEmail = email ?? (await SessionService.instance.getSession())?['email'] as String? ?? '';
-      
+      final devSig = await DeviceTelemetryService.instance.getDeviceSignature();
+
+      // Check if identity or device is tombstoned from prior account deletion
+      final isLocalTombstoned = await AppDatabase.instance.isIdentityTombstoned(email: userEmail, deviceId: devSig);
+      final isRemoteTombstoned = await FirebaseSyncService.instance.isIdentityTombstoned(email: userEmail, deviceSignature: devSig);
+      _isLifetimeBonusExhausted = isLocalTombstoned || isRemoteTombstoned;
+
       // Check if wallet transactions exist in local DB
       final txs = await AppDatabase.instance.getCoinTransactions(userId);
 
-      // If user has no welcome grant recorded locally and has an email, verify with cloud anti-abuse
+      // If user has no welcome grant recorded locally, has an email, and is NOT tombstoned, claim welcome bonus
       final hasLocalWelcome = txs.any((tx) => tx['type'] == 'welcome_grant');
-      if (!hasLocalWelcome && userEmail.isNotEmpty) {
-        final devSig = await DeviceTelemetryService.instance.getDeviceSignature();
+      if (!hasLocalWelcome && userEmail.isNotEmpty && !_isLifetimeBonusExhausted) {
         final canClaimWelcome = await FirebaseSyncService.instance.verifyAndClaimMilestoneBonus(
           userId: userId,
           email: userEmail,
@@ -340,6 +347,8 @@ class MonetizationService extends ChangeNotifier {
             type: 'welcome_grant',
             description: 'Welcome Bonus Coins (15 Coins)',
           );
+        } else {
+          _isLifetimeBonusExhausted = true;
         }
       }
 
@@ -371,6 +380,11 @@ class MonetizationService extends ChangeNotifier {
     String? userId,
     String? email,
   }) async {
+    if (_isLifetimeBonusExhausted) {
+      debugPrint('AntiAbuse: Milestone $milestone rejected: lifetime bonus exhausted for this identity/device.');
+      return false;
+    }
+
     final uid = userId ?? _activeUserId ?? (await SessionService.instance.getSession())?['id'] as String? ?? 'local_user';
     final userEmail = email ?? (await SessionService.instance.getSession())?['email'] as String? ?? '';
 
@@ -582,6 +596,7 @@ class MonetizationService extends ChangeNotifier {
     _postCoins = 0;
     _activePass = null;
     _coinTransactions = [];
+    _isLifetimeBonusExhausted = false;
     notifyListeners();
   }
 }

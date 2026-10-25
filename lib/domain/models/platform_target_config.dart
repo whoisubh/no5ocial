@@ -141,7 +141,7 @@ class PlatformConfigRegistry {
       defaultFormats: ['image', 'carousel', 'video', 'reels_shorts'],
       isManualOnly: false,
       requiresAdminRole: false,
-      policyNotice: 'Text-only posts are not supported by Instagram. High-res media required (max 2,200 chars, max 30 hashtags).',
+      policyNotice: 'Text-only posts are not supported by Instagram. High-res media required (max 2,200 chars, max 5 hashtags).',
     ),
 
     // --- YouTube ---

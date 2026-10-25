@@ -75,7 +75,6 @@ class ContentLibraryScreen extends StatelessWidget {
       listenable: appState,
       builder: (context, _) {
         final posts = appState.filteredPosts;
-        final brands = appState.brands;
 
         final screenWidth = MediaQuery.of(context).size.width;
         final isDesktop = screenWidth >= 860;
@@ -124,44 +123,6 @@ class ContentLibraryScreen extends StatelessWidget {
                       onChanged: (val) => appState.setSearchQuery(val),
                     ),
                     const SizedBox(height: 10),
-                    // Brand Filter chips
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: [
-                          FilterChip(
-                            label: const Text('All'),
-                            labelStyle: TextStyle(
-                              fontSize: 12,
-                              color: appState.selectedBrandFilterId == null
-                                  ? Colors.white
-                                  : AppColors.textPrimary,
-                              fontWeight: appState.selectedBrandFilterId == null
-                                  ? FontWeight.w700
-                                  : FontWeight.w500,
-                            ),
-                            selected: appState.selectedBrandFilterId == null,
-                            selectedColor: AppColors.ink,
-                            backgroundColor: AppColors.surfaceSecondary,
-                            showCheckmark: false,
-                            onSelected: (_) => appState.setBrandFilter(null),
-                          ),
-                          const SizedBox(width: 8),
-                          ...brands.map(
-                            (b) => Padding(
-                              padding: const EdgeInsets.only(right: 8),
-                              child: CompanyBadge(
-                                brand: b,
-                                isSelected:
-                                    appState.selectedBrandFilterId == b.id,
-                                onTap: () => appState.setBrandFilter(b.id),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 8),
                     // Status Filter Row
                     SingleChildScrollView(
                       scrollDirection: Axis.horizontal,

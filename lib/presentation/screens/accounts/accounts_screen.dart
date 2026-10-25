@@ -27,9 +27,8 @@ class AccountsScreen extends StatefulWidget {
 }
 
 class _AccountsScreenState extends State<AccountsScreen> {
-  // 0: Social Channels, 1: Channel Groups, 2: Brand Portfolio
+  // 0: Social Channels, 1: Channel Groups
   int _activeTab = 0;
-  String? _selectedBrandFilterId;
 
   @override
   void initState() {
@@ -76,7 +75,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
     }
   }
 
-  Future<void> _showChangeGroupSheet(BuildContext context, SocialAccount account, Brand brand) async {
+  Future<void> _showChangeGroupSheet(BuildContext context, SocialAccount account, [Brand? brandParam]) async {
     final availableGroups = widget.appState.groups;
     final currentGroup = widget.appState.getGroupForAccount(account.id);
     String selectedValue = currentGroup?.id ?? 'standalone';
@@ -102,7 +101,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'Assign "${account.displayName}" (${account.handle}) to a broadcast group for 1-click group publishing, or keep it standalone under ${brand.name}.',
+              'Assign "${account.displayName}" (${account.handle}) to a broadcast group for 1-click publishing, or keep it as a standalone channel.',
               style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.3),
             ),
             const SizedBox(height: 16),
@@ -119,13 +118,11 @@ class _AccountsScreenState extends State<AccountsScreen> {
                     children: [
                       Icon(Icons.hub_outlined, size: 16, color: AppColors.textSecondary),
                       SizedBox(width: 8),
-                      Text('None (Standalone under Company)'),
+                      Text('None (Standalone Channel)'),
                     ],
                   ),
                 ),
                 ...availableGroups.map((g) {
-                  final gBrand = widget.appState.getBrandById(g.brandId);
-                  final isSameBrand = g.brandId == brand.id;
                   return DropdownMenuItem(
                     value: g.id,
                     child: Row(
@@ -133,9 +130,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
                         const Icon(Icons.folder_special_outlined, size: 16, color: AppColors.accent),
                         const SizedBox(width: 8),
                         Text(
-                          isSameBrand
-                              ? 'Group: ${g.name} (${g.accountIds.length} channels)'
-                              : 'Group: ${g.name} [${gBrand?.name ?? 'Other'}] (${g.accountIds.length})',
+                          'Group: ${g.name} (${g.accountIds.length} channels)',
                           overflow: TextOverflow.ellipsis,
                         ),
                       ],
@@ -148,7 +143,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
                     children: [
                       Icon(Icons.add, size: 16, color: AppColors.accent),
                       SizedBox(width: 8),
-                      Text('+ Create New Product Group...'),
+                      Text('+ Create New Channel Group...'),
                     ],
                   ),
                 ),
@@ -163,7 +158,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
                 controller: newGroupNameCtrl,
                 decoration: const InputDecoration(
                   labelText: 'New Group Name *',
-                  hintText: 'e.g. ChatMore (Product Bundle)',
+                  hintText: 'e.g. Core Channels',
                   isDense: true,
                 ),
               ),
@@ -186,8 +181,9 @@ class _AccountsScreenState extends State<AccountsScreen> {
             if (selectedValue == '__new__') {
               final newName = newGroupNameCtrl.text.trim();
               if (newName.isEmpty) return;
+              final brandId = brandParam?.id ?? widget.appState.primaryBrandId;
               final newGroup = widget.appState.createGroup(
-                brandId: brand.id,
+                brandId: brandId,
                 name: newName,
                 accountIds: [account.id],
               );
@@ -202,7 +198,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
               SnackBar(
                 content: Text(
                   selectedValue == 'standalone'
-                      ? '${account.displayName} is now a Standalone channel under ${brand.name}.'
+                      ? '${account.displayName} is now a standalone channel.'
                       : '${account.displayName} assigned to group successfully.',
                 ),
                 backgroundColor: AppColors.success,
@@ -217,28 +213,6 @@ class _AccountsScreenState extends State<AccountsScreen> {
         ),
       ],
     );
-  }
-
-  Future<void> _confirmDeleteBrand(BuildContext context, Brand brand) async {
-    final confirm = await AppSheets.showConfirmationSheet(
-      context,
-      title: 'Delete Company / Brand',
-      message: 'Are you sure you want to delete "${brand.name}"? This will permanently remove this company workspace and all its associated channels and channel groups.',
-      confirmLabel: 'Delete Company',
-      isDestructive: true,
-    );
-
-    if (confirm) {
-      widget.appState.deleteBrand(brand.id);
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Company "${brand.name}" deleted.'),
-            backgroundColor: AppColors.ink,
-          ),
-        );
-      }
-    }
   }
 
   void _showAccountDetails(
@@ -287,7 +261,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
                         style: AppTypography.titleMedium.copyWith(fontSize: 16),
                       ),
                       Text(
-                        '${account.handle.startsWith('@') ? account.handle : "@${account.handle}"} • ${brand?.name ?? "Independent"}',
+                        account.handle.startsWith('@') ? account.handle : "@${account.handle}",
                         style: AppTypography.bodySecondary,
                       ),
                     ],
@@ -326,7 +300,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
                   TextButton.icon(
                     onPressed: () {
                       Navigator.of(ctx).pop();
-                      _showChangeGroupSheet(context, account, brand ?? widget.appState.brands.first);
+                      _showChangeGroupSheet(context, account, brand);
                     },
                     icon: const Icon(Icons.edit_outlined, size: 14),
                     label: const Text('Assign Group', style: TextStyle(fontSize: 12)),
@@ -410,15 +384,6 @@ class _AccountsScreenState extends State<AccountsScreen> {
     );
   }
 
-  // --- Modal Dialog: Register Brand / Company ---
-  void _showRegisterBrandDialog(BuildContext context, {Brand? existingBrand}) {
-    EntityDialogs.showRegisterCompanyDialog(
-      context,
-      widget.appState,
-      existingBrand: existingBrand,
-    );
-  }
-
   // --- Modal Dialog: Connect Social Channel ---
   void _showConnectChannelDialog(BuildContext context, {String? preselectedBrandId}) {
     EntityDialogs.showConnectChannelDialog(
@@ -470,7 +435,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
                         ),
                       ),
                       Text(
-                        '${allAccounts.length} Connected • ${brands.length} Workspace${brands.length == 1 ? '' : 's'}',
+                        '${allAccounts.length} Connected • Unified Workspace',
                         style: const TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
@@ -499,45 +464,22 @@ class _AccountsScreenState extends State<AccountsScreen> {
               if (isDesktop)
                 _buildDesktopHeroCard(context, l10n, allAccounts, brands)
               else
-                _buildMobileWorkspaceHeader(context, brands, allAccounts),
+                _buildMobileWorkspaceHeader(context, allAccounts),
 
               const SizedBox(height: 14),
 
-              // Segmented Tab Filter
-              _buildTabBar(isDesktop, l10n, allAccounts.length, groups.length, brands.length),
+              // Segmented Tab Filter (Channels & Channel Groups)
+              _buildTabBar(isDesktop, l10n, allAccounts.length, groups.length),
               const SizedBox(height: 16),
 
-              // Tab 0: Channels by Brand
+              // Tab 0: Channels
               if (_activeTab == 0) ...[
-                if (brands.isEmpty)
-                  _buildEmptyState(
-                    title: l10n.noCompaniesTitle,
-                    message: l10n.noCompaniesSub,
-                    buttonText: l10n.btnRegisterCompany,
-                    onAction: () => _showRegisterBrandDialog(context),
-                  )
-                else
-                  ...brands
-                      .where((b) => _selectedBrandFilterId == null || b.id == _selectedBrandFilterId)
-                      .map((brand) => _buildBrandChannelsCard(context, brand, isDesktop)),
+                _buildWorkspaceChannelsCard(context, allAccounts, isDesktop),
               ],
 
               // Tab 1: Channel Groups
               if (_activeTab == 1) ...[
                 _buildGroupsSection(context, groups, brands, isDesktop),
-              ],
-
-              // Tab 2: Company Portfolio
-              if (_activeTab == 2) ...[
-                if (brands.isEmpty)
-                  _buildEmptyState(
-                    title: l10n.noCompaniesTitle,
-                    message: l10n.noCompaniesSub,
-                    buttonText: l10n.btnRegisterCompany,
-                    onAction: () => _showRegisterBrandDialog(context),
-                  )
-                else
-                  ...brands.map((brand) => _buildBrandPortfolioCard(context, brand, isDesktop)),
               ],
             ],
           ),
@@ -615,24 +557,6 @@ class _AccountsScreenState extends State<AccountsScreen> {
                   _showCreateGroupDialog(context);
                 },
               ),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceSecondary,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: AppColors.border),
-                  ),
-                  child: const Icon(Icons.business_outlined, color: AppColors.accent, size: 20),
-                ),
-                title: const Text('Register Company', style: TextStyle(fontWeight: FontWeight.w700)),
-                subtitle: const Text('Add a new brand workspace portfolio', style: TextStyle(fontSize: 12)),
-                onTap: () {
-                  Navigator.of(bCtx).pop();
-                  _showRegisterBrandDialog(context);
-                },
-              ),
             ],
           ),
         ),
@@ -642,59 +566,8 @@ class _AccountsScreenState extends State<AccountsScreen> {
 
   Widget _buildMobileWorkspaceHeader(
     BuildContext context,
-    List<Brand> brands,
     List<SocialAccount> allAccounts,
   ) {
-    if (brands.isEmpty) return const SizedBox.shrink();
-
-    if (brands.length > 1) {
-      return SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: [
-            ChoiceChip(
-              label: Text('All (${allAccounts.length})'),
-              selected: _selectedBrandFilterId == null,
-              onSelected: (_) => setState(() => _selectedBrandFilterId = null),
-              selectedColor: AppColors.ink,
-              labelStyle: TextStyle(
-                color: _selectedBrandFilterId == null ? Colors.white : AppColors.textPrimary,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(width: 8),
-            ...brands.map((b) {
-              final isSelected = _selectedBrandFilterId == b.id;
-              final bAccounts = allAccounts.where((a) => a.brandId == b.id).length;
-              return Padding(
-                padding: const EdgeInsets.only(right: 8.0),
-                child: ChoiceChip(
-                  avatar: const Icon(Icons.business, size: 14),
-                  label: Text('${b.name} ($bAccounts)'),
-                  selected: isSelected,
-                  onSelected: (_) => setState(() => _selectedBrandFilterId = isSelected ? null : b.id),
-                  selectedColor: AppColors.accent,
-                  labelStyle: TextStyle(
-                    color: isSelected ? Colors.white : AppColors.textPrimary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              );
-            }),
-            ActionChip(
-              avatar: const Icon(Icons.add, size: 14, color: AppColors.accent),
-              label: const Text('Add Company', style: TextStyle(fontSize: 12, color: AppColors.accent)),
-              onPressed: () => _showRegisterBrandDialog(context),
-            ),
-          ],
-        ),
-      );
-    }
-
-    // Single brand compact header banner
-    final brand = brands.first;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
@@ -710,7 +583,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
               color: AppColors.accentLight,
               borderRadius: BorderRadius.circular(8),
             ),
-            child: const Icon(Icons.business, size: 16, color: AppColors.accent),
+            child: const Icon(Icons.hub_outlined, size: 16, color: AppColors.accent),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -718,9 +591,9 @@ class _AccountsScreenState extends State<AccountsScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  brand.name,
-                  style: const TextStyle(
+                const Text(
+                  'Publishing Workspace',
+                  style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
                     color: AppColors.textPrimary,
@@ -735,7 +608,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
             ),
           ),
           OutlinedButton.icon(
-            onPressed: () => _showConnectChannelDialog(context, preselectedBrandId: brand.id),
+            onPressed: () => _showConnectChannelDialog(context),
             icon: const Icon(Icons.add_link, size: 14),
             label: const Text('Connect', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
             style: OutlinedButton.styleFrom(
@@ -753,7 +626,6 @@ class _AccountsScreenState extends State<AccountsScreen> {
     AppLocalizations l10n,
     int accountsCount,
     int groupsCount,
-    int brandsCount,
   ) {
     if (isDesktop) {
       return SingleChildScrollView(
@@ -763,8 +635,6 @@ class _AccountsScreenState extends State<AccountsScreen> {
             _buildTabPill(0, l10n.tabSocialChannels(accountsCount), Icons.share_rounded),
             const SizedBox(width: 8),
             _buildTabPill(1, l10n.tabChannelGroups(groupsCount), Icons.folder_rounded),
-            const SizedBox(width: 8),
-            _buildTabPill(2, l10n.tabCompanyPortfolio(brandsCount), Icons.business_rounded),
           ],
         ),
       );
@@ -785,9 +655,6 @@ class _AccountsScreenState extends State<AccountsScreen> {
           ),
           Expanded(
             child: _buildMobileTabSegment(1, 'Groups', groupsCount, Icons.folder_rounded),
-          ),
-          Expanded(
-            child: _buildMobileTabSegment(2, 'Companies', brandsCount, Icons.business_rounded),
           ),
         ],
       ),
@@ -1012,14 +879,6 @@ class _AccountsScreenState extends State<AccountsScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 ),
               ),
-              OutlinedButton.icon(
-                onPressed: () => _showRegisterBrandDialog(context),
-                icon: const Icon(Icons.business_outlined, size: 16),
-                label: Text(l10n.btnRegisterCompany),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                ),
-              ),
               if (brands.any((b) => b.id.startsWith('brand-')))
                 OutlinedButton.icon(
                   onPressed: () async {
@@ -1028,7 +887,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
                       builder: (dCtx) => AlertDialog(
                         title: const Text('Purge Sample Demo Data'),
                         content: const Text(
-                          'This will delete pre-seeded sample brands (Boofer, Favtunes, Shaadow demo accounts) so only your real company accounts appear in the dashboard.',
+                          'This will delete pre-seeded sample brands (Boofer, Favtunes, Shaadow demo accounts) so only your real accounts appear in the dashboard.',
                         ),
                         actions: [
                           TextButton(
@@ -1051,7 +910,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                            content: Text('Demo sample brands removed.'),
+                            content: Text('Demo sample accounts removed.'),
                             backgroundColor: AppColors.ink,
                           ),
                         );
@@ -1067,47 +926,6 @@ class _AccountsScreenState extends State<AccountsScreen> {
                 ),
             ],
           ),
-          if (brands.isNotEmpty) ...[
-            const SizedBox(height: 14),
-            Wrap(
-              spacing: 8,
-              runSpacing: 6,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                const Text(
-                  'Active Companies:',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-                ...brands.map((b) => Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceSecondary,
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: AppColors.border),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.business, size: 12, color: AppColors.accent),
-                      const SizedBox(width: 5),
-                      Text(
-                        b.name,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                    ],
-                  ),
-                )),
-              ],
-            ),
-          ],
         ],
       ),
     );
@@ -1150,11 +968,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
     );
   }
 
-  Widget _buildBrandChannelsCard(BuildContext context, Brand brand, bool isDesktop) {
-    final brandAccounts = widget.appState.accounts
-        .where((a) => a.brandId == brand.id)
-        .toList();
-
+  Widget _buildWorkspaceChannelsCard(BuildContext context, List<SocialAccount> accounts, bool isDesktop) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
@@ -1183,7 +997,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
                     color: AppColors.accentLight,
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(Icons.business, size: 18, color: AppColors.accent),
+                  child: const Icon(Icons.share_rounded, size: 18, color: AppColors.accent),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -1191,9 +1005,9 @@ class _AccountsScreenState extends State<AccountsScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        brand.name,
-                        style: const TextStyle(
+                      const Text(
+                        'Connected Channels',
+                        style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
                           color: AppColors.textPrimary,
@@ -1207,125 +1021,44 @@ class _AccountsScreenState extends State<AccountsScreen> {
                             width: 6,
                             height: 6,
                             decoration: BoxDecoration(
-                              color: brandAccounts.isNotEmpty ? AppColors.success : AppColors.textMuted,
+                              color: accounts.isNotEmpty ? AppColors.success : AppColors.textMuted,
                               shape: BoxShape.circle,
                             ),
                           ),
                           const SizedBox(width: 6),
                           Flexible(
                             child: Text(
-                              '${brandAccounts.length} connected channel${brandAccounts.length == 1 ? '' : 's'}',
+                              '${accounts.length} connected channel${accounts.length == 1 ? '' : 's'}',
                               style: TextStyle(
                                 fontSize: 12,
-                                color: brandAccounts.isNotEmpty ? AppColors.success : AppColors.textSecondary,
+                                color: accounts.isNotEmpty ? AppColors.success : AppColors.textSecondary,
                                 fontWeight: FontWeight.w600,
                               ),
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                          if (brand.websiteUrl != null && brand.websiteUrl!.isNotEmpty) ...[
-                            const SizedBox(width: 6),
-                            const Text('•', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
-                            const SizedBox(width: 6),
-                            Flexible(
-                              child: Text(
-                                brand.websiteUrl!,
-                                style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
                         ],
                       ),
                     ],
                   ),
                 ),
-                if (isDesktop) ...[
-                  IconButton(
-                    tooltip: 'Edit Company Details',
-                    icon: const Icon(Icons.edit_outlined, size: 16, color: AppColors.textSecondary),
-                    onPressed: () => _showRegisterBrandDialog(context, existingBrand: brand),
+                ElevatedButton.icon(
+                  onPressed: () => _showConnectChannelDialog(context),
+                  icon: const Icon(Icons.add_link, size: 14),
+                  label: const Text('Connect Channel', style: TextStyle(fontSize: 12)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.ink,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    elevation: 0,
                   ),
-                  IconButton(
-                    tooltip: 'Delete Company',
-                    icon: const Icon(Icons.delete_outline, size: 16, color: AppColors.error),
-                    onPressed: () => _confirmDeleteBrand(context, brand),
-                  ),
-                  const SizedBox(width: 4),
-                  ElevatedButton.icon(
-                    onPressed: () => _showConnectChannelDialog(context, preselectedBrandId: brand.id),
-                    icon: const Icon(Icons.add_link, size: 14),
-                    label: const Text('Connect Channel', style: TextStyle(fontSize: 12)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.ink,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      elevation: 0,
-                    ),
-                  ),
-                ] else ...[
-                  // Clean Mobile Action Popup Menu
-                  PopupMenuButton<String>(
-                    icon: const Icon(Icons.more_vert, size: 20, color: AppColors.textSecondary),
-                    tooltip: 'Company Options',
-                    onSelected: (val) {
-                      if (val == 'connect') {
-                        _showConnectChannelDialog(context, preselectedBrandId: brand.id);
-                      } else if (val == 'edit') {
-                        _showRegisterBrandDialog(context, existingBrand: brand);
-                      } else if (val == 'delete') {
-                        _confirmDeleteBrand(context, brand);
-                      }
-                    },
-                    itemBuilder: (ctx) => [
-                      const PopupMenuItem(
-                        value: 'connect',
-                        child: Row(
-                          children: [
-                            Icon(Icons.add_link, size: 18, color: AppColors.accent),
-                            SizedBox(width: 10),
-                            Text('Connect Channel'),
-                          ],
-                        ),
-                      ),
-                      const PopupMenuItem(
-                        value: 'edit',
-                        child: Row(
-                          children: [
-                            Icon(Icons.edit_outlined, size: 18),
-                            SizedBox(width: 10),
-                            Text('Edit Company Details'),
-                          ],
-                        ),
-                      ),
-                      const PopupMenuItem(
-                        value: 'delete',
-                        child: Row(
-                          children: [
-                            Icon(Icons.delete_outline, size: 18, color: AppColors.error),
-                            SizedBox(width: 10),
-                            Text('Delete Company', style: TextStyle(color: AppColors.error)),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+                ),
               ],
             ),
           ),
-          if (brand.description != null && brand.description!.isNotEmpty) ...[
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-              child: Text(
-                brand.description!,
-                style: AppTypography.bodySecondary.copyWith(fontSize: 12),
-              ),
-            ),
-          ],
 
           // Accounts list
-          if (brandAccounts.isEmpty)
+          if (accounts.isEmpty)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 26),
               color: AppColors.surface,
@@ -1343,9 +1076,9 @@ class _AccountsScreenState extends State<AccountsScreen> {
                       child: const Icon(Icons.hub_outlined, color: AppColors.accent, size: 24),
                     ),
                     const SizedBox(height: 14),
-                    Text(
+                    const Text(
                       'No channels connected yet',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
                         color: AppColors.textPrimary,
@@ -1355,10 +1088,10 @@ class _AccountsScreenState extends State<AccountsScreen> {
                     const SizedBox(height: 6),
                     ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 340),
-                      child: Text(
-                        'Link your social media profiles to start publishing and scheduling content for ${brand.name}.',
+                      child: const Text(
+                        'Link your social media profiles to start publishing and scheduling content.',
                         textAlign: TextAlign.center,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 13,
                           color: AppColors.textSecondary,
                           height: 1.4,
@@ -1382,7 +1115,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
                       width: isDesktop ? 260 : double.infinity,
                       height: 46,
                       child: ElevatedButton.icon(
-                        onPressed: () => _showConnectChannelDialog(context, preselectedBrandId: brand.id),
+                        onPressed: () => _showConnectChannelDialog(context),
                         icon: const Icon(Icons.add_link, size: 18),
                         label: const Text(
                           'Connect Channel',
@@ -1404,10 +1137,11 @@ class _AccountsScreenState extends State<AccountsScreen> {
             ListView.separated(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              itemCount: brandAccounts.length,
+              itemCount: accounts.length,
               separatorBuilder: (_, _) => const Divider(height: 1),
               itemBuilder: (c, aIdx) {
-                final acc = brandAccounts[aIdx];
+                final acc = accounts[aIdx];
+                final brand = widget.appState.primaryBrand;
                 final accountGroup = widget.appState.getGroupForAccount(acc.id);
 
                 final hasDistinctName = acc.displayName.isNotEmpty &&
@@ -1603,7 +1337,6 @@ class _AccountsScreenState extends State<AccountsScreen> {
 
     return Column(
       children: groups.map((g) {
-        final brand = widget.appState.getBrandById(g.brandId);
         final bundledAccounts = g.accountIds
             .map((id) => widget.appState.getAccountById(id))
             .whereType<SocialAccount>()
@@ -1636,30 +1369,22 @@ class _AccountsScreenState extends State<AccountsScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          children: [
-                            Flexible(
-                              child: Text(
-                                g.name,
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.textPrimary,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            if (brand != null) ...[
-                              const SizedBox(width: 8),
-                              CompanyBadge(brand: brand, isCompact: true),
-                            ],
-                          ],
+                        Text(
+                          g.name,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimary,
+                          ),
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        if (g.description != null)
+                        if (g.description != null && g.description!.isNotEmpty) ...[
+                          const SizedBox(height: 2),
                           Text(
                             g.description!,
                             style: AppTypography.bodySecondary.copyWith(fontSize: 12),
                           ),
+                        ],
                       ],
                     ),
                   ),
@@ -1753,149 +1478,6 @@ class _AccountsScreenState extends State<AccountsScreen> {
           ),
         );
       }).toList(),
-    );
-  }
-
-  Widget _buildBrandPortfolioCard(BuildContext context, Brand brand, bool isDesktop) {
-    final brandAccounts = widget.appState.accounts.where((a) => a.brandId == brand.id).toList();
-    final brandGroups = widget.appState.getGroupsByBrand(brand.id);
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
-        boxShadow: AppColors.cardShadow,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: AppColors.accentLight,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(Icons.business, color: AppColors.accent, size: 20),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      brand.name,
-                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-                    ),
-                    if (brand.websiteUrl != null)
-                      Text(
-                        brand.websiteUrl!,
-                        style: const TextStyle(fontSize: 11, color: AppColors.accent),
-                      ),
-                  ],
-                ),
-              ),
-              if (isDesktop) ...[
-                IconButton(
-                  icon: const Icon(Icons.edit_outlined, size: 16),
-                  tooltip: 'Edit Company Details',
-                  onPressed: () => _showRegisterBrandDialog(context, existingBrand: brand),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.delete_outline, size: 16, color: AppColors.error),
-                  tooltip: 'Delete Company',
-                  onPressed: () => _confirmDeleteBrand(context, brand),
-                ),
-                const SizedBox(width: 4),
-                OutlinedButton.icon(
-                  onPressed: () => _showConnectChannelDialog(context, preselectedBrandId: brand.id),
-                  icon: const Icon(Icons.add_link, size: 14),
-                  label: const Text('Add Channel'),
-                ),
-              ] else ...[
-                PopupMenuButton<String>(
-                  icon: const Icon(Icons.more_vert, size: 20, color: AppColors.textSecondary),
-                  tooltip: 'Company Actions',
-                  onSelected: (val) {
-                    if (val == 'add') {
-                      _showConnectChannelDialog(context, preselectedBrandId: brand.id);
-                    } else if (val == 'edit') {
-                      _showRegisterBrandDialog(context, existingBrand: brand);
-                    } else if (val == 'delete') {
-                      _confirmDeleteBrand(context, brand);
-                    }
-                  },
-                  itemBuilder: (ctx) => [
-                    const PopupMenuItem(
-                      value: 'add',
-                      child: Row(
-                        children: [
-                          Icon(Icons.add_link, size: 18, color: AppColors.accent),
-                          SizedBox(width: 10),
-                          Text('Connect Channel'),
-                        ],
-                      ),
-                    ),
-                    const PopupMenuItem(
-                      value: 'edit',
-                      child: Row(
-                        children: [
-                          Icon(Icons.edit_outlined, size: 18),
-                          SizedBox(width: 10),
-                          Text('Edit Company Details'),
-                        ],
-                      ),
-                    ),
-                    const PopupMenuItem(
-                      value: 'delete',
-                      child: Row(
-                        children: [
-                          Icon(Icons.delete_outline, size: 18, color: AppColors.error),
-                          SizedBox(width: 10),
-                          Text('Delete Company', style: TextStyle(color: AppColors.error)),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ],
-          ),
-          if (brand.description != null) ...[
-            const SizedBox(height: 8),
-            Text(brand.description!, style: AppTypography.bodySecondary),
-          ],
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              _buildMiniStat('Connected Channels', '${brandAccounts.length}'),
-              const SizedBox(width: 16),
-              _buildMiniStat('Channel Groups', '${brandGroups.length}'),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMiniStat(String label, String value) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceSecondary,
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text('$label: ', style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-          Text(value, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
-        ],
-      ),
     );
   }
 

@@ -200,10 +200,9 @@ class EnvConfig {
 
   // --- Firebase Configuration Getters ---
   static String get firebaseApiKey => get('FIREBASE_API_KEY');
-  static String get firebaseProjectId => get('FIREBASE_PROJECT_ID', fallback: 'no5ocial-cloud');
+  static String get firebaseProjectId => get('FIREBASE_PROJECT_ID');
   static String get firebaseAppId => get('FIREBASE_APP_ID');
-  static String get firebaseMessagingSenderId =>
-      get('FIREBASE_MESSAGING_SENDER_ID', fallback: '1030532523858');
+  static String get firebaseMessagingSenderId => get('FIREBASE_MESSAGING_SENDER_ID');
   static String get firebaseAuthDomain => get('FIREBASE_AUTH_DOMAIN');
   static String get firebaseStorageBucket => get('FIREBASE_STORAGE_BUCKET');
 }

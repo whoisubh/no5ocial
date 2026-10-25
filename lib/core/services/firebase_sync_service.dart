@@ -725,6 +725,25 @@ class FirebaseSyncService extends ChangeNotifier {
 
     try {
       final emailKey = email.trim().toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '_');
+
+      // 0. Check if this email or device is tombstoned from a prior account deletion
+      final tombstoneEmailRef = firestore!.collection('anti_abuse_tombstones').doc('tombstone_$emailKey');
+      final tombstoneEmailSnap = await tombstoneEmailRef.get();
+      if (tombstoneEmailSnap.exists) {
+        debugPrint('AntiAbuse: Email $email has a deletion tombstone. Lifetime bonus exhausted.');
+        return false;
+      }
+
+      if (deviceSignature != null && deviceSignature.isNotEmpty && deviceSignature != 'unknown_device') {
+        final devClean = deviceSignature.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_');
+        final tombstoneDevRef = firestore!.collection('anti_abuse_tombstones').doc('device_tombstone_$devClean');
+        final tombstoneDevSnap = await tombstoneDevRef.get();
+        if (tombstoneDevSnap.exists) {
+          debugPrint('AntiAbuse: Device $deviceSignature has a deletion tombstone. Lifetime bonus exhausted.');
+          return false;
+        }
+      }
+
       final claimDocId = '${emailKey}_$milestone';
       final claimRef = firestore!.collection('milestone_claims').doc(claimDocId);
 
@@ -817,5 +836,111 @@ class FirebaseSyncService extends ChangeNotifier {
     if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
     if (diff.inHours < 24) return '${diff.inHours}h ago';
     return '${diff.inDays}d ago';
+  }
+
+  /// Permanently deletes user account and personal workspace documents from Cloud Firestore,
+  /// while recording an immutable anti-abuse tombstone so that bonus farming
+  /// (deleting account to reclaim 30 free coins) is strictly impossible.
+  Future<void> deleteAccountAndEnforceAntiAbuse({
+    required String userId,
+    required String email,
+    required String deviceSignature,
+    List<String> connectedChannelIds = const [],
+    Map<String, dynamic>? telemetry,
+  }) async {
+    if (firestore == null) return;
+    try {
+      final nowUtc = DateTime.now().toUtc().toIso8601String();
+      final emailKey = email.trim().toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '_');
+      final devClean = (deviceSignature.isNotEmpty && deviceSignature != 'unknown_device')
+          ? deviceSignature.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_')
+          : null;
+
+      // 1. Record immutable email tombstone in Firestore
+      final tombstoneEmailRef = firestore!.collection('anti_abuse_tombstones').doc('tombstone_$emailKey');
+      await tombstoneEmailRef.set({
+        'email': email.trim().toLowerCase(),
+        'device_id': deviceSignature,
+        'user_id': userId,
+        'deleted_at_utc': nowUtc,
+        'lifetime_coins_exhausted': true,
+        'connected_channel_ids': connectedChannelIds,
+        'reason': 'user_requested_account_deletion',
+        ...?telemetry != null ? {'telemetry': telemetry} : null,
+      }, SetOptions(merge: true));
+
+      // 2. Record immutable device hardware tombstone in Firestore
+      if (devClean != null) {
+        final tombstoneDevRef = firestore!.collection('anti_abuse_tombstones').doc('device_tombstone_$devClean');
+        await tombstoneDevRef.set({
+          'device_id': deviceSignature,
+          'email': email.trim().toLowerCase(),
+          'deleted_at_utc': nowUtc,
+          'lifetime_coins_exhausted': true,
+          'connected_channel_ids': connectedChannelIds,
+          'reason': 'user_requested_account_deletion',
+        }, SetOptions(merge: true));
+      }
+
+      // 3. Seal all 4 milestones as claimed/exhausted for this email and device
+      final milestones = ['welcome_grant', 'company_registered', 'channel_connected', 'first_post'];
+      for (final m in milestones) {
+        await firestore!.collection('milestone_claims').doc('${emailKey}_$m').set({
+          'email': email.trim().toLowerCase(),
+          'user_id': userId,
+          'milestone': m,
+          'amount': 0,
+          'exhausted': true,
+          'claimed_at_utc': nowUtc,
+        }, SetOptions(merge: true));
+
+        if (devClean != null) {
+          await firestore!.collection('device_milestones').doc('${devClean}_$m').set({
+            'device_id': deviceSignature,
+            'milestone': m,
+            'email': email.trim().toLowerCase(),
+            'exhausted': true,
+            'claimed_at_utc': nowUtc,
+          }, SetOptions(merge: true));
+        }
+      }
+
+      // 4. Mark all connected channels as exhausted in linked_channels_registry
+      for (final chId in connectedChannelIds) {
+        final cleanCh = chId.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_');
+        await firestore!.collection('linked_channels_registry').doc(cleanCh).set({
+          'external_account_id': chId,
+          'bonus_claimed': true,
+          'exhausted_at_utc': nowUtc,
+          'last_owner_email': email.trim().toLowerCase(),
+        }, SetOptions(merge: true));
+      }
+
+      // 5. Delete user profile from active users collection
+      if (userId.isNotEmpty) {
+        await firestore!.collection('users').doc(userId).delete();
+      }
+
+      debugPrint('FirebaseSyncService: User account $userId ($email) permanently deleted & anti-abuse tombstone sealed.');
+    } catch (e) {
+      debugPrint('FirebaseSyncService: Error during deleteAccountAndEnforceAntiAbuse: $e');
+    }
+  }
+
+  /// Checks whether an email or device is tombstoned in Cloud Firestore
+  Future<bool> isIdentityTombstoned({required String email, String? deviceSignature}) async {
+    if (firestore == null) return false;
+    try {
+      final emailKey = email.trim().toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '_');
+      final tombDoc = await firestore!.collection('anti_abuse_tombstones').doc('tombstone_$emailKey').get();
+      if (tombDoc.exists) return true;
+
+      if (deviceSignature != null && deviceSignature.isNotEmpty && deviceSignature != 'unknown_device') {
+        final devClean = deviceSignature.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_');
+        final devDoc = await firestore!.collection('anti_abuse_tombstones').doc('device_tombstone_$devClean').get();
+        if (devDoc.exists) return true;
+      }
+    } catch (_) {}
+    return false;
   }
 }

@@ -9,7 +9,11 @@ import 'package:no5ocial/presentation/widgets/app_sheets.dart';
 import 'package:no5ocial/presentation/widgets/passkey_management_sheet.dart';
 import 'package:no5ocial/presentation/widgets/team_management_sheet.dart';
 import 'package:no5ocial/presentation/screens/settings/monetization_settings_view.dart';
+import 'package:no5ocial/presentation/screens/settings/content_branding_settings_view.dart';
+import 'package:no5ocial/presentation/screens/settings/company_settings_screen.dart';
 import 'package:no5ocial/core/services/country_service.dart';
+import 'package:no5ocial/core/services/fcm_notification_service.dart';
+import 'package:no5ocial/core/services/connectivity_service.dart';
 
 class SettingsScreen extends StatelessWidget {
   final AppState appState;
@@ -347,6 +351,143 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
+  void _confirmPermanentAccountDeletion(BuildContext context) {
+    final confirmationController = TextEditingController();
+    bool isDeleting = false;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: const Color(0xFF131A2B),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: const BorderSide(color: AppColors.errorBorder),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.delete_forever_rounded, color: AppColors.error, size: 24),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Delete Account & Workspace',
+                  style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 440),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Are you absolutely sure you want to delete your no5ocial account? This action is permanent and irreversible.',
+                  style: TextStyle(color: Color(0xFFCBD5E1), fontSize: 13, height: 1.4),
+                ),
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1C131D),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFF4A1E29)),
+                  ),
+                  child: const Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'What will be deleted:',
+                        style: TextStyle(color: Color(0xFFF87171), fontWeight: FontWeight.bold, fontSize: 12),
+                      ),
+                      SizedBox(height: 4),
+                      Text('• All registered brands and companies', style: TextStyle(color: Color(0xFFE2E8F0), fontSize: 11)),
+                      Text('• All connected social channel authorizations', style: TextStyle(color: Color(0xFFE2E8F0), fontSize: 11)),
+                      Text('• All draft and scheduled publication jobs', style: TextStyle(color: Color(0xFFE2E8F0), fontSize: 11)),
+                      Text('• Local database and cloud-synced user documents', style: TextStyle(color: Color(0xFFE2E8F0), fontSize: 11)),
+                      SizedBox(height: 8),
+                      Text(
+                        'Anti-Abuse Policy Notice:',
+                        style: TextStyle(color: Color(0xFFFBBF24), fontWeight: FontWeight.bold, fontSize: 11),
+                      ),
+                      Text(
+                        'Promotional free coin allocations (30 coins) are strictly limited to one-time per creator. Re-registering with the same identity or device will NOT yield additional free coins.',
+                        style: TextStyle(color: Color(0xFF94A3B8), fontSize: 10.5, height: 1.3),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'To confirm deletion, please type "DELETE" below:',
+                  style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+                ),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: confirmationController,
+                  autofocus: true,
+                  enabled: !isDeleting,
+                  style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                  decoration: InputDecoration(
+                    hintText: 'DELETE',
+                    hintStyle: const TextStyle(color: Color(0xFF475569)),
+                    isDense: true,
+                    filled: true,
+                    fillColor: const Color(0xFF0B101D),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(color: Color(0xFF334155)),
+                    ),
+                  ),
+                  onChanged: (_) => setDialogState(() {}),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: isDeleting ? null : () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel', style: TextStyle(color: Color(0xFF94A3B8))),
+            ),
+            ElevatedButton(
+              onPressed: (confirmationController.text.trim() == 'DELETE' && !isDeleting)
+                  ? () async {
+                      setDialogState(() => isDeleting = true);
+                      await appState.deleteUserAccount();
+                      if (context.mounted) {
+                        Navigator.of(ctx).pop();
+                        Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Your account and workspace data have been permanently deleted.'),
+                            backgroundColor: AppColors.error,
+                            duration: Duration(seconds: 4),
+                          ),
+                        );
+                      }
+                    }
+                  : null,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.error,
+                foregroundColor: Colors.white,
+                disabledBackgroundColor: AppColors.error.withValues(alpha: 0.3),
+              ),
+              child: isDeleting
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Text('Delete Permanently'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -525,6 +666,135 @@ class SettingsScreen extends StatelessWidget {
                         signOutBtn,
                       ],
                     ),
+                  );
+                },
+              ),
+              _buildSectionTitle('Company & Organization'),
+              AnimatedBuilder(
+                animation: appState,
+                builder: (context, _) {
+                  final brand = appState.primaryBrand;
+                  final companyName = brand?.name.isNotEmpty == true ? brand!.name : 'Company Profile';
+                  final industry = brand?.industry ?? 'Technology & Software';
+                  final channelsCount = appState.accounts.length;
+
+                  return LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isNarrow = constraints.maxWidth < 460;
+                      final companyIcon = Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: AppColors.accent.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(Icons.business_rounded, color: AppColors.accent, size: 20),
+                      );
+
+                      final companyDetails = Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Wrap(
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            spacing: 8,
+                            runSpacing: 4,
+                            children: [
+                              Text(
+                                companyName,
+                                style: AppTypography.titleMedium,
+                              ),
+                              if (brand != null && brand.slug.isNotEmpty)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.accentLight,
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    '@${brand.slug}',
+                                    style: const TextStyle(
+                                      color: AppColors.accent,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '$industry · $channelsCount connected channel${channelsCount == 1 ? '' : 's'}',
+                            style: AppTypography.bodySecondary.copyWith(fontSize: 12),
+                          ),
+                        ],
+                      );
+
+                      final manageBtn = ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => CompanySettingsScreen(appState: appState),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.tune_rounded, size: 14),
+                        label: const Text('Manage'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.accent,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                        ),
+                      );
+
+                      if (isNarrow) {
+                        return Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: AppColors.surface,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppColors.border),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  companyIcon,
+                                  const SizedBox(width: 12),
+                                  Expanded(child: companyDetails),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              SizedBox(
+                                width: double.infinity,
+                                child: manageBtn,
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+
+                      return Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: AppColors.surface,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: Row(
+                          children: [
+                            companyIcon,
+                            const SizedBox(width: 12),
+                            Expanded(child: companyDetails),
+                            const SizedBox(width: 10),
+                            manageBtn,
+                          ],
+                        ),
+                      );
+                    },
                   );
                 },
               ),
@@ -1053,6 +1323,171 @@ class SettingsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 16),
 
+              _buildSectionTitle('Notifications & Connectivity'),
+              ListenableBuilder(
+                listenable: Listenable.merge([
+                  FcmNotificationService.instance,
+                  ConnectivityService.instance,
+                ]),
+                builder: (context, _) {
+                  final fcm = FcmNotificationService.instance;
+                  final conn = ConnectivityService.instance;
+                  final isOnline = conn.isOnline;
+                  final hasPush = fcm.hasPermission || fcm.fcmToken != null;
+
+                  return Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Connectivity Status
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: (isOnline ? AppColors.success : AppColors.error).withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Icon(
+                                isOnline ? Icons.wifi_rounded : Icons.wifi_off_rounded,
+                                color: isOnline ? AppColors.success : AppColors.error,
+                                size: 18,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Text(
+                                        isOnline ? 'Network Online' : 'Offline Mode',
+                                        style: AppTypography.titleMedium,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                        decoration: BoxDecoration(
+                                          color: isOnline ? AppColors.successBg : AppColors.errorBg,
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                        child: Text(
+                                          isOnline ? 'Connected' : 'Local Only',
+                                          style: TextStyle(
+                                            color: isOnline ? AppColors.success : AppColors.error,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    isOnline
+                                        ? 'Workspace changes sync seamlessly with Cloud Firestore.'
+                                        : 'Operating in local SQLite outbox. Sync will resume once online.',
+                                    style: AppTypography.bodySecondary.copyWith(fontSize: 12),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const Divider(height: 24),
+                        // Push Notifications
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: AppColors.accent.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Icon(
+                                Icons.notifications_active_outlined,
+                                color: AppColors.accent,
+                                size: 18,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Push Notifications & Alerts',
+                                    style: AppTypography.titleMedium,
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    hasPush
+                                        ? 'Publishing updates and heads-up alerts are active.'
+                                        : 'Tap Enable to receive publishing and schedule alerts.',
+                                    style: AppTypography.bodySecondary.copyWith(fontSize: 12),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (!hasPush)
+                              TextButton(
+                                onPressed: () async {
+                                  final granted = await fcm.requestPermission();
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(granted
+                                            ? 'Push notifications enabled.'
+                                            : 'Notification permissions were not granted.'),
+                                        backgroundColor: granted ? AppColors.success : AppColors.error,
+                                      ),
+                                    );
+                                  }
+                                },
+                                child: const Text('Enable'),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        OutlinedButton.icon(
+                          onPressed: () async {
+                            await fcm.showNotification(
+                              id: 999,
+                              title: 'Test Notification 🔔',
+                              body: 'Heads-up banners and notification channels are working properly!',
+                            );
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Test notification dispatched.'),
+                                  backgroundColor: AppColors.success,
+                                ),
+                              );
+                            }
+                          },
+                          icon: const Icon(Icons.send_rounded, size: 14),
+                          label: const Text('Send Test Alert'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.accent,
+                            side: const BorderSide(color: AppColors.border),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 16),
+
               _buildSectionTitle('Security & Privacy'),
               Container(
                 padding: const EdgeInsets.all(14),
@@ -1181,7 +1616,62 @@ class SettingsScreen extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
+
+              _buildSectionTitle('Content Branding & Signatures'),
+              ContentBrandingSettingsView(appState: appState),
+              const SizedBox(height: 20),
+
+              _buildSectionTitle('Danger Zone'),
+              Builder(
+                builder: (context) {
+                  final isDark = Theme.of(context).brightness == Brightness.dark;
+                  return Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF1E1012) : AppColors.errorBg,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: isDark ? const Color(0xFF4C1D24) : AppColors.errorBorder),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Row(
+                          children: [
+                            Icon(Icons.delete_forever_rounded, color: AppColors.error, size: 20),
+                            SizedBox(width: 8),
+                            Text(
+                              'Permanently Delete Account',
+                              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.error),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        const Text(
+                          'Permanently remove your account, workspace, connected social channels, posts, and media from all systems. This action cannot be undone. In accordance with anti-abuse policy, promotional coin allocations (30 coins) cannot be re-obtained by creating a new account.',
+                          style: TextStyle(fontSize: 11, color: AppColors.textSecondary, height: 1.4),
+                        ),
+                        const SizedBox(height: 14),
+                        OutlinedButton.icon(
+                          onPressed: () => _confirmPermanentAccountDeletion(context),
+                          icon: const Icon(Icons.warning_amber_rounded, size: 16, color: AppColors.error),
+                          label: const Text(
+                            'Delete Account Permanently',
+                            style: TextStyle(color: AppColors.error, fontWeight: FontWeight.bold),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: AppColors.error),
+                            backgroundColor: AppColors.error.withValues(alpha: 0.1),
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 52),
             ],
           ),
         );

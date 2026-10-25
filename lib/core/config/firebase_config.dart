@@ -54,26 +54,18 @@ class FirebaseConfig {
 
   /// Resolve FirebaseOptions dynamically from EnvConfig or google-services.json configuration
   static FirebaseOptions getPlatformOptions() {
-    final apiKey = EnvConfig.get(
-      'FIREBASE_API_KEY',
-      fallback: 'AIzaSyAvH6ixdC40ausbs_gTtJF0MewCSbXvVAY',
-    );
-    final appId = EnvConfig.get(
-      'FIREBASE_APP_ID',
-      fallback: '1:809049488759:android:2bd3af1788beea1b263572',
-    );
-    final projectId = EnvConfig.get(
-      'FIREBASE_PROJECT_ID',
-      fallback: 'no5ocial-84213',
-    );
-    final messagingSenderId = EnvConfig.get(
-      'FIREBASE_MESSAGING_SENDER_ID',
-      fallback: '809049488759',
-    );
-    final storageBucket = EnvConfig.get(
-      'FIREBASE_STORAGE_BUCKET',
-      fallback: 'no5ocial-84213.firebasestorage.app',
-    );
+    final apiKey = EnvConfig.get('FIREBASE_API_KEY');
+    final appId = EnvConfig.get('FIREBASE_APP_ID');
+    final projectId = EnvConfig.get('FIREBASE_PROJECT_ID');
+    final messagingSenderId = EnvConfig.get('FIREBASE_MESSAGING_SENDER_ID');
+    final storageBucket = EnvConfig.get('FIREBASE_STORAGE_BUCKET');
+
+    if (apiKey.isEmpty || appId.isEmpty || projectId.isEmpty || messagingSenderId.isEmpty) {
+      throw StateError(
+        'Firebase configuration is missing. Set FIREBASE_API_KEY, FIREBASE_APP_ID, '
+        'FIREBASE_PROJECT_ID, and FIREBASE_MESSAGING_SENDER_ID environment variables.',
+      );
+    }
     final authDomain = EnvConfig.get('FIREBASE_AUTH_DOMAIN');
 
     return FirebaseOptions(

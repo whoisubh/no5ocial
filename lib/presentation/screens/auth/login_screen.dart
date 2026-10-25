@@ -6,6 +6,8 @@ import 'package:no5ocial/core/services/google_auth_service.dart';
 import 'package:no5ocial/core/services/passkey_service.dart';
 import 'package:no5ocial/core/services/session_service.dart';
 import 'package:no5ocial/core/utils/input_validator.dart';
+import 'package:no5ocial/core/errors/app_error.dart';
+import 'package:no5ocial/core/errors/app_error_handler.dart';
 import 'package:no5ocial/l10n/app_localizations.dart';
 import 'package:no5ocial/presentation/state/app_state.dart';
 
@@ -65,13 +67,14 @@ class _LoginScreenState extends State<LoginScreen> {
         if (!mounted) return;
         Navigator.of(context).pushNamedAndRemoveUntil('/dashboard', (route) => false);
       }
-    } catch (e) {
+    } catch (e, st) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Passkey sign-in cancelled or failed: ${e.toString().replaceAll('Exception:', '').trim()}'),
-            backgroundColor: const Color(0xFFEF4444),
-          ),
+        AppErrorHandler.showError(
+          context,
+          e,
+          stackTrace: st,
+          overrideErrorId: AppErrorCode.authBiometricFailedId,
+          fallbackTitle: 'Passkey Sign-In Failed',
         );
       }
     } finally {
@@ -157,10 +160,19 @@ class _LoginScreenState extends State<LoginScreen> {
           setState(() => _isLoading = false);
         }
       }
-    } catch (e) {
+    } catch (e, st) {
       if (mounted) {
         setState(() => _isLoading = false);
-        _showGoogleConfigNotice(e.toString());
+        AppErrorHandler.showError(
+          context,
+          e,
+          stackTrace: st,
+          overrideErrorId: AppErrorCode.authFailedId,
+          fallbackTitle: 'Authentication Failed',
+        );
+        if (e.toString().contains('People API') || e.toString().contains('people.googleapis.com')) {
+          _showGoogleConfigNotice(e.toString());
+        }
       }
     }
   }

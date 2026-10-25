@@ -40,6 +40,7 @@ import 'package:no5ocial/domain/models/org_member.dart';
 import 'package:no5ocial/core/services/firebase_sync_service.dart';
 import 'package:no5ocial/core/services/monetization_service.dart';
 import 'package:no5ocial/core/services/device_telemetry_service.dart';
+import 'package:no5ocial/core/services/fcm_notification_service.dart';
 
 class AppState extends ChangeNotifier {
   final BrandRepository brandRepository;
@@ -210,6 +211,112 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  // Content Branding & Signatures (Automatic Suffix & Title length guardian)
+  bool _titleBrandingEnabled = true;
+  String _titleBrandingSuffix = ' | {channel_name}';
+  bool _descriptionSignatureEnabled = false;
+  String _descriptionSignature = '';
+
+  bool get titleBrandingEnabled => _titleBrandingEnabled;
+  String get titleBrandingSuffix => _titleBrandingSuffix;
+  bool get descriptionSignatureEnabled => _descriptionSignatureEnabled;
+  String get descriptionSignature => _descriptionSignature;
+
+  Future<void> loadBrandingSettings() async {
+    try {
+      final titleEnabled = await AppDatabase.instance.getSetting('title_branding_enabled');
+      final titleSuffix = await AppDatabase.instance.getSetting('title_branding_suffix');
+      final descEnabled = await AppDatabase.instance.getSetting('description_signature_enabled');
+      final descSig = await AppDatabase.instance.getSetting('description_signature');
+
+      if (titleEnabled != null) {
+        _titleBrandingEnabled = titleEnabled == 'true';
+      }
+      if (titleSuffix != null && titleSuffix.isNotEmpty) {
+        _titleBrandingSuffix = titleSuffix;
+      }
+      if (descEnabled != null) {
+        _descriptionSignatureEnabled = descEnabled == 'true';
+      }
+      if (descSig != null) {
+        _descriptionSignature = descSig;
+      }
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error loading branding settings: $e');
+    }
+  }
+
+  Future<void> updateTitleBranding({required bool enabled, required String suffix}) async {
+    _titleBrandingEnabled = enabled;
+    _titleBrandingSuffix = suffix.trim();
+    notifyListeners();
+    try {
+      await AppDatabase.instance.setSetting('title_branding_enabled', enabled ? 'true' : 'false');
+      await AppDatabase.instance.setSetting('title_branding_suffix', _titleBrandingSuffix);
+    } catch (e) {
+      debugPrint('Error saving title branding setting: $e');
+    }
+  }
+
+  Future<void> updateDescriptionSignature({required bool enabled, required String signature}) async {
+    _descriptionSignatureEnabled = enabled;
+    _descriptionSignature = signature;
+    notifyListeners();
+    try {
+      await AppDatabase.instance.setSetting('description_signature_enabled', enabled ? 'true' : 'false');
+      await AppDatabase.instance.setSetting('description_signature', _descriptionSignature);
+    } catch (e) {
+      debugPrint('Error saving description signature setting: $e');
+    }
+  }
+
+  /// Resolves the branding suffix by substituting variables `{channel_name}` and `{brand_name}`
+  String resolveBrandingSuffix({String? channelName, String? brandName, PlatformType? platform}) {
+    if (!_titleBrandingEnabled || _titleBrandingSuffix.isEmpty) return '';
+    var suffix = _titleBrandingSuffix;
+    final ch = (channelName != null && channelName.trim().isNotEmpty) ? channelName.trim() : (brandName?.trim() ?? '');
+    final br = (brandName != null && brandName.trim().isNotEmpty) ? brandName.trim() : (channelName?.trim() ?? '');
+
+    suffix = suffix.replaceAll('{channel_name}', ch);
+    suffix = suffix.replaceAll('{brand_name}', br);
+    return suffix;
+  }
+
+  /// Produces the complete branded title. Avoids double-appending if already ends with suffix.
+  String resolveBrandedTitle({
+    required String baseTitle,
+    String? channelName,
+    String? brandName,
+    PlatformType? platform,
+  }) {
+    final clean = baseTitle.trim();
+    if (clean.isEmpty) return clean;
+    final suffix = resolveBrandingSuffix(channelName: channelName, brandName: brandName, platform: platform);
+    if (suffix.isEmpty) return clean;
+    if (clean.toLowerCase().endsWith(suffix.trim().toLowerCase())) return clean;
+    return '$clean$suffix';
+  }
+
+  /// Appends the description signature if enabled and not already present
+  String resolveEffectiveCaption({
+    required String baseCaption,
+    String? brandName,
+    String? websiteUrl,
+  }) {
+    if (!_descriptionSignatureEnabled || _descriptionSignature.trim().isEmpty) {
+      return baseCaption;
+    }
+    var sig = _descriptionSignature;
+    if (brandName != null) sig = sig.replaceAll('{brand_name}', brandName);
+    if (websiteUrl != null) sig = sig.replaceAll('{website}', websiteUrl);
+
+    if (baseCaption.contains(sig.trim())) {
+      return baseCaption;
+    }
+    return '$baseCaption\n\n$sig';
+  }
+
   /// Indicates if the workspace welcome popup should be shown on the next dashboard render.
   bool shouldShowWelcomeDialog = false;
 
@@ -290,6 +397,9 @@ class AppState extends ChangeNotifier {
           telemetry: telemetry,
         );
       }));
+
+      // Sync FCM device token to Firestore profile for push alerts
+      unawaited(FcmNotificationService.instance.syncTokenWithUser(safeId));
 
       // Run cloud hydration in background so login transitions instantaneously
       unawaited(syncWithCloud(force: true));
@@ -384,6 +494,7 @@ class AppState extends ChangeNotifier {
         }
         await loadSavedThemeMode();
         await loadSavedWorkspaceMode();
+        await loadBrandingSettings();
         await initOrgMembers();
         await initCurrency();
         await MonetizationService.instance.loadUserWallet(uid);
@@ -424,6 +535,7 @@ class AppState extends ChangeNotifier {
         hasCompletedOnboarding = await SessionService.instance.hasCompletedOnboarding();
         if (localUserId != null && localUserId!.isNotEmpty) {
           await MonetizationService.instance.loadUserWallet(localUserId!);
+          unawaited(FcmNotificationService.instance.syncTokenWithUser(localUserId!));
         }
         await syncWithCloud();
         if (brands.isEmpty) {
@@ -599,6 +711,8 @@ class AppState extends ChangeNotifier {
 
   // Accessors
   List<Brand> get brands => brandRepository.getAllBrands();
+  Brand? get primaryBrand => brands.firstOrNull;
+  String get primaryBrandId => brands.firstOrNull?.id ?? 'default_brand';
   List<SocialAccount> get accounts => accountRepository.getAllAccounts();
   List<SocialAccount> getAccountsByBrand(String brandId) =>
       accountRepository.getAllAccounts().where((a) => a.brandId == brandId).toList();
@@ -1254,6 +1368,26 @@ class AppState extends ChangeNotifier {
     }
 
     _updateMasterPostStatus(post.id);
+
+    // Push local notification heads-up alert for publish outcome
+    final successCount = createdJobs.where((j) => j.status == PublishJobStatus.published).length;
+    final failedCount = createdJobs.where((j) => j.status == PublishJobStatus.failed).length;
+    if (successCount > 0 && failedCount == 0) {
+      unawaited(FcmNotificationService.instance.showNotification(
+        id: post.id.hashCode.abs(),
+        title: 'Published Successfully! 🚀',
+        body: 'Post "${post.title.isNotEmpty ? post.title : 'Update'}" was published to $successCount channel(s).',
+        payload: jsonEncode({'screen': 'history', 'post_id': post.id}),
+      ));
+    } else if (failedCount > 0) {
+      unawaited(FcmNotificationService.instance.showNotification(
+        id: post.id.hashCode.abs(),
+        title: 'Publishing Alert ⚠️',
+        body: '$failedCount channel(s) encountered issues while publishing. Tap to review.',
+        payload: jsonEncode({'screen': 'history', 'post_id': post.id}),
+      ));
+    }
+
     notifyListeners();
     return createdJobs;
   }
@@ -1901,14 +2035,105 @@ class AppState extends ChangeNotifier {
     await SessionService.instance.setCompletedOnboarding(false);
     await SessionService.instance.saveBrandsCache([]);
 
-    // 4. Revoke Google sign-in token
+    // 4. Fully revoke Google sign-in token and clear native platform cache.
+    // disconnect() is used here (not signOut()) so the next sign-in always
+    // shows the account picker dialog and never silently loops.
     try {
-      await GoogleAuthService.instance.signOut();
+      await GoogleAuthService.instance.disconnect();
     } catch (e) {
-      debugPrint('Google signOut during clearAllData: $e');
+      debugPrint('Google disconnect during clearAllData: $e');
     }
 
     // 5. Reset all in-memory state — triggers auth guard to redirect to login
+    isLoggedIn = false;
+    isSessionExpired = false;
+    hasCompletedOnboarding = false;
+    _workspaceMode = WorkspaceMode.solo;
+    localUserName = null;
+    localUserEmail = null;
+    localUserPhotoUrl = null;
+    localUserId = null;
+    localUserProvider = null;
+    localUserData = null;
+    maskedEmail = null;
+    selectedBrandFilterId = null;
+    selectedStatusFilter = null;
+    searchQuery = '';
+    notifyListeners();
+  }
+
+  /// Permanently deletes the user's account and workspace data while
+  /// recording an immutable cryptographic anti-abuse tombstone so that
+  /// users cannot farm free coins (30 coins) by deleting and re-registering.
+  Future<void> deleteUserAccount() async {
+    final currentUserId = localUserId ?? '';
+    final currentUserEmail = localUserEmail ?? '';
+    final connectedChannelIds = accountRepository.getAllAccounts().map((a) => a.id).toList();
+
+    // 1. Gather device hardware signature and ad telemetry
+    final devSig = await DeviceTelemetryService.instance.getDeviceSignature();
+    final telemetry = await DeviceTelemetryService.instance.getTelemetry();
+
+    // 2. Record cloud anti-abuse tombstone & purge active cloud documents
+    if (currentUserEmail.isNotEmpty) {
+      await FirebaseSyncService.instance.deleteAccountAndEnforceAntiAbuse(
+        userId: currentUserId,
+        email: currentUserEmail,
+        deviceSignature: devSig,
+        connectedChannelIds: connectedChannelIds,
+        telemetry: telemetry,
+      );
+    }
+
+    // 3. Record persistent local SQLite anti-abuse tombstone (survives app resets)
+    if (currentUserEmail.isNotEmpty) {
+      await AppDatabase.instance.recordAntiAbuseTombstone(
+        email: currentUserEmail,
+        deviceId: devSig,
+        channelIds: connectedChannelIds,
+        telemetry: telemetry,
+      );
+    }
+
+    // 4. Wipe all SQLite database tables for this user workspace
+    await AppDatabase.instance.clearAllData();
+
+    // 5. Invalidate and clear all in-memory repository caches
+    if (brandRepository is SqliteBrandRepository) {
+      (brandRepository as SqliteBrandRepository).clearCache();
+    }
+    if (accountRepository is SqliteAccountRepository) {
+      (accountRepository as SqliteAccountRepository).clearCache();
+    }
+    if (groupRepository is SqliteGroupRepository) {
+      (groupRepository as SqliteGroupRepository).clearCache();
+    }
+    if (postRepository is SqlitePostRepository) {
+      (postRepository as SqlitePostRepository).clearCache();
+    }
+    if (jobRepository is SqliteJobRepository) {
+      (jobRepository as SqliteJobRepository).clearCache();
+    }
+    if (orgMemberRepository is SqliteOrgMemberRepository) {
+      (orgMemberRepository as SqliteOrgMemberRepository).clearCache();
+    }
+
+    // 6. Clear session and onboarding state
+    await SessionService.instance.clearSession();
+    await SessionService.instance.setCompletedOnboarding(false);
+    await SessionService.instance.saveBrandsCache([]);
+
+    // 7. Clear monetization wallet and reset lifetime bonus
+    MonetizationService.instance.clearUserWallet();
+
+    // 8. Revoke and disconnect Google OAuth credentials
+    try {
+      await GoogleAuthService.instance.disconnect();
+    } catch (e) {
+      debugPrint('Google disconnect during deleteUserAccount: $e');
+    }
+
+    // 9. Reset in-memory state
     isLoggedIn = false;
     isSessionExpired = false;
     hasCompletedOnboarding = false;
