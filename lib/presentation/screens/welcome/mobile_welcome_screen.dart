@@ -156,7 +156,7 @@ class _MobileWelcomeScreenState extends State<MobileWelcomeScreen> {
                       ),
                     ),
                     const SelectableText(
-                      '6E:BC:D7:D2:98:FC:8D:B4:18:C5:7C:14:C4:43:43:CD:9B:4C:1D:E5',
+                      'CC:02:53:FD:0A:82:94:87:7C:AE:8B:9D:77:8A:A3:CE:0E:E1:4F:E9',
                       style: TextStyle(color: Color(0xFF34D399), fontSize: 11, fontFamily: 'monospace'),
                     ),
                     const SizedBox(height: 8),

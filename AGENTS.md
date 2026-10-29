@@ -4,7 +4,7 @@
 Build no5ocial as a secure, reliable internal publishing workflow for Shaadow. Optimize for correctness, clear failure states, and low operating cost—not for feature count.
 
 ## Mandatory behavior
-1. Read `README.md`, `PRD.md`, `DESIGN.md`, `ARCHITECTURE.md`, `INTEGRATIONS.md`, and `SECURITY.md` before major implementation.
+1. Read `README.md`, `PRD.md`, `DESIGN.md`, `ARCHITECTURE.md`, `INTEGRATIONS.md`, `SECURITY.md`, and `MEMORY.md` before major implementation.
 2. Implement the smallest complete vertical slice; do not scaffold every feature with fake data and call it done.
 3. Never claim a social API integration works unless it has been tested against the official API with authorized credentials.
 4. Keep platform publishing behind interfaces/adapters. UI must not contain provider-specific HTTP logic.
@@ -26,6 +26,16 @@ Build no5ocial as a secure, reliable internal publishing workflow for Shaadow. O
 15. **Human Intervention & Mandatory Prompts**:
     - Whenever an implementation requires external human credentials, secrets, API keys, bucket tokens, or developer portal setup, the agent MUST pause execution, explain clearly what is required, and provide a step-by-step guide explaining how the user can obtain those keys/setup.
     - NEVER invent fake credentials, scaffold temporary dummy tokens, or defer security to a later phase. Build it production-ready directly.
+16. **Session Memory & Continuity (`MEMORY.md`)**:
+    - **Session Start**: Always read `MEMORY.md` at the beginning of each session to understand the full feature architecture, current project state, and the latest block log.
+    - **Session Conclusion / Feature Updates**: After implementing any feature, fix, or update, append a new standardized block to `MEMORY.md` (Section 4) with:
+      - Block Index, Date, and Timestamp.
+      - AI Model Name (e.g. Gemini 3.8 Flash) and agent role metadata.
+      - User request summary.
+      - Features implemented, refactored, or fixed.
+      - List of files touched and created.
+      - Verification and test status.
+      - Actionable, prioritized next steps to continue seamlessly in the next session.
 
 ## Architecture rules
 - Flutter presentation layer → application/use-case layer → domain models/interfaces → repository implementations.
@@ -77,6 +87,7 @@ A change is done only when:
 - Documentation/config examples are updated.
 - `flutter analyze` and relevant tests pass, or any failure is reported honestly.
 - No secrets or fake production integrations are committed.
+- `MEMORY.md` is updated with a concise session log and clear next steps.
 
 ## Collaboration style
-Before a large change, state the plan briefly and identify unresolved API constraints. Ask questions only when a decision blocks safe implementation; otherwise choose conservative defaults and document assumptions. Do not rewrite unrelated files. Prefer incremental commits and explain trade-offs.
+Before a large change, state the plan briefly and identify unresolved API constraints. Ask questions only when a decision blocks safe implementation; otherwise choose conservative defaults and document assumptions. Do not rewrite unrelated files. Prefer incremental commits and explain trade-offs. Consult and maintain `MEMORY.md` to preserve context and continuity across all sessions.
