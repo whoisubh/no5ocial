@@ -8,3 +8,4 @@ storePassword=YOUR_KEYSTORE_PASSWORD
 keyPassword=YOUR_KEY_PASSWORD
 keyAlias=no5ocial_release
 storeFile=upload-keystore.jks
+

@@ -232,23 +232,31 @@ class LinkedInPublishingAdapter implements PublishingAdapter {
             final uploadUrl = uploadInstructions?.firstOrNull?['uploadUrl'] as String?;
 
             if (uploadUrl != null && uploadUrl.isNotEmpty) {
-              // Read actual video file bytes
               final videoPath = firstMedia.localPreviewUrl;
-              final videoBytes = (videoPath != null && videoPath.isNotEmpty && await File(videoPath).exists())
-                  ? await File(videoPath).readAsBytes()
-                  : <int>[];
-              if (videoBytes.isEmpty) {
-                return PublishExecutionResult.failure(
+              if (videoPath == null || videoPath.isEmpty || !await File(videoPath).exists()) {
+                return const PublishExecutionResult.failure(
                   errorCategory: ErrorCategory.validation,
                   rawErrorCode: 'MISSING_VIDEO_FILE',
                   sanitizedErrorMessage: 'Video file not found on device. Please re-attach the media.',
                 );
               }
-              await _httpClient.put(
-                Uri.parse(uploadUrl),
-                headers: {'Content-Type': 'application/octet-stream'},
-                body: videoBytes,
-              ).timeout(const Duration(minutes: 5));
+
+              // Stream video binary payload directly from disk to prevent OOM
+              final videoFile = File(videoPath);
+              final fileLength = await videoFile.length();
+              final uploadRequest = http.StreamedRequest('PUT', Uri.parse(uploadUrl));
+              uploadRequest.headers['Content-Type'] = 'application/octet-stream';
+              uploadRequest.headers['Content-Length'] = fileLength.toString();
+
+              unawaited(videoFile.openRead().pipe(uploadRequest.sink));
+              final streamedResponse = await _httpClient
+                  .send(uploadRequest)
+                  .timeout(const Duration(minutes: 10));
+              final uploadRes = await http.Response.fromStream(streamedResponse);
+
+              if (uploadRes.statusCode != 200 && uploadRes.statusCode != 201) {
+                return _mapErrorResponse(uploadRes.statusCode, uploadRes.body, token);
+              }
 
               payload['content'] = {
                 'media': {
@@ -291,11 +299,15 @@ class LinkedInPublishingAdapter implements PublishingAdapter {
                   sanitizedErrorMessage: 'Image file not found on device. Please re-attach the media.',
                 );
               }
-              await _httpClient.put(
+              final imgRes = await _httpClient.put(
                 Uri.parse(uploadUrl),
                 headers: {'Content-Type': firstMedia.mimeType.isNotEmpty ? firstMedia.mimeType : 'image/jpeg'},
                 body: imgBytes,
               ).timeout(const Duration(seconds: 60));
+
+              if (imgRes.statusCode != 200 && imgRes.statusCode != 201) {
+                return _mapErrorResponse(imgRes.statusCode, imgRes.body, token);
+              }
 
               payload['content'] = {
                 'media': {

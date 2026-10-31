@@ -52,3 +52,4 @@ class ScheduleRunnerService {
     _appState = null;
   }
 }
+

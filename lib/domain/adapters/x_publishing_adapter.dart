@@ -211,10 +211,9 @@ class XPublishingAdapter implements PublishingAdapter {
           if (!await file.exists()) {
             continue; // Skip if file doesn't exist on disk
           }
-          final fileBytes = await file.readAsBytes();
-          uploadReq.files.add(http.MultipartFile.fromBytes(
+          uploadReq.files.add(await http.MultipartFile.fromPath(
             'media',
-            fileBytes,
+            filePath,
             filename: media.fileName,
           ));
 

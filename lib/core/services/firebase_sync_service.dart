@@ -1023,8 +1023,28 @@ class FirebaseSyncService extends ChangeNotifier {
         }, SetOptions(merge: true));
       }
 
-      // 5. Delete user profile from active users collection
+      // 5. Purge all user subcollections for complete GDPR & Data Safety compliance
       if (userId.isNotEmpty) {
+        final subcollections = [
+          'brands',
+          'social_accounts',
+          'channel_groups',
+          'wallet',
+          'coin_transactions',
+          'settings',
+          'publishing_pass',
+        ];
+
+        for (final sub in subcollections) {
+          try {
+            final docsSnap = await firestore!.collection('users').doc(userId).collection(sub).get();
+            for (final doc in docsSnap.docs) {
+              await doc.reference.delete();
+            }
+          } catch (_) {}
+        }
+
+        // Delete root user document
         await firestore!.collection('users').doc(userId).delete();
       }
 
