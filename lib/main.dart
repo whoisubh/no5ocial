@@ -47,6 +47,7 @@ import 'package:no5ocial/core/services/fcm_notification_service.dart';
 import 'package:no5ocial/core/services/connectivity_service.dart';
 import 'package:no5ocial/core/services/package_info_service.dart';
 import 'package:no5ocial/core/services/crashlytics_service.dart';
+import 'package:no5ocial/core/services/feature_flag_service.dart';
 import 'package:flutter/services.dart' show appFlavor;
 import 'package:no5ocial/core/services/firebase_analytics_service.dart';
 import 'package:no5ocial/core/services/play_billing_service.dart';
@@ -133,6 +134,8 @@ Future<void> bootstrap({AppFlavor flavor = AppFlavor.dev}) async {
     publishingAdapter: publishingAdapter,
   );
   await appState.loadSavedUserProfile();
+  // Initialize Feature Flags & A/B Testing Engine with current user context
+  await FeatureFlagService.instance.init(userId: appState.localUserId);
   await appState.loadSavedThemeMode();
   await appState.loadSavedWorkspaceMode();
   await appState.initOrgMembers();

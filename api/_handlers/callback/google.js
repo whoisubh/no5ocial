@@ -29,12 +29,9 @@ module.exports = async function handler(req, res) {
     // Verify State & Extract Payload
     let brandId = '';
     let returnUrl = '/accounts';
-    const secret =
-      process.env.GOOGLE_CLIENT_SECRET ||
-      process.env.ENCRYPTION_SECRET ||
-      'no5ocial_oauth_hmac_secret';
+    const secret = (process.env.GOOGLE_CLIENT_SECRET || process.env.ENCRYPTION_SECRET || '').trim();
 
-    if (state) {
+    if (state && secret) {
       try {
         const decodedState = JSON.parse(Buffer.from(state, 'base64url').toString('utf8'));
         const expectedSig = crypto
@@ -52,10 +49,8 @@ module.exports = async function handler(req, res) {
       }
     }
 
-    const clientId =
-      process.env.GOOGLE_CLIENT_ID ||
-      '1030532523858-o2o0l8c04r7jqdqn8d36ulkafonfafui.apps.googleusercontent.com';
-    const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+    const clientId = (process.env.GOOGLE_CLIENT_ID || '').trim();
+    const clientSecret = (process.env.GOOGLE_CLIENT_SECRET || '').trim();
 
     if (!clientSecret) {
       return res.status(500).send(renderHtml({
