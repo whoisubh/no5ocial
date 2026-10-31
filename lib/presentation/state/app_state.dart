@@ -41,6 +41,8 @@ import 'package:no5ocial/core/services/firebase_sync_service.dart';
 import 'package:no5ocial/core/services/monetization_service.dart';
 import 'package:no5ocial/core/services/device_telemetry_service.dart';
 import 'package:no5ocial/core/services/fcm_notification_service.dart';
+import 'package:no5ocial/core/services/firebase_analytics_service.dart';
+import 'package:no5ocial/core/services/crashlytics_service.dart';
 
 class AppState extends ChangeNotifier {
   final BrandRepository brandRepository;
@@ -373,6 +375,8 @@ class AppState extends ChangeNotifier {
     localUserProvider = provider;
     localUserData = rawData;
     maskedEmail = SessionService.instance.getMaskedEmail(safeEmail);
+    unawaited(FirebaseAnalyticsService.instance.setUserId(safeId));
+    unawaited(CrashlyticsService.instance.setUserIdentifier(safeId));
     notifyListeners();
 
     try {
@@ -438,6 +442,8 @@ class AppState extends ChangeNotifier {
     localUserData = null;
     maskedEmail = null;
     MonetizationService.instance.clearUserWallet();
+    unawaited(FirebaseAnalyticsService.instance.setUserId(null));
+    unawaited(CrashlyticsService.instance.setUserIdentifier(''));
     notifyListeners();
 
     try {
@@ -1372,6 +1378,8 @@ class AppState extends ChangeNotifier {
     // Push local notification heads-up alert for publish outcome
     final successCount = createdJobs.where((j) => j.status == PublishJobStatus.published).length;
     final failedCount = createdJobs.where((j) => j.status == PublishJobStatus.failed).length;
+    final scheduledCount = createdJobs.where((j) => j.status == PublishJobStatus.scheduled).length;
+
     if (successCount > 0 && failedCount == 0) {
       unawaited(FcmNotificationService.instance.showNotification(
         id: post.id.hashCode.abs(),
@@ -1379,12 +1387,28 @@ class AppState extends ChangeNotifier {
         body: 'Post "${post.title.isNotEmpty ? post.title : 'Update'}" was published to $successCount channel(s).',
         payload: jsonEncode({'screen': 'history', 'post_id': post.id}),
       ));
+      unawaited(FirebaseAnalyticsService.instance.logPostPublished(
+        postId: post.id,
+        destinationCount: successCount,
+        isManual: false,
+      ));
     } else if (failedCount > 0) {
       unawaited(FcmNotificationService.instance.showNotification(
         id: post.id.hashCode.abs(),
         title: 'Publishing Alert ⚠️',
         body: '$failedCount channel(s) encountered issues while publishing. Tap to review.',
         payload: jsonEncode({'screen': 'history', 'post_id': post.id}),
+      ));
+    } else if (scheduledCount > 0) {
+      unawaited(FcmNotificationService.instance.showNotification(
+        id: post.id.hashCode.abs(),
+        title: 'Post Scheduled 📅',
+        body: 'Post "${post.title.isNotEmpty ? post.title : 'Update'}" is scheduled for $scheduledCount channel(s).',
+        payload: jsonEncode({'screen': 'history', 'post_id': post.id}),
+      ));
+      unawaited(FirebaseAnalyticsService.instance.logPostScheduled(
+        postId: post.id,
+        destinationCount: scheduledCount,
       ));
     }
 
@@ -1414,6 +1438,14 @@ class AppState extends ChangeNotifier {
     );
 
     _updateMasterPostStatus(updated.contentPostId);
+
+    unawaited(FcmNotificationService.instance.showNotification(
+      id: jobId.hashCode.abs(),
+      title: 'Manual Handoff Recorded ✅',
+      body: 'Post marked as published via manual handoff.',
+      payload: jsonEncode({'screen': 'history'}),
+    ));
+
     notifyListeners();
     return updated;
   }
@@ -1840,6 +1872,15 @@ class AppState extends ChangeNotifier {
       entityId: asset.id,
       description: 'Uploaded media asset ${asset.fileName}.',
     );
+
+    // Real-time FCM & local notification for media upload
+    unawaited(FcmNotificationService.instance.showNotification(
+      id: asset.id.hashCode.abs(),
+      title: 'Media Ready 📸',
+      body: 'Attached "${asset.fileName}" (${asset.formattedSize}) ready for post.',
+      payload: jsonEncode({'screen': 'composer', 'asset_id': asset.id}),
+    ));
+
     notifyListeners();
   }
 

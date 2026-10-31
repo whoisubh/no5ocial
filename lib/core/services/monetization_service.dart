@@ -9,6 +9,8 @@ import 'package:no5ocial/core/services/device_telemetry_service.dart';
 import 'package:no5ocial/data/database/app_database.dart';
 import 'package:no5ocial/domain/models/monetization/monetization_models.dart';
 import 'package:no5ocial/domain/enums/workspace_mode.dart';
+import 'package:no5ocial/core/services/fcm_notification_service.dart';
+import 'package:no5ocial/core/services/firebase_analytics_service.dart';
 
 /// Central Monetization & Audience Segmentation Service.
 /// Implements strict ad hiding for multi-person companies,
@@ -332,21 +334,35 @@ class MonetizationService extends ChangeNotifier {
       // If user has no welcome grant recorded locally, has an email, and is NOT tombstoned, claim welcome bonus
       final hasLocalWelcome = txs.any((tx) => tx['type'] == 'welcome_grant');
       if (!hasLocalWelcome && userEmail.isNotEmpty && !_isLifetimeBonusExhausted) {
-        final canClaimWelcome = await FirebaseSyncService.instance.verifyAndClaimMilestoneBonus(
-          userId: userId,
-          email: userEmail,
-          milestone: 'welcome_grant',
-          amount: 15,
-          deviceSignature: devSig,
-        );
+        bool canClaimWelcome = false;
+        try {
+          canClaimWelcome = await FirebaseSyncService.instance.verifyAndClaimMilestoneBonus(
+            userId: userId,
+            email: userEmail,
+            milestone: 'welcome_grant',
+            amount: 15,
+            deviceSignature: devSig,
+          );
+        } catch (err) {
+          debugPrint('MonetizationService: Cloud welcome verification note: $err');
+        }
 
-        if (canClaimWelcome) {
+        // Grant welcome coins local-first if cloud verified OR cloud is offline/unconfigured
+        final isCloudConfigured = FirebaseSyncService.instance.firestore != null;
+        if (canClaimWelcome || !isCloudConfigured) {
           await AppDatabase.instance.addCoinsToWallet(
             userId: userId,
             amount: 15,
             type: 'welcome_grant',
             description: 'Welcome Bonus Coins (15 Coins)',
           );
+
+          unawaited(FcmNotificationService.instance.showNotification(
+            id: 1515,
+            title: 'Welcome Bonus Deposited! 🪙',
+            body: '+15 Welcome Coins have been credited to your workspace database wallet.',
+            payload: jsonEncode({'screen': 'wallet'}),
+          ));
         } else {
           _isLifetimeBonusExhausted = true;
         }
@@ -373,6 +389,10 @@ class MonetizationService extends ChangeNotifier {
   /// - 'company_registered': 5 coins (max 1 claim per email/device)
   /// - 'channel_connected': 5 coins (max 1 claim per email/device)
   /// - 'first_post': 5 coins (max 1 claim per email/device)
+  /// Awards milestone coins with strict anti-abuse check:
+  /// - 'company_registered': 5 coins (max 1 claim per email/device)
+  /// - 'channel_connected': 5 coins (max 1 claim per email/device)
+  /// - 'first_post': 5 coins (max 1 claim per email/device)
   Future<bool> awardMilestoneCoins({
     required String milestone,
     required String description,
@@ -390,17 +410,30 @@ class MonetizationService extends ChangeNotifier {
 
     if (userEmail.isEmpty) return false;
 
+    // Check local database first: prevent local duplicate claims
+    final localTxs = await AppDatabase.instance.getCoinTransactions(uid);
+    if (localTxs.any((tx) => tx['type'] == milestone)) {
+      debugPrint('AntiAbuse: Milestone $milestone already claimed in local database.');
+      return false;
+    }
+
     try {
       final devSig = await DeviceTelemetryService.instance.getDeviceSignature();
-      final allowed = await FirebaseSyncService.instance.verifyAndClaimMilestoneBonus(
-        userId: uid,
-        email: userEmail,
-        milestone: milestone,
-        amount: amount,
-        deviceSignature: devSig,
-      );
+      bool allowed = false;
+      try {
+        allowed = await FirebaseSyncService.instance.verifyAndClaimMilestoneBonus(
+          userId: uid,
+          email: userEmail,
+          milestone: milestone,
+          amount: amount,
+          deviceSignature: devSig,
+        );
+      } catch (err) {
+        debugPrint('MonetizationService: Milestone verification cloud note: $err');
+      }
 
-      if (allowed) {
+      final isCloudConfigured = FirebaseSyncService.instance.firestore != null;
+      if (allowed || !isCloudConfigured) {
         _postCoins = await AppDatabase.instance.addCoinsToWallet(
           userId: uid,
           amount: amount,
@@ -409,6 +442,18 @@ class MonetizationService extends ChangeNotifier {
         );
         _coinTransactions = await AppDatabase.instance.getCoinTransactions(uid);
         notifyListeners();
+
+        unawaited(FcmNotificationService.instance.showNotification(
+          id: 1516 + milestone.hashCode.abs() % 1000,
+          title: 'Milestone Bonus Unlocked! 🏆',
+          body: '+$amount Coins added for $description. Balance: $_postCoins Coins.',
+          payload: jsonEncode({'screen': 'wallet'}),
+        ));
+
+        unawaited(FirebaseAnalyticsService.instance.logCoinsEarned(
+          type: milestone,
+          amount: amount,
+        ));
         return true;
       }
     } catch (e) {
@@ -435,6 +480,19 @@ class MonetizationService extends ChangeNotifier {
         );
         _coinTransactions = await AppDatabase.instance.getCoinTransactions(uid);
         notifyListeners();
+
+        unawaited(FcmNotificationService.instance.showNotification(
+          id: 1517,
+          title: 'Coins Earned! 🪙',
+          body: '+$rewardAmount Coins deposited to your workspace wallet. Balance: $_postCoins Coins.',
+          payload: jsonEncode({'screen': 'wallet'}),
+        ));
+
+        unawaited(FirebaseAnalyticsService.instance.logCoinsEarned(
+          type: 'ad_reward',
+          amount: rewardAmount,
+        ));
+
         return (
           success: true,
           coinsEarned: rewardAmount,
@@ -520,6 +578,18 @@ class MonetizationService extends ChangeNotifier {
 
         // Immediately persist publishing pass to Cloud Firestore
         unawaited(FirebaseSyncService.instance.pushPublishingPass(uid, newPass.toJson()));
+
+        unawaited(FcmNotificationService.instance.showNotification(
+          id: 1518,
+          title: 'Publishing Pass Activated 🎟️',
+          body: '2-Day Pass active! 2 posts available over the next 48 hours.',
+          payload: jsonEncode({'screen': 'composer'}),
+        ));
+
+        unawaited(FirebaseAnalyticsService.instance.logPassActivated(
+          durationDays: 2,
+          costCoins: 10,
+        ));
 
         return (
           success: true,

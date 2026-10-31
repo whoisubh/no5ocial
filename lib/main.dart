@@ -45,9 +45,15 @@ import 'package:no5ocial/core/services/applovin_max_mediation_service.dart';
 import 'package:no5ocial/core/services/monetization_service.dart';
 import 'package:no5ocial/core/services/fcm_notification_service.dart';
 import 'package:no5ocial/core/services/connectivity_service.dart';
+import 'package:no5ocial/core/services/package_info_service.dart';
+import 'package:no5ocial/core/services/crashlytics_service.dart';
+import 'package:flutter/services.dart' show appFlavor;
+import 'package:no5ocial/core/services/firebase_analytics_service.dart';
+import 'package:no5ocial/core/services/play_billing_service.dart';
 
 void main() async {
-  await bootstrap(flavor: AppFlavor.dev);
+  final resolvedFlavor = appFlavor == 'prod' ? AppFlavor.prod : AppFlavor.dev;
+  await bootstrap(flavor: resolvedFlavor);
 }
 
 /// Universal application bootstrapper supporting flavors (dev, prod)
@@ -66,6 +72,14 @@ Future<void> bootstrap({AppFlavor flavor = AppFlavor.dev}) async {
   // Initialize Firebase Cloud services (fail-safe for offline and local-first operation)
   await FirebaseConfig.initialize();
   await FirebaseSyncService.instance.init();
+
+  // Initialize Google Crashlytics and Analytics
+  await CrashlyticsService.instance.init();
+  await FirebaseAnalyticsService.instance.init();
+
+  // Initialize Package Info & Google Play In-App Billing
+  await PackageInfoService.instance.init();
+  await PlayBillingService.instance.init();
 
   // Initialize Network Connectivity and Push Notification services
   await ConnectivityService.instance.init();
@@ -218,6 +232,10 @@ class _no5ocialAppState extends State<no5ocialApp> with WidgetsBindingObserver {
           locale: appState.currentLocale,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
+          navigatorObservers: [
+            if (FirebaseAnalyticsService.instance.observer != null)
+              FirebaseAnalyticsService.instance.observer!,
+          ],
           builder: (context, child) {
             return BiometricLockOverlay(
               child: child ?? const SizedBox.shrink(),

@@ -1093,7 +1093,7 @@ class _InviteCreatedFullScreen extends StatelessWidget {
                               );
                             },
                             icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18),
-                            label: const Text('Copy Message (Ready to Send)'),
+                            label: const Text('Copy Message'),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppColors.accent,
                               foregroundColor: Colors.white,

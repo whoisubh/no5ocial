@@ -1074,6 +1074,24 @@ class AppDatabase {
     return list.first['balance'] as int? ?? 0;
   }
 
+  /// Returns user's raw database wallet record
+  Future<Map<String, dynamic>?> getUserWallet(String userId) async {
+    final db = await database;
+    final rows = await db.query(
+      'user_wallets',
+      where: 'user_id = ?',
+      whereArgs: [userId],
+      limit: 1,
+    );
+    return rows.isNotEmpty ? rows.first : null;
+  }
+
+  /// Inserts or replaces a user wallet record from sync
+  Future<void> saveUserWallet(Map<String, dynamic> data) async {
+    final db = await database;
+    await db.insert('user_wallets', data, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
   /// Initializes a real database wallet record and optional grant transaction for the user
   Future<void> initUserWallet(String userId, {int initialCoins = 0, String? grantType, String? grantDesc}) async {
     final db = await database;

@@ -276,8 +276,45 @@ class FirebaseSyncService extends ChangeNotifier {
         totalPulled += remoteGroups.length;
       }
 
+      // 5. Pull User Wallet & Coin Transactions
+      try {
+        final remoteWalletDoc = await userRef.collection('wallet').doc('summary').get();
+        if (remoteWalletDoc.exists && remoteWalletDoc.data() != null) {
+          final rData = remoteWalletDoc.data()!;
+          final localWallet = await db.getUserWallet(userId);
+          final remoteUpdated = rData['updated_at_utc'] as String?;
+          final localUpdated = localWallet?['updated_at_utc'] as String?;
+
+          if (localWallet == null || (remoteUpdated != null && localUpdated != null && remoteUpdated.compareTo(localUpdated) > 0)) {
+            await db.saveUserWallet({
+              'user_id': userId,
+              'balance': rData['balance'] ?? 0,
+              'total_earned': rData['total_earned'] ?? 0,
+              'total_spent': rData['total_spent'] ?? 0,
+              'created_at_utc': rData['created_at_utc'] ?? nowUtc,
+              'updated_at_utc': remoteUpdated ?? nowUtc,
+              'synced_at_utc': nowUtc,
+            });
+            totalPulled++;
+          }
+        }
+
+        final remoteTxsSnap = await userRef.collection('coin_transactions').get();
+        final remoteTxs = remoteTxsSnap.docs.map((d) => d.data()).toList();
+        if (remoteTxs.isNotEmpty) {
+          await db.upsertRemoteDelta(
+            tableName: 'coin_transactions',
+            records: remoteTxs,
+            syncedAtUtc: nowUtc,
+          );
+          totalPulled += remoteTxs.length;
+        }
+      } catch (e) {
+        debugPrint('FirebaseSyncService: Wallet/Transactions pull note: $e');
+      }
+
       // =========================================================================
-      // PHASE 3: PUSH CRUCIAL DATA TO CLOUD (Brands, Channels Linking, Groups)
+      // PHASE 3: PUSH CRUCIAL DATA TO CLOUD (Brands, Channels Linking, Groups, Wallet)
       // =========================================================================
 
       const seedBrandIds = {
@@ -340,6 +377,41 @@ class FirebaseSyncService extends ChangeNotifier {
           syncedAtUtc: nowUtc,
         );
         totalPushed += groupsToPush.length;
+      }
+
+      // 4. User Wallet & Coin Transactions
+      try {
+        final localWallet = await db.getUserWallet(userId);
+        if (localWallet != null) {
+          await userRef.collection('wallet').doc('summary').set({
+            'user_id': userId,
+            'balance': localWallet['balance'],
+            'total_earned': localWallet['total_earned'],
+            'total_spent': localWallet['total_spent'],
+            'created_at_utc': localWallet['created_at_utc'],
+            'updated_at_utc': localWallet['updated_at_utc'],
+            'synced_at_utc': nowUtc,
+          }, SetOptions(merge: true));
+          totalPushed++;
+        }
+
+        final txsToPush = forceHydration
+            ? await db.getAllRecords('coin_transactions')
+            : await db.getUnsyncedRecords('coin_transactions');
+        for (final tx in txsToPush) {
+          final id = tx['id'] as String;
+          await userRef.collection('coin_transactions').doc(id).set(tx, SetOptions(merge: true));
+        }
+        if (txsToPush.isNotEmpty) {
+          await db.markRecordsAsSynced(
+            tableName: 'coin_transactions',
+            recordIds: txsToPush.map((r) => r['id'] as String).toList(),
+            syncedAtUtc: nowUtc,
+          );
+          totalPushed += txsToPush.length;
+        }
+      } catch (e) {
+        debugPrint('FirebaseSyncService: Wallet/Transactions push note: $e');
       }
 
       _lastSyncedAt = DateTime.parse(nowUtc);

@@ -14,6 +14,9 @@ import 'package:no5ocial/presentation/screens/settings/company_settings_screen.d
 import 'package:no5ocial/core/services/country_service.dart';
 import 'package:no5ocial/core/services/fcm_notification_service.dart';
 import 'package:no5ocial/core/services/connectivity_service.dart';
+import 'package:no5ocial/core/services/package_info_service.dart';
+import 'package:no5ocial/core/services/play_update_service.dart';
+import 'package:no5ocial/core/services/play_review_service.dart';
 
 class SettingsScreen extends StatelessWidget {
   final AppState appState;
@@ -1455,32 +1458,6 @@ class SettingsScreen extends StatelessWidget {
                               ),
                           ],
                         ),
-                        const SizedBox(height: 12),
-                        OutlinedButton.icon(
-                          onPressed: () async {
-                            await fcm.showNotification(
-                              id: 999,
-                              title: 'Test Notification 🔔',
-                              body: 'Heads-up banners and notification channels are working properly!',
-                            );
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Test notification dispatched.'),
-                                  backgroundColor: AppColors.success,
-                                ),
-                              );
-                            }
-                          },
-                          icon: const Icon(Icons.send_rounded, size: 14),
-                          label: const Text('Send Test Alert'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppColors.accent,
-                            side: const BorderSide(color: AppColors.border),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                            textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                          ),
-                        ),
                       ],
                     ),
                   );
@@ -1566,6 +1543,10 @@ class SettingsScreen extends StatelessWidget {
                   ),
                 ),
               ),
+              const SizedBox(height: 16),
+
+              _buildSectionTitle('Google Play & App Updates'),
+              _buildPlayStoreSection(context),
               const SizedBox(height: 16),
 
               _buildSectionTitle('Workspace Storage'),
@@ -1742,6 +1723,102 @@ class SettingsScreen extends StatelessWidget {
             fontSize: 16,
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildPlayStoreSection(BuildContext context) {
+    final info = PackageInfoService.instance;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.accent.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.shop_outlined, size: 20, color: AppColors.accent),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      info.appName,
+                      style: AppTypography.titleMedium.copyWith(fontSize: 14),
+                    ),
+                    Text(
+                      '${info.formattedVersion} • ${info.packageName}',
+                      style: AppTypography.bodySecondary.copyWith(fontSize: 11),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              OutlinedButton.icon(
+                onPressed: () async {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Checking Google Play for updates...')),
+                  );
+                  final res = await PlayUpdateService.instance.checkForUpdate();
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(res.message),
+                        backgroundColor: res.updateAvailable ? AppColors.accent : null,
+                        action: res.updateAvailable
+                            ? SnackBarAction(
+                                label: 'Update Now',
+                                textColor: Colors.white,
+                                onPressed: () {
+                                  PlayUpdateService.instance.startFlexibleUpdate();
+                                },
+                              )
+                            : null,
+                      ),
+                    );
+                  }
+                },
+                icon: const Icon(Icons.system_update_outlined, size: 16),
+                label: const Text('Check for Updates'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                ),
+              ),
+              OutlinedButton.icon(
+                onPressed: () async {
+                  final success = await PlayReviewService.instance.requestReview(force: true);
+                  if (!success) {
+                    await PlayReviewService.instance.openStoreListing();
+                  }
+                },
+                icon: const Icon(Icons.star_rate_outlined, size: 16, color: Colors.amber),
+                label: const Text('Rate on Play Store'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
