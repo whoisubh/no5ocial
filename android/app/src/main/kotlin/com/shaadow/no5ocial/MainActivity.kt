@@ -59,35 +59,6 @@ class MainActivity : FlutterFragmentActivity() {
                 else -> result.notImplemented()
             }
         }
-
-        val MAX_CHANNEL = "com.shaadow.no5ocial/applovin_max"
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, MAX_CHANNEL).setMethodCallHandler { call, result ->
-            when (call.method) {
-                "initAppLovin" -> {
-                    // AppLovin MAX SDK initialization with RTB adapters (Google AdMob, Meta, Unity Ads)
-                    result.success(true)
-                }
-                "loadRewardedAd" -> {
-                    // Preload rewarded video ad from highest bidding network
-                    result.success(true)
-                }
-                "showRewardedAd" -> {
-                    // Show rewarded video ad and award sequence credit
-                    result.success(true)
-                }
-                "launchOfferwall" -> {
-                    val provider = call.argument<String>("provider") ?: "tapjoy"
-                    val credits = if (provider == "tapjoy") 25 else 20
-                    val res = HashMap<String, Any>()
-                    res["success"] = true
-                    res["provider"] = provider
-                    res["creditsEarned"] = credits
-                    res["taskName"] = if (provider == "tapjoy") "Enterprise CRM Survey" else "Product Feedback Task"
-                    result.success(res)
-                }
-                else -> result.notImplemented()
-            }
-        }
     }
 
     override fun onNewIntent(intent: Intent) {

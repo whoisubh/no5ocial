@@ -233,12 +233,20 @@ class YouTubePublishingAdapter implements PublishingAdapter {
           sanitizedErrorMessage: 'Video file not found on device. Please re-attach the video.',
         );
       }
-      final uploadBytes = await videoFile.readAsBytes();
-      final uploadResponse = await _httpClient.put(
-        Uri.parse(uploadUrl),
-        headers: {'Content-Type': 'video/*'},
-        body: uploadBytes,
-      ).timeout(const Duration(minutes: 5));
+
+      // Stream video chunks directly to prevent Out-Of-Memory (OOM) crashes on large 4K files
+      final fileLength = await videoFile.length();
+      final uploadRequest = http.StreamedRequest('PUT', Uri.parse(uploadUrl));
+      uploadRequest.headers['Content-Type'] = 'video/*';
+      uploadRequest.headers['Content-Length'] = fileLength.toString();
+
+      final fileStream = videoFile.openRead();
+      unawaited(fileStream.pipe(uploadRequest.sink));
+
+      final streamedResponse = await _httpClient
+          .send(uploadRequest)
+          .timeout(const Duration(minutes: 10));
+      final uploadResponse = await http.Response.fromStream(streamedResponse);
 
       if (uploadResponse.statusCode == 200 || uploadResponse.statusCode == 201) {
         final data = jsonDecode(uploadResponse.body) as Map<String, dynamic>;

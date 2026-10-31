@@ -28,6 +28,18 @@
       "destination": "/legal/disclaimer/index.html"
     },
     {
+      "source": "/delete-account",
+      "destination": "/legal/delete-account/index.html"
+    },
+    {
+      "source": "/legal/delete-account",
+      "destination": "/legal/delete-account/index.html"
+    },
+    {
+      "source": "/legal/delete-account/",
+      "destination": "/legal/delete-account/index.html"
+    },
+    {
       "source": "/.well-known/assetlinks.json",
       "destination": "/api/assetlinks"
     },

@@ -1,7 +1,9 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:no5ocial/core/config/env_config.dart';
 
 enum MediaHostingStrategy {
   r2Primary,   // Cloudflare R2 primary (free lifetime), fallback to Cloudinary/ImgBB
@@ -266,8 +268,8 @@ class MediaHostingService {
     required String fileName,
     required bool isVideo,
   }) async {
-    // Call serverless /api/media to get presigned PUT URL
-    final presignedEndpoint = Uri.parse('/api/media?filename=${Uri.encodeComponent(fileName)}');
+    final baseUrl = kIsWeb ? '' : EnvConfig.webBaseUrl;
+    final presignedEndpoint = Uri.parse('$baseUrl/api/media?filename=${Uri.encodeComponent(fileName)}');
     final presignedRes = await _client.get(presignedEndpoint).timeout(const Duration(seconds: 15));
 
     if (presignedRes.statusCode != 200) {
@@ -282,11 +284,23 @@ class MediaHostingService {
       throw Exception('R2 Presign response missing uploadUrl or publicUrl');
     }
 
-    // Direct HTTP PUT to Cloudflare R2
-    final bytes = fileBytes ?? const [0, 0, 0, 0];
+    // Direct HTTP PUT to Cloudflare R2 with real bytes
+    Uint8List bytesToUpload;
+    if (fileBytes != null && fileBytes.isNotEmpty) {
+      bytesToUpload = fileBytes;
+    } else if (!kIsWeb && filePath.isNotEmpty) {
+      final file = File(filePath);
+      if (!await file.exists()) {
+        throw Exception('Media file not found on device at path: $filePath');
+      }
+      bytesToUpload = await file.readAsBytes();
+    } else {
+      throw Exception('No media file content available to upload to Cloudflare R2.');
+    }
+
     final uploadRes = await _client.put(
       Uri.parse(uploadUrl),
-      body: bytes,
+      body: bytesToUpload,
     ).timeout(const Duration(minutes: 5));
 
     if (uploadRes.statusCode != 200 && uploadRes.statusCode != 201) {

@@ -6,6 +6,7 @@ import '../models/publish_attempt.dart';
 import '../models/social_account.dart';
 import '../validators/preflight_validator.dart';
 import 'instagram_publishing_adapter.dart';
+import 'unsupported_platform_adapter.dart';
 import 'linkedin_publishing_adapter.dart';
 import 'publishing_adapter.dart';
 import 'threads_publishing_adapter.dart';
@@ -22,7 +23,7 @@ class CompositePublishingAdapter implements PublishingAdapter {
     Map<PlatformType, PublishingAdapter>? platformAdapters,
     PublishingAdapter? fallbackAdapter,
     String? instagramDefaultAccessToken,
-  })  : _fallbackAdapter = fallbackAdapter ?? InstagramPublishingAdapter(),
+  })  : _fallbackAdapter = fallbackAdapter ?? const UnsupportedPlatformAdapter(),
         _platformAdapters = platformAdapters ?? {
           PlatformType.instagram: InstagramPublishingAdapter(
             defaultAccessToken: instagramDefaultAccessToken,

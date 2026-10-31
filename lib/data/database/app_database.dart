@@ -684,6 +684,12 @@ class AppDatabase {
     await db.delete('social_accounts', where: 'id = ?', whereArgs: [id]);
   }
 
+  Future<Map<String, dynamic>?> getSocialAccountRecord(String id) async {
+    final db = await database;
+    final rows = await db.query('social_accounts', where: 'id = ?', whereArgs: [id], limit: 1);
+    return rows.isNotEmpty ? rows.first : null;
+  }
+
   // --- Content Post Operations ---
   Future<List<ContentPost>> getAllPosts() async {
     final db = await database;

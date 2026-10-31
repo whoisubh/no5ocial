@@ -1,0 +1,88 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // 1. User Workspaces, Profiles, Brands, Channels, Posts & Wallets
+    // Isolated strictly to the authenticated owner
+    match /users/{userId} {
+      allow read, write: if isOwner(userId);
+
+      match /{subcollection}/{docId} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+
+    // 2. Global Organization Invitations
+    match /org_invites/{token} {
+      // Anyone authenticated can read an invite by token to accept it
+      allow read: if isAuthenticated();
+      // Only authenticated users can create an invite or update its status to accepted
+      allow create, update: if isAuthenticated();
+      allow delete: if false;
+    }
+
+    // 3. Shared Workspaces & Members
+    match /workspaces/{orgId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+
+      match /members/{memberId} {
+        allow read: if isAuthenticated();
+        allow write: if isAuthenticated();
+      }
+    }
+
+    // 4. Anti-Abuse Registries & Deletion Tombstones
+    // Immutable protection against bonus farming and multi-account abuse
+    match /anti_abuse_tombstones/{docId} {
+      allow read: if isAuthenticated();
+      // Allow appending immutable tombstone upon account deletion
+      allow create, update: if isAuthenticated();
+      allow delete: if false;
+    }
+
+    match /anti_abuse_emails/{emailKey} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated();
+      allow delete: if false;
+    }
+
+    match /anti_abuse_devices/{deviceKey} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated();
+      allow delete: if false;
+    }
+
+    match /milestone_claims/{claimId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated();
+      allow delete: if false;
+    }
+
+    match /device_milestones/{claimId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated();
+      allow delete: if false;
+    }
+
+    match /linked_channels_registry/{channelKey} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated();
+      allow delete: if false;
+    }
+
+    // 5. Default Deny All Other Unspecified Routes
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

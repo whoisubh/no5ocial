@@ -12,7 +12,7 @@ import 'package:no5ocial/data/repositories/group_repository.dart';
 import 'package:no5ocial/data/repositories/job_repository.dart';
 import 'package:no5ocial/data/repositories/post_repository.dart';
 import 'package:no5ocial/domain/adapters/composite_publishing_adapter.dart';
-import 'package:no5ocial/domain/adapters/fake_publishing_adapter.dart';
+import 'package:no5ocial/domain/adapters/unsupported_platform_adapter.dart';
 import 'package:no5ocial/domain/adapters/instagram_publishing_adapter.dart';
 import 'package:no5ocial/domain/adapters/linkedin_publishing_adapter.dart';
 import 'package:no5ocial/domain/adapters/threads_publishing_adapter.dart';
@@ -50,6 +50,7 @@ import 'package:no5ocial/core/services/crashlytics_service.dart';
 import 'package:flutter/services.dart' show appFlavor;
 import 'package:no5ocial/core/services/firebase_analytics_service.dart';
 import 'package:no5ocial/core/services/play_billing_service.dart';
+import 'package:no5ocial/core/services/schedule_runner_service.dart';
 
 void main() async {
   final resolvedFlavor = appFlavor == 'prod' ? AppFlavor.prod : AppFlavor.dev;
@@ -119,7 +120,7 @@ Future<void> bootstrap({AppFlavor flavor = AppFlavor.dev}) async {
       PlatformType.threads: ThreadsPublishingAdapter(),
       PlatformType.youtube: YouTubePublishingAdapter(),
     },
-    fallbackAdapter: const FakePublishingAdapter(),
+    fallbackAdapter: const UnsupportedPlatformAdapter(),
   );
 
   final appState = AppState(
@@ -149,6 +150,9 @@ Future<void> bootstrap({AppFlavor flavor = AppFlavor.dev}) async {
   // Initialize AppLovin MAX Mediation & Audience Segmentation Monetization Engine (non-blocking)
   unawaited(AppLovinMaxMediationService.instance.initialize(userId: appState.localUserId));
   unawaited(MonetizationService.instance.init());
+
+  // Initialize automated schedule runner worker
+  ScheduleRunnerService.instance.init(appState);
 
   runApp(no5ocialApp(appState: appState));
 }

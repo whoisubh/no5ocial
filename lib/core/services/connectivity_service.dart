@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:no5ocial/core/services/sync_service.dart';
+import 'package:no5ocial/core/services/schedule_runner_service.dart';
 
 /// Network Connectivity Monitoring Service for No5ocial.
 ///
@@ -39,8 +40,9 @@ class ConnectivityService extends ChangeNotifier {
 
         // Auto-reconnect sync: when transitioning from offline to online, trigger sync
         if (wasOffline && _isOnline) {
-          debugPrint('ConnectivityService: Device back online. Triggering workspace sync...');
+          debugPrint('ConnectivityService: Device back online. Triggering workspace sync & schedule runner...');
           SyncService.instance.syncNow();
+          unawaited(ScheduleRunnerService.instance.checkAndExecuteDuePosts());
         }
       });
 

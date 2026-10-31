@@ -46,10 +46,6 @@
                 <data android:scheme="no5ocial" android:host="invite" />
             </intent-filter>
         </activity>
-        <!-- AppLovin MAX SDK Key -->
-        <meta-data
-            android:name="applovin.sdk.key"
-            android:value="max_demo_sdk_key_shaadow_corp" />
 
         <!-- Google AdMob Application ID -->
         <meta-data

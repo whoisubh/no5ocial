@@ -250,6 +250,22 @@ class FirebaseSyncService extends ChangeNotifier {
         return map;
       }).toList();
       if (remoteAccounts.isNotEmpty) {
+        // Retain local client OAuth tokens securely stored in SQLite
+        for (final remote in remoteAccounts) {
+          final local = await db.getSocialAccountRecord(remote['id'] as String);
+          if (local != null) {
+            final localScopes = (local['scopes'] as String? ?? '').split(',');
+            final localTokens = localScopes.where((s) => s.startsWith('token:')).toList();
+            if (localTokens.isNotEmpty) {
+              final remoteScopes = (remote['scopes'] as String? ?? '')
+                  .split(',')
+                  .where((s) => s.isNotEmpty && !s.startsWith('token:'))
+                  .toList();
+              remoteScopes.addAll(localTokens);
+              remote['scopes'] = remoteScopes.join(',');
+            }
+          }
+        }
         await db.upsertRemoteDelta(
           tableName: 'social_accounts',
           records: remoteAccounts,
@@ -351,7 +367,8 @@ class FirebaseSyncService extends ChangeNotifier {
           : await db.getUnsyncedRecords('social_accounts');
       for (final a in accountsToPush) {
         final id = a['id'] as String;
-        await userRef.collection('social_accounts').doc(id).set(a, SetOptions(merge: true));
+        final cleanAccount = _sanitizeAccountForCloud(a);
+        await userRef.collection('social_accounts').doc(id).set(cleanAccount, SetOptions(merge: true));
       }
       if (accountsToPush.isNotEmpty) {
         await db.markRecordsAsSynced(
@@ -502,7 +519,7 @@ class FirebaseSyncService extends ChangeNotifier {
         'external_account_id': account.externalAccountId,
         'connection_status': account.connectionStatus.name,
         'capabilities': account.capabilities.join(','),
-        'scopes': account.scopes.join(','),
+        'scopes': account.scopes.where((s) => !s.startsWith('token:')).join(','),
         'last_verified_at_utc': account.lastVerifiedAtUtc?.toIso8601String(),
         'is_manual_only': account.isManualOnly ? 1 : 0,
         'created_at_utc': DateTime.now().toUtc().toIso8601String(),
@@ -533,6 +550,24 @@ class FirebaseSyncService extends ChangeNotifier {
     } catch (e) {
       debugPrint('FirebaseSyncService: Error deleting cloud account $accountId: $e');
     }
+  }
+
+  /// Strips sensitive authentication tokens before syncing social account data to Cloud Firestore.
+  /// Access tokens remain strictly isolated to local encrypted device storage.
+  Map<String, dynamic> _sanitizeAccountForCloud(Map<String, dynamic> accountData) {
+    final sanitized = Map<String, dynamic>.from(accountData);
+    final rawScopes = sanitized['scopes'];
+    if (rawScopes is String) {
+      sanitized['scopes'] = rawScopes
+          .split(',')
+          .where((s) => s.isNotEmpty && !s.startsWith('token:'))
+          .join(',');
+    } else if (rawScopes is List) {
+      sanitized['scopes'] = rawScopes
+          .where((s) => !s.toString().startsWith('token:'))
+          .toList();
+    }
+    return sanitized;
   }
 
 

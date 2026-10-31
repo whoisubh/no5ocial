@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:no5ocial/core/services/monetization_service.dart';
+import 'package:no5ocial/core/services/play_billing_service.dart';
 import 'package:no5ocial/core/theme/app_colors.dart';
 import 'package:no5ocial/domain/models/monetization/monetization_models.dart';
 import 'package:no5ocial/presentation/widgets/app_sheets.dart';
 
-/// Ad-supported Publishing Coins Sheet displayed when a quota bottleneck is hit.
-/// Pro/paid subscription system is disabled/hidden in favor of the free ad-reward coin system.
+/// Publishing Coins and In-App Purchase Sheet displayed when a quota bottleneck is hit.
+/// Supports both Ad-rewarded Coin earning and official Google Play Store purchases.
 class UpgradePaywallSheet extends StatefulWidget {
   final SystemBottleneckType bottleneck;
   final VoidCallback? onDayPassUnlockRequested;
@@ -225,6 +226,48 @@ class _UpgradePaywallSheetState extends State<UpgradePaywallSheet> {
                     elevation: 0,
                   ),
                 ),
+              ),
+              const SizedBox(height: 10),
+
+              // 3b. Google Play In-App Purchase Option (If Available)
+              ListenableBuilder(
+                listenable: PlayBillingService.instance,
+                builder: (context, _) {
+                  final billing = PlayBillingService.instance;
+                  if (!billing.isAvailable || billing.products.isEmpty) {
+                    return const SizedBox.shrink();
+                  }
+
+                  final coinPacks = billing.products.where((p) => p.id.startsWith('coin_pack')).toList();
+                  if (coinPacks.isEmpty) return const SizedBox.shrink();
+
+                  return Column(
+                    children: coinPacks.map((product) {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            final success = await billing.buyProduct(product, isConsumable: true);
+                            if (success && context.mounted) {
+                              Navigator.of(context).pop(true);
+                            }
+                          },
+                          icon: const Icon(Icons.shopping_bag_outlined, size: 16),
+                          label: Text(
+                            'Buy ${product.title} (${product.price})',
+                            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size(double.infinity, 44),
+                            foregroundColor: AppColors.accent,
+                            side: const BorderSide(color: AppColors.accent),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  );
+                },
               ),
               const SizedBox(height: 10),
 

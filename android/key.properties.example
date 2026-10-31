@@ -1,0 +1,10 @@
+# ==============================================================================
+# Android Release Keystore Signing Configuration Template (Production)
+#
+# Copy this file to `android/key.properties` (ignored by .gitignore).
+# Never commit real keystores or passwords to version control.
+# ==============================================================================
+storePassword=YOUR_KEYSTORE_PASSWORD
+keyPassword=YOUR_KEY_PASSWORD
+keyAlias=no5ocial_release
+storeFile=upload-keystore.jks

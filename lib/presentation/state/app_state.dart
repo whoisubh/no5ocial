@@ -1416,6 +1416,33 @@ class AppState extends ChangeNotifier {
     return createdJobs;
   }
 
+  /// Automatically scans and executes all due scheduled posts whose scheduled time has passed.
+  Future<int> executeDueScheduledPosts() async {
+    final now = DateTime.now().toUtc();
+    final duePosts = postRepository
+        .getAllPosts()
+        .where((p) =>
+            p.status == PublishJobStatus.scheduled &&
+            p.scheduledAtUtc != null &&
+            (p.scheduledAtUtc!.isBefore(now) || p.scheduledAtUtc!.isAtSameMomentAs(now)))
+        .toList();
+
+    int executedCount = 0;
+    for (final post in duePosts) {
+      try {
+        debugPrint('ScheduleRunner: Auto-executing due scheduled post "${post.title}" (${post.id})');
+        await publishOrQueuePost(
+          post: post,
+          isScheduled: false,
+        );
+        executedCount++;
+      } catch (e) {
+        debugPrint('ScheduleRunner: Error executing due post ${post.id}: $e');
+      }
+    }
+    return executedCount;
+  }
+
   /// Completes a manual publishing handoff.
   /// Enforces: "Mark as manually published only after user confirmation; optionally capture the post URL. Clearly label it Manual, never pretend it was API-published."
   PublishJob confirmManualHandoff({

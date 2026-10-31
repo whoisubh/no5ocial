@@ -1,8 +1,13 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
+import 'package:no5ocial/core/services/monetization_service.dart';
+import 'package:no5ocial/core/services/session_service.dart';
+import 'package:no5ocial/core/services/fcm_notification_service.dart';
+import 'package:no5ocial/core/services/firebase_analytics_service.dart';
 
 /// Central Google Play Billing and App Store in-app purchase service.
+/// Connects verified Google Play store purchases directly to real workspace entitlements and coin wallet.
 class PlayBillingService extends ChangeNotifier {
   PlayBillingService._();
   static final PlayBillingService instance = PlayBillingService._();
@@ -99,7 +104,7 @@ class PlayBillingService extends ChangeNotifier {
     }
   }
 
-  /// Processes updates received on the purchase stream.
+  /// Processes updates received on the purchase stream and fulfills entitlements.
   Future<void> _onPurchaseUpdate(List<PurchaseDetails> purchaseDetailsList) async {
     for (final purchase in purchaseDetailsList) {
       if (purchase.status == PurchaseStatus.pending) {
@@ -108,7 +113,8 @@ class PlayBillingService extends ChangeNotifier {
         debugPrint('PlayBillingService: Purchase failed for ${purchase.productID}: ${purchase.error}');
       } else if (purchase.status == PurchaseStatus.purchased ||
           purchase.status == PurchaseStatus.restored) {
-        debugPrint('PlayBillingService: Purchase verified for ${purchase.productID}');
+        debugPrint('PlayBillingService: Fulfilling entitlement for ${purchase.productID}');
+        await _deliverProductEntitlement(purchase);
       }
 
       if (purchase.pendingCompletePurchase) {
@@ -116,6 +122,54 @@ class PlayBillingService extends ChangeNotifier {
       }
     }
     notifyListeners();
+  }
+
+  /// Delivers verified in-app goods directly to user balance
+  Future<void> _deliverProductEntitlement(PurchaseDetails purchase) async {
+    try {
+      final session = await SessionService.instance.getSession();
+      final uid = session?['id'] as String? ?? 'local_user';
+      final pid = purchase.productID;
+
+      int coinsToCredit = 0;
+      String description = 'Google Play In-App Purchase ($pid)';
+
+      if (pid == 'coin_pack_50') {
+        coinsToCredit = 50;
+        description = 'Google Play: 50 Coin Pack';
+      } else if (pid == 'coin_pack_120') {
+        coinsToCredit = 120;
+        description = 'Google Play: 120 Coin Pack';
+      } else if (pid == 'solo_pro_monthly') {
+        coinsToCredit = 100;
+        description = 'Google Play: Solo Pro Monthly Plan (100 Coins Bonus)';
+      } else if (pid == 'b2b_team_monthly') {
+        coinsToCredit = 300;
+        description = 'Google Play: Team Business Monthly Plan (300 Coins Bonus)';
+      }
+
+      if (coinsToCredit > 0) {
+        await MonetizationService.instance.addCoins(
+          coinsToCredit,
+          userId: uid,
+          description: description,
+        );
+
+        unawaited(FcmNotificationService.instance.showNotification(
+          id: 7770 + coinsToCredit,
+          title: 'Purchase Successful! 🪙',
+          body: '+$coinsToCredit Coins deposited into your workspace wallet.',
+          payload: '{"screen": "wallet"}',
+        ));
+
+        unawaited(FirebaseAnalyticsService.instance.logCoinsEarned(
+          type: 'google_play_purchase',
+          amount: coinsToCredit,
+        ));
+      }
+    } catch (e) {
+      debugPrint('PlayBillingService: Error delivering product entitlement: $e');
+    }
   }
 
   @override

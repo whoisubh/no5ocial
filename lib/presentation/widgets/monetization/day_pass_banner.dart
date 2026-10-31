@@ -3,7 +3,7 @@ import 'package:no5ocial/core/services/monetization_service.dart';
 import 'package:no5ocial/core/theme/app_colors.dart';
 import 'package:no5ocial/domain/models/monetization/monetization_models.dart';
 import 'package:no5ocial/presentation/state/app_state.dart';
-import 'package:no5ocial/presentation/widgets/monetization/offerwall_sheet.dart';
+import 'package:no5ocial/presentation/widgets/monetization/upgrade_paywall_sheet.dart';
 import 'package:no5ocial/presentation/widgets/monetization/upgrade_paywall_sheet.dart';
 
 /// Interactive Day Pass banner for the Composer & Scheduler screens.
@@ -144,7 +144,7 @@ class _DayPassBannerState extends State<DayPassBanner> {
                         Text(
                           isCeilingReached
                               ? 'Free accounts are limited to 1 Day Pass per 24h. Upgrade to Pro for unlimited scheduling.'
-                              : 'Watch 3 short videos or complete an offerwall task to unlock 24 hours of standard publishing.',
+                              : 'Watch 3 short videos to unlock 24 hours of standard publishing.',
                           style: const TextStyle(fontSize: 11.5, color: Color(0xFFB45309)),
                         ),
                       ],
@@ -228,13 +228,13 @@ class _DayPassBannerState extends State<DayPassBanner> {
                       flex: 4,
                       child: OutlinedButton.icon(
                         onPressed: () {
-                          OfferwallSheet.show(
+                          UpgradePaywallSheet.show(
                             context,
-                            userId: widget.appState.localUserId ?? 'user_solo',
+                            bottleneck: SystemBottleneckType.dailyRewardCeilingReached,
                           );
                         },
-                        icon: const Icon(Icons.stars_rounded, size: 15, color: Color(0xFFD97706)),
-                        label: const Text('Offerwall', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF92400E))),
+                        icon: const Icon(Icons.monetization_on_outlined, size: 15, color: Color(0xFFD97706)),
+                        label: const Text('Get Coins', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF92400E))),
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 8),
                           visualDensity: VisualDensity.compact,
