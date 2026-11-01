@@ -255,7 +255,7 @@ class LinkedInPublishingAdapter implements PublishingAdapter {
               final uploadRes = await http.Response.fromStream(streamedResponse);
 
               if (uploadRes.statusCode != 200 && uploadRes.statusCode != 201) {
-                return _mapErrorResponse(uploadRes.statusCode, uploadRes.body, token);
+                return _mapHttpErrorResponse(uploadRes.statusCode, uploadRes.body);
               }
 
               payload['content'] = {
@@ -306,7 +306,7 @@ class LinkedInPublishingAdapter implements PublishingAdapter {
               ).timeout(const Duration(seconds: 60));
 
               if (imgRes.statusCode != 200 && imgRes.statusCode != 201) {
-                return _mapErrorResponse(imgRes.statusCode, imgRes.body, token);
+                return _mapHttpErrorResponse(imgRes.statusCode, imgRes.body);
               }
 
               payload['content'] = {

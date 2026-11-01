@@ -51,6 +51,13 @@ class _MainScaffoldState extends State<MainScaffold> {
   void _onTabSelected(int index) {
     if (_currentIndex == index) return;
     setState(() => _currentIndex = index);
+    if (_pageController.hasClients) {
+      _pageController.animateToPage(
+        index,
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+      );
+    }
   }
 
   void _openComposer() {
@@ -345,26 +352,29 @@ class _MainScaffoldState extends State<MainScaffold> {
 
         // Mobile / Compact Layout
         return Scaffold(
-          body: IndexedStack(
-            index: _currentIndex,
+          body: PageView(
+            controller: _pageController,
+            physics: const NeverScrollableScrollPhysics(),
             children: screens,
           ),
           floatingActionButton: _buildFloatingActionButton(),
-          bottomNavigationBar: Container(
-            decoration: BoxDecoration(
-              color: AppColors.surfaceOf(context),
-              border: Border(
-                top: BorderSide(color: AppColors.borderOf(context), width: 1),
+          bottomNavigationBar: SafeArea(
+            top: false,
+            child: Container(
+              decoration: BoxDecoration(
+                color: AppColors.surfaceOf(context),
+                border: Border(
+                  top: BorderSide(color: AppColors.borderOf(context), width: 1),
+                ),
               ),
-            ),
-            child: NavigationBar(
-              selectedIndex: _currentIndex,
-              backgroundColor: AppColors.surfaceOf(context),
-              elevation: 0,
-              height: 64,
-              indicatorColor: widget.appState.isDarkMode ? const Color(0xFF233560) : AppColors.accentLight,
-              onDestinationSelected: _onTabSelected,
-              destinations: [
+              child: NavigationBar(
+                selectedIndex: _currentIndex,
+                backgroundColor: AppColors.surfaceOf(context),
+                elevation: 0,
+                height: 64,
+                indicatorColor: widget.appState.isDarkMode ? const Color(0xFF233560) : AppColors.accentLight,
+                onDestinationSelected: _onTabSelected,
+                destinations: [
                 NavigationDestination(
                   icon: Badge(
                     isLabelVisible: actionRequiredCount > 0,

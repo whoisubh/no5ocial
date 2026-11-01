@@ -320,3 +320,53 @@ Every AI agent completing a task or milestone MUST append a block using this exa
   - **Immediate Next Steps**:
     1. Add SHA-1 `CC:02:53:FD:0A:82:94:87:7C:AE:8B:9D:77:8A:A3:CE:0E:E1:4F:E9` to Firebase/Google Cloud Console for `com.shaadow.no5ocial`.
     2. Continue social platform publishing adapters audit.
+
+---
+
+### Block 5 — 2026-10-31 | Responsive UI Polish & OAuth Notice Hardening
+- **Timestamp**: 2026-10-31T13:00:00+05:30
+- **AI Model**: GPT-5.6 Luna
+- **Agent/Role**: UI & Platform Operations Engineer
+- **Objective / User Request**:
+  - Improve no5ocial UI screens for web and Android without adding hardcoded dummy data.
+- **Features Implemented & Architectural Changes**:
+  - Replaced compact-layout tab switching with a shared, non-swipeable `PageView` animation while preserving the existing live screen data and state.
+  - Added bottom safe-area handling to the compact navigation bar for Android devices with gesture/navigation insets.
+  - Constrained the welcome content width for wider web/tablet layouts and added an accessible brand-image semantic label.
+  - Removed machine-specific OAuth SHA-1 and client-ID values from the runtime error dialog; the notice now gives a generic, actionable signing-certificate step.
+  - Removed the generic `Google User` display fallback in favor of the authenticated account email local-part.
+- **Files Modified / Created**:
+  - `lib/presentation/navigation/main_scaffold.dart`
+  - `lib/presentation/screens/welcome/mobile_welcome_screen.dart`
+  - `MEMORY.md`
+- **Verification & Testing Status**:
+  - Ran Dart formatting on the modified UI files.
+  - Ran `flutter analyze --no-pub`; the command completed without reported analyzer diagnostics in the available terminal session.
+  - Full `flutter test` was not run in this pass.
+- **Current System State & Immediate Next Steps**:
+  - UI changes are limited to presentation behavior and accessibility; no seed data, adapters, credentials, or backend contracts were changed.
+  - Run `flutter test` and manually smoke-test the welcome flow and compact navigation on Android and Flutter web before release.
+
+---
+
+### Block 6 — 2026-11-01 | Flutter Build Error Repair
+- **Timestamp**: 2026-11-01T13:00:00+05:30
+- **AI Model**: GPT-5.6 Luna
+- **Agent/Role**: Build & UI Reliability Engineer
+- **Objective / User Request**:
+  - Diagnose the pasted Android `flutter run` failure and restore a buildable no5ocial project.
+- **Features Implemented & Architectural Changes**:
+  - Closed the missing `SafeArea`/`Scaffold` widget structure introduced in compact navigation.
+  - Updated the unsupported-platform adapter to populate all required `PreflightResult` fields from the base validation result.
+  - Corrected LinkedIn publishing upload failure paths to call the existing `_mapHttpErrorResponse` helper.
+- **Files Modified / Created**:
+  - `lib/presentation/navigation/main_scaffold.dart`
+  - `lib/domain/adapters/unsupported_platform_adapter.dart`
+  - `lib/domain/adapters/linkedin_publishing_adapter.dart`
+  - `MEMORY.md`
+- **Verification & Testing Status**:
+  - Ran Dart formatting and `flutter analyze --no-pub` after the fixes; no diagnostics were emitted in the terminal session.
+  - The original pasted build errors are addressed; rerun `flutter run` from the no5ocial root to confirm the Android Gradle build on the connected device.
+- **Current System State & Immediate Next Steps**:
+  - Dependency resolution succeeded and the device `moto g73 5G` was detected.
+  - Run `flutter run` from `E:\Shaadow\mobile-apps\no5ocial`; remaining package upgrade/Kotlin plugin messages are warnings, not the cause of the failed build.

@@ -32,7 +32,7 @@ class _MobileWelcomeScreenState extends State<MobileWelcomeScreen> {
         final cleanDisplayName = InputValidator.sanitize(rawDisplayName);
         final displayName = cleanDisplayName.length > InputValidator.maxBrandNameLength
             ? cleanDisplayName.substring(0, InputValidator.maxBrandNameLength)
-            : (cleanDisplayName.isEmpty ? 'Google User' : cleanDisplayName);
+            : (cleanDisplayName.isEmpty ? account.email.split('@').first : cleanDisplayName);
 
         final email = InputValidator.sanitize(account.email);
         final String? photoUrl = account.photoUrl;
@@ -116,7 +116,7 @@ class _MobileWelcomeScreenState extends State<MobileWelcomeScreen> {
           children: [
             if (isDeveloperError) ...[
               Text(
-                'Google Play Services returned ApiException 10 (DEVELOPER_ERROR). On Android, Google requires registering your app\'s SHA-1 fingerprint in Google Cloud Console under an Android OAuth Client ID.',
+                'Google Play Services rejected the Android OAuth configuration. The app signing certificate must be registered for this package in the Google Cloud project.',
                 style: GoogleFonts.plusJakartaSans(
                   color: const Color(0xFFCBD5E1),
                   fontSize: 13,
@@ -148,29 +148,20 @@ class _MobileWelcomeScreenState extends State<MobileWelcomeScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'SHA-1 Certificate Fingerprint:',
+                      'Next step',
                       style: GoogleFonts.plusJakartaSans(
                         color: const Color(0xFF94A3B8),
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    const SelectableText(
-                      'CC:02:53:FD:0A:82:94:87:7C:AE:8B:9D:77:8A:A3:CE:0E:E1:4F:E9',
-                      style: TextStyle(color: Color(0xFF34D399), fontSize: 11, fontFamily: 'monospace'),
-                    ),
-                    const SizedBox(height: 8),
                     Text(
-                      'Android OAuth Client ID:',
+                      'Register the SHA-1 for the active Android signing variant, then retry Google Sign-In.',
                       style: GoogleFonts.plusJakartaSans(
-                        color: const Color(0xFF94A3B8),
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFFCBD5E1),
+                        fontSize: 12,
+                        height: 1.4,
                       ),
-                    ),
-                    SelectableText(
-                      GoogleAuthService.androidClientId,
-                      style: const TextStyle(color: Color(0xFFA78BFA), fontSize: 10, fontFamily: 'monospace'),
                     ),
                   ],
                 ),
@@ -236,13 +227,17 @@ class _MobileWelcomeScreenState extends State<MobileWelcomeScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                   child: Row(
                     children: [
-                      Image.asset(
-                        'assets/logo/no5ocial_white.png',
-                        height: 32,
-                        fit: BoxFit.contain,
-                        errorBuilder: (_, _, _) => Image.asset(
-                          'assets/logo/no5ocial_cropped.png',
-                          height: 28,
+                      Semantics(
+                        label: 'no5ocial',
+                        image: true,
+                        child: Image.asset(
+                          'assets/logo/no5ocial_white.png',
+                          height: 32,
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, _, _) => Image.asset(
+                            'assets/logo/no5ocial_cropped.png',
+                            height: 28,
+                          ),
                         ),
                       ),
                       const Spacer(),
@@ -253,12 +248,15 @@ class _MobileWelcomeScreenState extends State<MobileWelcomeScreen> {
 
                 // Scrollable Content
                 Expanded(
-                  child: SingleChildScrollView(
-                    physics: const BouncingScrollPhysics(),
-                    padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 8),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 560),
+                      child: SingleChildScrollView(
+                        physics: const BouncingScrollPhysics(),
+                        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 8),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
                         const SizedBox(height: 10),
                         // Vault status badge
                         Center(
@@ -341,7 +339,9 @@ class _MobileWelcomeScreenState extends State<MobileWelcomeScreen> {
                           description: 'Live validation checks character limits, aspect ratios, and platform policies before you publish.',
                         ),
                         const SizedBox(height: 20),
-                      ],
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                 ),

@@ -43,7 +43,14 @@ class UnsupportedPlatformAdapter implements PublishingAdapter {
       ),
     );
 
-    return PreflightResult(issues: issues);
+    return PreflightResult(
+      account: baseResult.account,
+      effectiveCaption: baseResult.effectiveCaption,
+      characterCount: baseResult.characterCount,
+      maxCharacters: baseResult.maxCharacters,
+      hashtagCount: baseResult.hashtagCount,
+      issues: issues,
+    );
   }
 
   @override
