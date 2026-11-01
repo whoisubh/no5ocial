@@ -350,10 +350,11 @@ class EntityDialogs {
     BuildContext context,
     AppState appState, {
     String? preselectedBrandId,
+    PlatformType? initialPlatform,
     void Function(SocialAccount account)? onSaved,
   }) {
     final selectedBrandId = preselectedBrandId ?? appState.primaryBrandId;
-    PlatformType selectedPlatform = PlatformType.youtube;
+    PlatformType selectedPlatform = initialPlatform ?? PlatformType.youtube;
     PlatformSubtype selectedSubtype = PlatformConfigRegistry.getDefaultSubtype(selectedPlatform);
     List<String> selectedFormats = List<String>.from(selectedSubtype.defaultFormats);
     String selectedPrivacy = 'unlisted'; // For YouTube
@@ -367,93 +368,425 @@ class EntityDialogs {
     String? verifiedToken;
     String selectedGroupValue = 'standalone';
 
+    Color getPlatformBrandColor(PlatformType platform) {
+      switch (platform) {
+        case PlatformType.youtube:
+          return const Color(0xFFFF0000);
+        case PlatformType.instagram:
+          return const Color(0xFFE1306C);
+        case PlatformType.threads:
+          return const Color(0xFF101010);
+        case PlatformType.linkedin:
+          return const Color(0xFF0A66C2);
+        case PlatformType.x:
+          return const Color(0xFF0F1419);
+        case PlatformType.facebook:
+          return const Color(0xFF1877F2);
+      }
+    }
+
+    Color getPlatformBgColor(PlatformType platform, bool isDark) {
+      if (isDark) {
+        switch (platform) {
+          case PlatformType.youtube:
+            return const Color(0xFF2C1010);
+          case PlatformType.instagram:
+            return const Color(0xFF2C101E);
+          case PlatformType.threads:
+            return const Color(0xFF1E2632);
+          case PlatformType.linkedin:
+            return const Color(0xFF0E2138);
+          case PlatformType.x:
+            return const Color(0xFF19222E);
+          case PlatformType.facebook:
+            return const Color(0xFF0E2242);
+        }
+      } else {
+        switch (platform) {
+          case PlatformType.youtube:
+            return const Color(0xFFFFF1F1);
+          case PlatformType.instagram:
+            return const Color(0xFFFDF2F5);
+          case PlatformType.threads:
+            return const Color(0xFFF1F5F9);
+          case PlatformType.linkedin:
+            return const Color(0xFFEFF6FC);
+          case PlatformType.x:
+            return const Color(0xFFF2F4F6);
+          case PlatformType.facebook:
+            return const Color(0xFFEFF6FF);
+        }
+      }
+    }
+
+    String getPlatformTagline(PlatformType platform) {
+      switch (platform) {
+        case PlatformType.youtube:
+          return 'Videos & Shorts';
+        case PlatformType.instagram:
+          return 'Reels & Carousels';
+        case PlatformType.threads:
+          return 'Discussions';
+        case PlatformType.linkedin:
+          return 'Personal & Page';
+        case PlatformType.x:
+          return 'Posts & Threads';
+        case PlatformType.facebook:
+          return 'Pages & Groups';
+      }
+    }
+
     _showAdaptiveModal(
       context,
       title: const Row(
         children: [
-          Icon(Icons.add_link, color: AppColors.accent),
+          Icon(Icons.hub_outlined, color: AppColors.accent, size: 20),
           SizedBox(width: 8),
-          Text('Connect Channel / Destination'),
+          Text('Connect Social Channel'),
         ],
       ),
       contentBuilder: (ctx, setDialogState, isMobile) {
+        final isDark = Theme.of(ctx).brightness == Brightness.dark;
         final availableGroups = appState.groups;
         final availableSubtypes = PlatformConfigRegistry.getSubtypes(selectedPlatform);
+        final hasMultipleSubtypes = availableSubtypes.length > 1;
+        final currentBrandColor = getPlatformBrandColor(selectedPlatform);
+        final effectiveTextColor = isDark ? Colors.white : AppColors.textPrimary;
 
-        final platformDropdown = DropdownButtonFormField<PlatformType>(
-          initialValue: selectedPlatform,
-          decoration: const InputDecoration(
-            labelText: 'Platform',
-            isDense: true,
-          ),
-          items: PlatformType.values.map((p) => DropdownMenuItem(
-            value: p,
-            child: Row(
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // 1. Interactive Platform Selection Header
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                PlatformLogo(platform: p, size: 16),
-                const SizedBox(width: 8),
-                Text(p.displayName, overflow: TextOverflow.ellipsis),
-              ],
-            ),
-          )).toList(),
-          onChanged: (val) {
-            if (val != null) {
-              setDialogState(() {
-                selectedPlatform = val;
-                selectedSubtype = PlatformConfigRegistry.getDefaultSubtype(val);
-                selectedFormats = List<String>.from(selectedSubtype.defaultFormats);
-                isIntegrated = false;
-                apiVerifiedTitle = null;
-                apiVerifiedHandle = null;
-                externalAccountId = null;
-              });
-            }
-          },
-        );
-
-        final subtypeDropdown = DropdownButtonFormField<PlatformSubtype>(
-          initialValue: selectedSubtype,
-          decoration: const InputDecoration(
-            labelText: 'Destination Sub-type *',
-            isDense: true,
-          ),
-          items: availableSubtypes.map((st) => DropdownMenuItem(
-            value: st,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  st.requiresAdminRole
-                      ? Icons.business_outlined
-                      : Icons.account_circle_outlined,
-                  size: 15,
-                  color: AppColors.accent,
+                Text(
+                  '1. SELECT PLATFORM',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.6,
+                    color: isDark ? const Color(0xFF94A3B8) : AppColors.textSecondary,
+                  ),
                 ),
-                const SizedBox(width: 6),
-                Text(st.name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF1E293B) : AppColors.surfaceSecondary,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    '${PlatformType.values.length} Supported',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? const Color(0xFFCBD5E1) : AppColors.textSecondary,
+                    ),
+                  ),
+                ),
               ],
             ),
-          )).toList(),
-          onChanged: (val) {
-            if (val != null) {
-              setDialogState(() {
-                selectedSubtype = val;
-                selectedFormats = List<String>.from(val.defaultFormats);
-                isIntegrated = false;
-                apiVerifiedTitle = null;
-                apiVerifiedHandle = null;
-                externalAccountId = null;
-              });
-            }
-          },
-        );
+            const SizedBox(height: 8),
 
-        final integrateButton = SizedBox(
-          height: 48,
-          child: ElevatedButton.icon(
-            onPressed: isIntegrated
-                ? null
-                : () async {
+            // 2. Responsive Platform UI Tiles
+            LayoutBuilder(
+              builder: (pCtx, constraints) {
+                final availableWidth = constraints.maxWidth;
+                final cols = availableWidth > 540 ? 6 : 3;
+                final spacing = 8.0;
+                final tileWidth = (availableWidth - ((cols - 1) * spacing)) / cols;
+
+                return Wrap(
+                  spacing: spacing,
+                  runSpacing: spacing,
+                  children: PlatformType.values.map((p) {
+                    final isSelected = selectedPlatform == p;
+                    final brandColor = getPlatformBrandColor(p);
+                    final tileBg = isSelected
+                        ? getPlatformBgColor(p, isDark)
+                        : (isDark ? const Color(0xFF121824) : AppColors.surface);
+                    final connectedCount = appState.accounts.where((a) => a.platform == p).length;
+
+                    return Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () {
+                          setDialogState(() {
+                            selectedPlatform = p;
+                            selectedSubtype = PlatformConfigRegistry.getDefaultSubtype(p);
+                            selectedFormats = List<String>.from(selectedSubtype.defaultFormats);
+                            isIntegrated = false;
+                            apiVerifiedTitle = null;
+                            apiVerifiedHandle = null;
+                            externalAccountId = null;
+                            verifiedToken = null;
+                          });
+                        },
+                        borderRadius: BorderRadius.circular(12),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 180),
+                          curve: Curves.easeOutCubic,
+                          width: tileWidth,
+                          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+                          decoration: BoxDecoration(
+                            color: tileBg,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: isSelected ? brandColor : (isDark ? const Color(0xFF27354A) : AppColors.border),
+                              width: isSelected ? 2 : 1,
+                            ),
+                            boxShadow: isSelected
+                                ? [
+                                    BoxShadow(
+                                      color: brandColor.withOpacity(0.2),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 3),
+                                    ),
+                                  ]
+                                : null,
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Stack(
+                                clipBehavior: Clip.none,
+                                children: [
+                                  Container(
+                                    width: 34,
+                                    height: 34,
+                                    decoration: BoxDecoration(
+                                      color: isSelected && p == PlatformType.instagram
+                                          ? null
+                                          : (isSelected
+                                              ? brandColor.withOpacity(0.14)
+                                              : (isDark ? const Color(0xFF1E293B) : AppColors.surfaceSecondary)),
+                                      gradient: isSelected && p == PlatformType.instagram
+                                          ? const LinearGradient(
+                                              colors: [Color(0xFF833AB4), Color(0xFFFD1D1D), Color(0xFFFCB045)],
+                                              begin: Alignment.topLeft,
+                                              end: Alignment.bottomRight,
+                                            )
+                                          : null,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Center(
+                                      child: PlatformLogo(
+                                        platform: p,
+                                        size: 16,
+                                        color: isSelected && p == PlatformType.instagram
+                                            ? Colors.white
+                                            : (isSelected ? brandColor : AppColors.textSecondary),
+                                      ),
+                                    ),
+                                  ),
+                                  if (isSelected)
+                                    Positioned(
+                                      right: -3,
+                                      top: -3,
+                                      child: Container(
+                                        padding: const EdgeInsets.all(2),
+                                        decoration: BoxDecoration(
+                                          color: brandColor,
+                                          shape: BoxShape.circle,
+                                          border: Border.all(
+                                            color: isDark ? const Color(0xFF161E2E) : Colors.white,
+                                            width: 1.5,
+                                          ),
+                                        ),
+                                        child: const Icon(Icons.check, size: 9, color: Colors.white),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                p.displayName,
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                                  color: isSelected
+                                      ? (isDark && brandColor == const Color(0xFF101010) ? Colors.white : brandColor)
+                                      : effectiveTextColor,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                connectedCount > 0 ? '$connectedCount linked' : getPlatformTagline(p),
+                                style: TextStyle(
+                                  fontSize: 9.5,
+                                  fontWeight: connectedCount > 0 ? FontWeight.w600 : FontWeight.w400,
+                                  color: connectedCount > 0
+                                      ? AppColors.success
+                                      : (isDark ? const Color(0xFF64748B) : AppColors.textMuted),
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                );
+              },
+            ),
+
+            // 3. Subtype Segmented Pills (if multiple subtypes exist)
+            if (hasMultipleSubtypes) ...[
+              const SizedBox(height: 14),
+              Text(
+                '2. ACCOUNT SCOPE',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.6,
+                  color: isDark ? const Color(0xFF94A3B8) : AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Row(
+                children: availableSubtypes.map((st) {
+                  final isSubtypeSelected = selectedSubtype.id == st.id;
+                  return Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 3),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () {
+                            setDialogState(() {
+                              selectedSubtype = st;
+                              selectedFormats = List<String>.from(st.defaultFormats);
+                              isIntegrated = false;
+                              apiVerifiedTitle = null;
+                              apiVerifiedHandle = null;
+                              externalAccountId = null;
+                              verifiedToken = null;
+                            });
+                          },
+                          borderRadius: BorderRadius.circular(10),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 8),
+                            decoration: BoxDecoration(
+                              color: isSubtypeSelected
+                                  ? (isDark ? const Color(0xFF1E293B) : AppColors.accentLight)
+                                  : (isDark ? const Color(0xFF121824) : AppColors.surface),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: isSubtypeSelected ? AppColors.accent : (isDark ? const Color(0xFF27354A) : AppColors.border),
+                                width: isSubtypeSelected ? 1.5 : 1,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  st.requiresAdminRole ? Icons.business_outlined : Icons.person_outline,
+                                  size: 15,
+                                  color: isSubtypeSelected ? AppColors.accent : AppColors.textSecondary,
+                                ),
+                                const SizedBox(width: 6),
+                                Flexible(
+                                  child: Text(
+                                    st.name,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: isSubtypeSelected ? FontWeight.w700 : FontWeight.w500,
+                                      color: isSubtypeSelected ? AppColors.accent : effectiveTextColor,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
+
+            // 4. Hero Connect / Verified Action Card
+            const SizedBox(height: 14),
+            if (isIntegrated) ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.success.withOpacity(isDark ? 0.15 : 0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.success.withOpacity(0.4)),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: AppColors.success.withOpacity(0.2),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Center(
+                        child: Icon(Icons.verified_rounded, color: AppColors.success, size: 22),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            apiVerifiedTitle ?? selectedSubtype.name,
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13.5,
+                              color: effectiveTextColor,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${apiVerifiedHandle ?? '@official'} · Ready to Publish',
+                            style: const TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
+                          ),
+                        ],
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        setDialogState(() {
+                          isIntegrated = false;
+                          apiVerifiedTitle = null;
+                          apiVerifiedHandle = null;
+                          externalAccountId = null;
+                          verifiedToken = null;
+                        });
+                      },
+                      child: const Text('Change', style: TextStyle(fontSize: 12)),
+                    ),
+                  ],
+                ),
+              ),
+            ] else ...[
+              Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  gradient: selectedPlatform == PlatformType.instagram
+                      ? const LinearGradient(
+                          colors: [Color(0xFF833AB4), Color(0xFFFD1D1D), Color(0xFFFCB045)],
+                          begin: Alignment.centerLeft,
+                          end: Alignment.centerRight,
+                        )
+                      : null,
+                ),
+                child: ElevatedButton.icon(
+                  onPressed: () async {
                     await _openPlatformAuthModal(
                       context: ctx,
                       platform: selectedPlatform,
@@ -470,51 +803,31 @@ class EntityDialogs {
                       },
                     );
                   },
-            icon: Icon(
-              isIntegrated ? Icons.check_circle : Icons.sync_lock_outlined,
-              size: 16,
-            ),
-            label: Text(isIntegrated ? 'Verified' : 'Authenticate'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: isIntegrated ? AppColors.success : AppColors.accent,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-            ),
-          ),
-        );
-
-        final hasMultipleSubtypes = availableSubtypes.length > 1;
-
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Responsive layout: Stack on mobile, grid row on desktop
-            if (isMobile) ...[
-              platformDropdown,
-              if (hasMultipleSubtypes) ...[
-                const SizedBox(height: 10),
-                subtypeDropdown,
-              ],
-              const SizedBox(height: 10),
-              integrateButton,
-            ] else ...[
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Expanded(flex: 4, child: platformDropdown),
-                  if (hasMultipleSubtypes) ...[
-                    const SizedBox(width: 8),
-                    Expanded(flex: 4, child: subtypeDropdown),
-                  ],
-                  const SizedBox(width: 8),
-                  integrateButton,
-                ],
+                  icon: PlatformLogo(
+                    platform: selectedPlatform,
+                    size: 18,
+                    color: Colors.white,
+                  ),
+                  label: Text(
+                    'Connect ${selectedPlatform.displayName} ${selectedSubtype.name}',
+                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: selectedPlatform == PlatformType.instagram
+                        ? Colors.transparent
+                        : (isDark && currentBrandColor == const Color(0xFF101010) ? const Color(0xFF1E293B) : currentBrandColor),
+                    foregroundColor: Colors.white,
+                    shadowColor: Colors.transparent,
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    elevation: 0,
+                  ),
+                ),
               ),
             ],
             const SizedBox(height: 12),
 
-            // Linking Conditions & Policy Requirements Card
+            // 5. Linking Conditions & Policy Requirements Card
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(

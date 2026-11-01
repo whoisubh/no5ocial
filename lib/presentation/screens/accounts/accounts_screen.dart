@@ -385,11 +385,12 @@ class _AccountsScreenState extends State<AccountsScreen> {
   }
 
   // --- Modal Dialog: Connect Social Channel ---
-  void _showConnectChannelDialog(BuildContext context, {String? preselectedBrandId}) {
+  void _showConnectChannelDialog(BuildContext context, {String? preselectedBrandId, PlatformType? initialPlatform}) {
     EntityDialogs.showConnectChannelDialog(
       context,
       widget.appState,
       preselectedBrandId: preselectedBrandId,
+      initialPlatform: initialPlatform,
     );
     return;
   }
@@ -726,27 +727,36 @@ class _AccountsScreenState extends State<AccountsScreen> {
   }
 
   Widget _buildSupportedPlatformBadge(String name, PlatformType type) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceSecondary,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          PlatformLogo(platform: type, size: 14),
-          const SizedBox(width: 5),
-          Text(
-            name,
-            style: const TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textPrimary,
-            ),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => _showConnectChannelDialog(context, initialPlatform: type),
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceSecondary,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AppColors.border),
           ),
-        ],
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              PlatformLogo(platform: type, size: 14),
+              const SizedBox(width: 6),
+              Text(
+                name,
+                style: const TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(width: 4),
+              const Icon(Icons.add, size: 12, color: AppColors.accent),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -1104,10 +1114,12 @@ class _AccountsScreenState extends State<AccountsScreen> {
                       spacing: 8,
                       runSpacing: 8,
                       children: [
-                        _buildSupportedPlatformBadge('Instagram', PlatformType.instagram),
-                        _buildSupportedPlatformBadge('X (Twitter)', PlatformType.x),
-                        _buildSupportedPlatformBadge('LinkedIn', PlatformType.linkedin),
                         _buildSupportedPlatformBadge('YouTube', PlatformType.youtube),
+                        _buildSupportedPlatformBadge('Instagram', PlatformType.instagram),
+                        _buildSupportedPlatformBadge('Threads', PlatformType.threads),
+                        _buildSupportedPlatformBadge('LinkedIn', PlatformType.linkedin),
+                        _buildSupportedPlatformBadge('X (Twitter)', PlatformType.x),
+                        _buildSupportedPlatformBadge('Facebook', PlatformType.facebook),
                       ],
                     ),
                     const SizedBox(height: 20),
